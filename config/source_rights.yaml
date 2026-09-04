@@ -1,0 +1,292 @@
+schema_version: 1
+policy_revision: 2026-09-05.1
+reviewed_on: 2026-09-05
+
+sources:
+  ncs_competency:
+    source_id: ncs_competency
+    policy_version: 1
+    source_owner: 한국산업인력공단
+    dataset_id: "15063879"
+    dataset_url: https://www.data.go.kr/data/15063879/openapi.do
+    license_code: DATA_GO_KR_NO_RESTRICTION
+    license_url: https://www.data.go.kr/data/15063879/openapi.do
+    observed_on: 2026-09-05
+    rights_basis: 공공데이터포털 메타데이터의 이용허락범위 제한 없음 표시
+    attribution_text: "Source: 한국산업인력공단 NCS 관련 정보 서비스 (data.go.kr 15063879)"
+    required_source_link: null
+    content_scope:
+      api_json_body: true
+      api_xml_body: true
+      file_body: false
+      attachment_metadata: false
+      attachment_bytes: false
+    scope_note: 공식 API가 반환하는 NCS 분류 및 능력단위 응답 본문만 허용
+    permissions:
+      retrieval: PERMITTED
+      commercial_use: PERMITTED
+      derivative_use: PERMITTED
+      raw_retention: PERMITTED
+      normalized_fact_storage: PERMITTED
+      evidence_excerpt_storage_display: PERMITTED
+      model_processing: PERMITTED
+      redistribution: PERMITTED
+    written_permission_required: false
+    written_permission_reference: null
+    deletion_correction_contact: 공공데이터포털 데이터 개선요청·오류신고 채널
+    deletion_correction_procedure: 제공기관의 정정·삭제 통지를 기록하고 영향받은 스냅샷과 파생물을 권리 삭제 절차로 처리
+    backup_retention_days: 210
+    activation_status: ALLOWED
+    blocking_reason: null
+
+  ncs_qualification:
+    source_id: ncs_qualification
+    policy_version: 1
+    source_owner: 한국산업인력공단
+    dataset_id: "15074404"
+    dataset_url: https://www.data.go.kr/data/15074404/openapi.do
+    license_code: DATA_GO_KR_NO_RESTRICTION
+    license_url: https://www.data.go.kr/data/15074404/openapi.do
+    observed_on: 2026-09-05
+    rights_basis: 공공데이터포털 메타데이터의 이용허락범위 제한 없음 표시
+    attribution_text: "Source: 한국산업인력공단 NCS 능력단위별 자격 종목 조회 서비스 (data.go.kr 15074404)"
+    required_source_link: null
+    content_scope:
+      api_json_body: true
+      api_xml_body: true
+      file_body: false
+      attachment_metadata: false
+      attachment_bytes: false
+    scope_note: 공식 API가 반환하는 NCS 능력단위와 자격 종목 매핑 응답 본문만 허용
+    permissions:
+      retrieval: PERMITTED
+      commercial_use: PERMITTED
+      derivative_use: PERMITTED
+      raw_retention: PERMITTED
+      normalized_fact_storage: PERMITTED
+      evidence_excerpt_storage_display: PERMITTED
+      model_processing: PERMITTED
+      redistribution: PERMITTED
+    written_permission_required: false
+    written_permission_reference: null
+    deletion_correction_contact: 공공데이터포털 데이터 개선요청·오류신고 채널
+    deletion_correction_procedure: 제공기관의 정정·삭제 통지를 기록하고 영향받은 스냅샷과 파생물을 권리 삭제 절차로 처리
+    backup_retention_days: 210
+    activation_status: ALLOWED
+    blocking_reason: null
+
+  qnet_schedule:
+    source_id: qnet_schedule
+    policy_version: 1
+    source_owner: 한국산업인력공단
+    dataset_id: "15074408"
+    dataset_url: https://www.data.go.kr/data/15074408/openapi.do
+    license_code: DATA_GO_KR_NO_RESTRICTION
+    license_url: https://www.data.go.kr/data/15074408/openapi.do
+    observed_on: 2026-09-05
+    rights_basis: 공공데이터포털 메타데이터의 이용허락범위 제한 없음 표시
+    attribution_text: "Source: 한국산업인력공단 국가자격 시험일정 조회 서비스 (data.go.kr 15074408)"
+    required_source_link: null
+    content_scope:
+      api_json_body: true
+      api_xml_body: true
+      file_body: false
+      attachment_metadata: false
+      attachment_bytes: false
+    scope_note: 공식 API가 반환하는 국가자격 시험일정 응답 본문만 허용
+    permissions:
+      retrieval: PERMITTED
+      commercial_use: PERMITTED
+      derivative_use: PERMITTED
+      raw_retention: PERMITTED
+      normalized_fact_storage: PERMITTED
+      evidence_excerpt_storage_display: PERMITTED
+      model_processing: PERMITTED
+      redistribution: PERMITTED
+    written_permission_required: false
+    written_permission_reference: null
+    deletion_correction_contact: 공공데이터포털 데이터 개선요청·오류신고 채널
+    deletion_correction_procedure: 제공기관의 정정·삭제 통지를 기록하고 영향받은 스냅샷과 파생물을 권리 삭제 절차로 처리
+    backup_retention_days: 210
+    activation_status: ALLOWED
+    blocking_reason: null
+
+  ncs_career_path:
+    source_id: ncs_career_path
+    policy_version: 1
+    source_owner: 한국산업인력공단
+    dataset_id: "15088716"
+    dataset_url: https://www.data.go.kr/data/15088716/fileData.do
+    license_code: DATA_GO_KR_NO_RESTRICTION
+    license_url: https://www.data.go.kr/data/15088716/fileData.do
+    observed_on: 2026-09-05
+    rights_basis: 공공데이터포털 메타데이터의 이용허락범위 제한 없음 표시
+    attribution_text: "Source: 한국산업인력공단 NCS 경력개발경로 파일 (data.go.kr 15088716)"
+    required_source_link: null
+    content_scope:
+      api_json_body: false
+      api_xml_body: false
+      file_body: true
+      attachment_metadata: false
+      attachment_bytes: false
+    scope_note: 공공데이터포털에 게시된 공식 CSV 원문 파일만 허용
+    permissions:
+      retrieval: PERMITTED
+      commercial_use: PERMITTED
+      derivative_use: PERMITTED
+      raw_retention: PERMITTED
+      normalized_fact_storage: PERMITTED
+      evidence_excerpt_storage_display: PERMITTED
+      model_processing: PERMITTED
+      redistribution: PERMITTED
+    written_permission_required: false
+    written_permission_reference: null
+    deletion_correction_contact: 공공데이터포털 데이터 개선요청·오류신고 채널
+    deletion_correction_procedure: 제공기관의 정정·삭제 통지를 기록하고 영향받은 스냅샷과 파생물을 권리 삭제 절차로 처리
+    backup_retention_days: 210
+    activation_status: ALLOWED
+    blocking_reason: null
+
+  job_alio:
+    source_id: job_alio
+    policy_version: 1
+    source_owner: 재정경제부
+    dataset_id: "15125273"
+    dataset_url: https://www.data.go.kr/data/15125273/openapi.do
+    license_code: DATA_GO_KR_NO_RESTRICTION
+    license_url: https://www.data.go.kr/data/15125273/openapi.do
+    observed_on: 2026-09-05
+    rights_basis: 공공데이터포털 메타데이터의 이용허락범위 제한 없음 표시
+    attribution_text: "Source: 재정경제부 공공기관 채용정보 조회서비스 (data.go.kr 15125273)"
+    required_source_link: null
+    content_scope:
+      api_json_body: true
+      api_xml_body: false
+      file_body: false
+      attachment_metadata: true
+      attachment_bytes: false
+    scope_note: 목록·상세 API JSON과 상세 JSON 안의 첨부파일 메타데이터만 허용하며 첨부 URL의 파일 바이트는 명시적으로 제외
+    permissions:
+      retrieval: PERMITTED
+      commercial_use: PERMITTED
+      derivative_use: PERMITTED
+      raw_retention: PERMITTED
+      normalized_fact_storage: PERMITTED
+      evidence_excerpt_storage_display: PERMITTED
+      model_processing: PERMITTED
+      redistribution: PERMITTED
+    written_permission_required: false
+    written_permission_reference: null
+    deletion_correction_contact: 공공데이터포털 데이터 개선요청·오류신고 채널
+    deletion_correction_procedure: 제공기관의 정정·삭제 통지를 기록하고 영향받은 API 스냅샷과 파생물을 권리 삭제 절차로 처리
+    backup_retention_days: 210
+    activation_status: ALLOWED
+    blocking_reason: null
+
+  alio_organization:
+    source_id: alio_organization
+    policy_version: 1
+    source_owner: 재정경제부
+    dataset_id: "15125287"
+    dataset_url: https://www.data.go.kr/data/15125287/openapi.do
+    license_code: DATA_GO_KR_NO_RESTRICTION
+    license_url: https://www.data.go.kr/data/15125287/openapi.do
+    observed_on: 2026-09-05
+    rights_basis: 공공데이터포털 메타데이터의 이용허락범위 제한 없음 표시
+    attribution_text: "Source: 재정경제부 공공기관 정보 조회 서비스 (data.go.kr 15125287)"
+    required_source_link: null
+    content_scope:
+      api_json_body: true
+      api_xml_body: true
+      file_body: false
+      attachment_metadata: false
+      attachment_bytes: false
+    scope_note: 공식 API가 반환하는 공공기관 정보 응답 본문만 허용
+    permissions:
+      retrieval: PERMITTED
+      commercial_use: PERMITTED
+      derivative_use: PERMITTED
+      raw_retention: PERMITTED
+      normalized_fact_storage: PERMITTED
+      evidence_excerpt_storage_display: PERMITTED
+      model_processing: PERMITTED
+      redistribution: PERMITTED
+    written_permission_required: false
+    written_permission_reference: null
+    deletion_correction_contact: 공공데이터포털 데이터 개선요청·오류신고 채널
+    deletion_correction_procedure: 제공기관의 정정·삭제 통지를 기록하고 영향받은 스냅샷과 파생물을 권리 삭제 절차로 처리
+    backup_retention_days: 210
+    activation_status: ALLOWED
+    blocking_reason: null
+
+  saramin:
+    source_id: saramin
+    policy_version: 1
+    source_owner: 주식회사 사람인
+    dataset_id: saramin-job-search
+    dataset_url: https://oapi.saramin.co.kr/guide/job-search
+    license_code: SARAMIN_WRITTEN_PERMISSION_PENDING
+    license_url: https://oapi.saramin.co.kr/caution
+    observed_on: 2026-09-05
+    rights_basis: 공개 약관은 출처표시와 유료·재판매 제한을 두지만 원문 보존·정규화·모델 처리 권한은 명확히 부여하지 않음
+    attribution_text: "Powered by 취업 사람인"
+    required_source_link: https://www.saramin.co.kr/
+    content_scope:
+      api_json_body: true
+      api_xml_body: true
+      file_body: false
+      attachment_metadata: false
+      attachment_bytes: false
+    scope_note: 사람인 채용정보 API 응답에 대한 정책이며 별도 웹 크롤링은 포함하지 않음
+    permissions:
+      retrieval: PERMITTED
+      commercial_use: PROHIBITED
+      derivative_use: UNKNOWN
+      raw_retention: UNKNOWN
+      normalized_fact_storage: UNKNOWN
+      evidence_excerpt_storage_display: UNKNOWN
+      model_processing: UNKNOWN
+      redistribution: UNKNOWN
+    written_permission_required: true
+    written_permission_reference: null
+    deletion_correction_contact: api@saramin.co.kr
+    deletion_correction_procedure: 서면 권리 확인 전 활성화하지 않으며 정정·삭제 통지 시 관련 원문과 파생물을 권리 삭제 절차로 처리
+    backup_retention_days: 0
+    activation_status: BLOCKED
+    blocking_reason: 원문 보존·정규화 사실·근거 발췌·모델 처리에 대한 사람인의 서면 허가가 아직 기록되지 않음
+
+  work24_training:
+    source_id: work24_training
+    policy_version: 1
+    source_owner: 한국고용정보원
+    dataset_id: "000000000000000000000000000004"
+    dataset_url: https://www.work24.go.kr/cm/e/a/0110/selectOpenApiSvcInfo.do?fullApiSvcId=000000000000000000000000000004
+    license_code: WORK24_WRITTEN_PERMISSION_PENDING
+    license_url: https://www.work24.go.kr/cm/c/d/0130/retrieveCpyrPoly.do
+    observed_on: 2026-09-05
+    rights_basis: 공개 저작권정책은 표시된 공공누리 제4유형과 미표시 자료를 구분하며 API 원문의 보존·정규화·모델 처리 권한을 일괄 부여하지 않음
+    attribution_text: "Source: 고용24 국민내일배움카드 훈련과정 API"
+    required_source_link: https://www.work24.go.kr/
+    content_scope:
+      api_json_body: true
+      api_xml_body: true
+      file_body: false
+      attachment_metadata: false
+      attachment_bytes: false
+    scope_note: 승인받은 고용24 훈련과정 API 응답에 대한 정책이며 웹페이지나 훈련기관 저작물은 포함하지 않음
+    permissions:
+      retrieval: PERMITTED
+      commercial_use: UNKNOWN
+      derivative_use: UNKNOWN
+      raw_retention: UNKNOWN
+      normalized_fact_storage: UNKNOWN
+      evidence_excerpt_storage_display: UNKNOWN
+      model_processing: UNKNOWN
+      redistribution: UNKNOWN
+    written_permission_required: true
+    written_permission_reference: null
+    deletion_correction_contact: 고용24 OPEN-API 신청·문의 채널
+    deletion_correction_procedure: 서면 권리 확인 전 활성화하지 않으며 정정·삭제 통지 시 관련 원문과 파생물을 권리 삭제 절차로 처리
+    backup_retention_days: 0
+    activation_status: BLOCKED
+    blocking_reason: 원문 보존·정규화·근거 발췌·모델 처리에 대한 한국고용정보원의 서면 허가가 아직 기록되지 않음

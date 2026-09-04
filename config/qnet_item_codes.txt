@@ -1,0 +1,2 @@
+# One relevant four-character Q-Net qualification item code (jmCd) per line.
+# Populate this from accepted NCS-to-qualification results before fetching examination schedules.

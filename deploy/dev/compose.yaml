@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: jobtology_pipeline
+      POSTGRES_USER: jobtology_pipeline
+      POSTGRES_PASSWORD: jobtology_dev_only
+    ports:
+      - "127.0.0.1:55432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jobtology_pipeline -d jobtology_pipeline"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    volumes:
+      - jobtology_pipeline_pgdata:/var/lib/postgresql/data
+
+volumes:
+  jobtology_pipeline_pgdata:

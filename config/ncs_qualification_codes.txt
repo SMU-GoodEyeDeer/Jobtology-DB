@@ -1,0 +1,3 @@
+# One relevant full versioned NCS competency-unit code per line (for example,
+# 1501020207_14v2). Populate this deterministically from the fetched NCS taxonomy before
+# running ncs_qualification. Do not guess codes: this list defines the CS/AI lookup partition.
