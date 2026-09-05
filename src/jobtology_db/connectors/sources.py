@@ -7,6 +7,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from jobtology_db.connectors.base import (
+    DEFAULT_API_SUCCESS_CODES,
     Connector,
     DeclaredTotalConnector,
     Pagination,
@@ -45,6 +46,7 @@ SOURCE_IDS = (
 NCS_UNIT_CODE_PATTERN = re.compile(r"^\d{10}_\d{2}v\d+$")
 QNET_ITEM_CODE_PATTERN = re.compile(r"^[A-Z0-9]{4}$")
 WORK24_MVP_COURSE_TYPES = frozenset({"C0061", "C0104", "C0105"})
+ALIO_API_SUCCESS_CODES = DEFAULT_API_SUCCESS_CODES | {"200"}
 SOURCE_REQUIRED_CONTENT: dict[str, tuple[ContentKind, ...]] = {
     "ncs_competency": ("api_json_body",),
     "ncs_qualification": ("api_json_body",),
@@ -144,8 +146,11 @@ def build_connector(source_id: str, settings: Settings) -> Connector:
             display_name="HRDKorea NCS competency API",
             endpoint="https://c.q-net.or.kr/openapi/Ncs1info/ncsinfo.do",
             allowed_hosts=frozenset({"c.q-net.or.kr"}),
-            partitions=(("all", {"ServiceKey": key, "type": "json"}),),
-            secret_param_names=frozenset({"ServiceKey"}),
+            # CQ-Net's live endpoint treats this parameter name as case-sensitive.
+            # Despite the public catalog displaying ``ServiceKey``, only the lowercase
+            # spelling is accepted by the provider as of 2026-09-06.
+            partitions=(("all", {"serviceKey": key, "type": "json"}),),
+            secret_param_names=frozenset({"serviceKey"}),
             pagination=Pagination("pageNo", "numOfRows", 1, 1000),
         )
 
@@ -169,7 +174,10 @@ def build_connector(source_id: str, settings: Settings) -> Connector:
             allowed_hosts=frozenset({"apis.data.go.kr"}),
             partitions=partitions,
             secret_param_names=frozenset({"serviceKey"}),
-            pagination=Pagination("pageNo", "numOfRows", 1, 100),
+            # The live HRDKorea endpoint rejects page sizes above 50 with
+            # resultCode=930, even though the portal metadata does not expose
+            # that ceiling in the request-variable table.
+            pagination=Pagination("pageNo", "numOfRows", 1, 50),
         )
 
     if source_id == "qnet_schedule":
@@ -200,7 +208,8 @@ def build_connector(source_id: str, settings: Settings) -> Connector:
                 for item_code in item_codes
             ),
             secret_param_names=frozenset({"serviceKey"}),
-            pagination=Pagination("pageNo", "numOfRows", 1, 100),
+            # This sibling HRDKorea endpoint enforces the same live 50-row cap.
+            pagination=Pagination("pageNo", "numOfRows", 1, 50),
         )
 
     if source_id == "job_alio":
@@ -220,6 +229,7 @@ def build_connector(source_id: str, settings: Settings) -> Connector:
             partitions=(("institutions", {"serviceKey": key, "resultType": "json"}),),
             secret_param_names=frozenset({"serviceKey"}),
             pagination=Pagination("pageNo", "numOfRows", 1, 100),
+            accepted_success_codes=ALIO_API_SUCCESS_CODES,
         )
 
     if source_id == "saramin":
@@ -313,7 +323,7 @@ class JobAlioConnector:
         self, request: RequestSpec, body: bytes, content_type: str
     ) -> PageMetadata:
         document = parse_response_document(body, content_type)
-        validate_api_result(document)
+        validate_api_result(document, accepted_success_codes=ALIO_API_SUCCESS_CODES)
         if request.partition_id.startswith("detail-"):
             expected_identity = request.params.get("sn", "").strip()
             identities = {

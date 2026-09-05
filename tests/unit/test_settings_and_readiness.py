@@ -138,6 +138,19 @@ def test_data_go_sources_require_shared_credential_and_source_specific_config(
     )
 
 
+def test_ncs_competency_uses_live_cq_net_service_key_casing() -> None:
+    connector = build_connector(
+        "ncs_competency",
+        Settings(DATA_GO_KR_SERVICE_KEY=SecretStr("shared-key")),
+    )
+
+    request = connector.initial_requests()[0]
+
+    assert request.params["serviceKey"] == "shared-key"
+    assert "ServiceKey" not in request.params
+    assert request.secret_param_names == frozenset({"serviceKey"})
+
+
 @pytest.mark.parametrize(
     "contents",
     [
@@ -192,6 +205,7 @@ def test_ncs_qualification_deduplicates_full_versioned_codes_in_input_order(
         "1501020207_14v2",
         "2001010101_01v1",
     ]
+    assert all(request.params["numOfRows"] == "50" for request in requests)
 
 
 @pytest.mark.parametrize(
@@ -250,6 +264,7 @@ def test_qnet_schedule_deduplicates_items_and_crosses_them_with_years(
         "1320",
         "AB12",
     ]
+    assert all(request.params["numOfRows"] == "50" for request in requests)
 
 
 def test_ncs_career_file_uses_nonsecret_pinned_url() -> None:

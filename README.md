@@ -34,6 +34,22 @@ The public NCS career-path file needs no provider key and can be collected immed
 uv run jobtology fetch run ncs_career_path --mode backfill
 ```
 
+The two dependent Q-Net sources use partition files derived from complete upstream snapshots. Copy
+the `connector_run_id` printed by each full fetch into the next command:
+
+```bash
+uv run jobtology fetch run ncs_competency --mode scheduled-full
+uv run jobtology derive ncs-qualification-codes <ncs-competency-connector-run-id>
+uv run jobtology fetch run ncs_qualification --mode scheduled-full
+uv run jobtology derive qnet-item-codes <ncs-qualification-connector-run-id>
+uv run jobtology fetch run qnet_schedule --mode scheduled-full
+```
+
+Derivation verifies that the upstream run is complete, every selected raw object still matches its
+manifest hash and length, and NCS IDs are unique. If the CQ-Net API changes ordering between pages
+and returns overlaps, derivation fails closed; rerun the full upstream fetch rather than combining
+pages from different snapshots.
+
 Make a bounded smoke-test collection:
 
 ```bash
@@ -91,4 +107,5 @@ work24_training      Work24 training API, including K-Digital course categories
 
 The architecture and finalized ontology decisions are in
 [docs/implementation-plan.md](docs/implementation-plan.md). Implemented source-contract changes are
-recorded in [ADR 0001](docs/decisions/0001-official-source-contracts.md).
+recorded in [ADR 0001](docs/decisions/0001-official-source-contracts.md). The latest fetched-source
+counts and current storage shape are in [the collection status report](docs/collection-status.md).

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+from typing import Annotated
 
 import httpx
 import typer
@@ -21,6 +22,13 @@ from jobtology_db.doctor import (
     secret_file_issue,
     source_wait_is_failure,
 )
+from jobtology_db.partition_config import (
+    MVP_NCS_SUBCATEGORY_ALLOWLIST_VERSION,
+    PartitionConfigError,
+    derive_ncs_qualification_codes,
+    derive_qnet_item_codes,
+    write_partition_codes,
+)
 from jobtology_db.pipeline.fetch import FetchEngine, FetchRunError, RetryPolicy, planned_requests
 from jobtology_db.pipeline.request_security import redacted_url
 from jobtology_db.settings import Settings
@@ -30,8 +38,13 @@ from jobtology_db.storage.raw_files import RawFileStore
 app = typer.Typer(help="Jobtology source ingestion CLI", no_args_is_help=True)
 sources_app = typer.Typer(help="Inspect connector configuration", no_args_is_help=True)
 fetch_app = typer.Typer(help="Plan or execute raw source fetches", no_args_is_help=True)
+derive_app = typer.Typer(help="Derive connector partitions from fetched runs", no_args_is_help=True)
 app.add_typer(sources_app, name="sources")
 app.add_typer(fetch_app, name="fetch")
+app.add_typer(derive_app, name="derive")
+
+_DEFAULT_NCS_QUALIFICATION_CODES_PATH = Path("config/ncs_qualification_codes.txt")
+_DEFAULT_QNET_ITEM_CODES_PATH = Path("config/qnet_item_codes.txt")
 
 
 @sources_app.command("list")
@@ -170,6 +183,77 @@ def run_fetch(
 
     typer.echo(json.dumps(summary.model_dump(mode="json"), ensure_ascii=False, indent=2))
     typer.echo("Raw fetch completed. Run remains RUNNING at stage FETCHED for later processing.")
+
+
+@derive_app.command("ncs-qualification-codes")
+def derive_ncs_qualification_codes_command(
+    connector_run_id: str = typer.Argument(help="Complete ncs_competency connector run ID"),
+    output: Annotated[
+        Path,
+        typer.Option("--output", help="Destination connector partition file"),
+    ] = _DEFAULT_NCS_QUALIFICATION_CODES_PATH,
+) -> None:
+    """Derive MVP NCS unit-code partitions from a complete competency fetch."""
+
+    settings = Settings()
+    database_url = settings.database_url()
+    if database_url is None:
+        typer.echo("Error: JOBTOLOGY_PIPELINE_DATABASE_URL is required", err=True)
+        raise typer.Exit(code=2)
+    try:
+        codes = derive_ncs_qualification_codes(
+            database_url,
+            settings.JOBTOLOGY_RAW_ROOT,
+            connector_run_id,
+        )
+        write_partition_codes(output, codes)
+    except PartitionConfigError as error:
+        typer.echo(f"Error: {error}", err=True)
+        raise typer.Exit(code=1) from error
+    except Exception as error:
+        typer.echo(
+            "Error: partition derivation infrastructure failed; credentials were not printed",
+            err=True,
+        )
+        raise typer.Exit(code=1) from error
+    typer.echo(
+        f"Wrote {len(codes)} NCS codes to {output} "
+        f"(allowlist {MVP_NCS_SUBCATEGORY_ALLOWLIST_VERSION})."
+    )
+
+
+@derive_app.command("qnet-item-codes")
+def derive_qnet_item_codes_command(
+    connector_run_id: str = typer.Argument(help="Complete ncs_qualification connector run ID"),
+    output: Annotated[
+        Path,
+        typer.Option("--output", help="Destination connector partition file"),
+    ] = _DEFAULT_QNET_ITEM_CODES_PATH,
+) -> None:
+    """Derive Q-Net item-code partitions from a complete NCS mapping fetch."""
+
+    settings = Settings()
+    database_url = settings.database_url()
+    if database_url is None:
+        typer.echo("Error: JOBTOLOGY_PIPELINE_DATABASE_URL is required", err=True)
+        raise typer.Exit(code=2)
+    try:
+        codes = derive_qnet_item_codes(
+            database_url,
+            settings.JOBTOLOGY_RAW_ROOT,
+            connector_run_id,
+        )
+        write_partition_codes(output, codes)
+    except PartitionConfigError as error:
+        typer.echo(f"Error: {error}", err=True)
+        raise typer.Exit(code=1) from error
+    except Exception as error:
+        typer.echo(
+            "Error: partition derivation infrastructure failed; credentials were not printed",
+            err=True,
+        )
+        raise typer.Exit(code=1) from error
+    typer.echo(f"Wrote {len(codes)} Q-Net item codes to {output}.")
 
 
 def _connector(source_id: str, settings: Settings) -> Connector:

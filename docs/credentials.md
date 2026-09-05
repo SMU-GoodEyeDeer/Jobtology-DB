@@ -56,13 +56,11 @@ the registry revision, and review that change in Git. Activation also requires w
 that can support a complete, reproducible collection; the current 500-posting daily limit is not
 assumed sufficient. There is no environment-variable bypass.
 
-## 3. Work24 (`WORK24_AUTH_KEY`)
+## 3. Work24 (`WORK24_AUTH_KEY`) — not required for the MVP
 
-Work24 issues Open API keys to enterprise members after an application and staff review. Apply for the
-training-course API and record the approved purpose/retention terms. The connector calls the training
-list endpoint; `C0104` and `C0105` select K-Digital Training and basic digital competency, and `C0061`
-adds the general 국민내일배움카드 catalog for regular/low-cost alternatives. (`C0054`, which is not in
-the default MVP partitions, is the separate 국가기간전략산업직종 code.)
+Work24 issues Open API keys only to enterprise members after an application and staff review. This
+school project will not create an enterprise account merely to unlock that API, so leave
+`WORK24_AUTH_KEY` empty. The connector remains dormant and rights-blocked for possible post-MVP use.
 
 The public documentation does not state a clear blanket retention/derivative-data license or call
 quota. Confirm raw retention, normalization, excerpts, model processing, and any commercial use during
@@ -99,13 +97,14 @@ feed. Update the pinned URL only when the official catalog publishes a replaceme
 1. Start PostgreSQL and run `uv run alembic upgrade head`.
 2. Add the data.go.kr key and activate all five API applications.
 3. Run one-page `backfill` smoke tests for `ncs_competency`, `alio_organization`, and `job_alio`.
-4. Derive the MVP-relevant full versioned competency-unit code list from the NCS taxonomy, place it in
-   `config/ncs_qualification_codes.txt`, then smoke-test `ncs_qualification`.
-5. Derive the accepted qualification item codes from that mapping, place them in
-   `config/qnet_item_codes.txt`, then smoke-test `qnet_schedule`. Partitioning by item code preserves
-   the qualification context even when a schedule response omits the item code itself.
+4. Run a complete `ncs_competency` fetch and pass its printed connector-run ID to
+   `jobtology derive ncs-qualification-codes`. The command verifies one coherent complete snapshot
+   and writes `config/ncs_qualification_codes.txt`; then fetch `ncs_qualification`.
+5. Pass that complete mapping run's connector-run ID to `jobtology derive qnet-item-codes`. It writes
+   `config/qnet_item_codes.txt`; then fetch `qnet_schedule`. Partitioning by item code preserves the
+   qualification context even when a schedule response omits the item code itself.
 6. Fetch the pinned NCS career-path artifact once.
-7. Add Saramin and Work24 only after their approvals and rights notes are recorded.
+7. Add Saramin only after its approval and rights notes are recorded. Work24 is post-MVP.
 8. Run uncapped `scheduled-full` fetches. Continue into parsing/grounding only after that later pipeline
    exists; raw fetching alone intentionally does not mark a run successful.
 

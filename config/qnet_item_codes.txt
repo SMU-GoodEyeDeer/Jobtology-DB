@@ -1,2 +1,31 @@
-# One relevant four-character Q-Net qualification item code (jmCd) per line.
-# Populate this from accepted NCS-to-qualification results before fetching examination schedules.
+3T0F
+4T0F
+6T0B
+6T0C
+C193
+C290
+E801
+E921
+G545
+G772
+H3M6
+T2E4
+T2E6
+T37A
+T3A0
+T3A6
+T50C
+T53C
+T55A
+T5A6
+T5B6
+T5C6
+T5H0
+T5H6
+T5J6
+T60A
+T60B
+T63A
+T65A
+T6A6
+T6B6

@@ -64,6 +64,29 @@ def test_disabling_active_filter_omits_ongoing_parameter() -> None:
     assert "ongoingYn" not in request.params
 
 
+def test_official_numeric_200_result_code_is_accepted() -> None:
+    source = JobAlioConnector("secret")
+    request = source.initial_requests()[0]
+
+    metadata = source.validate_response(
+        request,
+        json.dumps(
+            {
+                "resultCode": 200,
+                "resultMsg": "성공했습니다.",
+                "totalCount": 1,
+                "pageNo": 1,
+                "result": [{"recrutPblntSn": "POST-001"}],
+            },
+            separators=(",", ":"),
+        ).encode(),
+        "application/json",
+    )
+
+    assert metadata.total_count == 1
+    assert metadata.discovered_record_ids == ("POST-001",)
+
+
 def test_first_list_page_expands_remaining_page_and_each_unique_detail() -> None:
     source = JobAlioConnector("secret")
     first = source.initial_requests()[0]

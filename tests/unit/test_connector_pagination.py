@@ -124,6 +124,7 @@ def test_bounded_backfill_within_provider_page_ceiling_is_allowed() -> None:
     ("body", "message"),
     [
         (b'{"response":{"header":{"resultCode":"30"},"body":{"totalCount":1}}}', "resultCode"),
+        (b'{"resultCode":200,"totalCount":1,"pageNo":1}', "resultCode"),
         (b'{"response":{"body":{"pageNo":1}}}', "declared total"),
         (b"{not-json", "Invalid JSON"),
     ],

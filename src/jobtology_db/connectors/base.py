@@ -14,6 +14,9 @@ class ResponseContractError(ValueError):
     pass
 
 
+DEFAULT_API_SUCCESS_CODES = frozenset({"00", "0", "SUCCESS"})
+
+
 class Connector(Protocol):
     @property
     def source_id(self) -> str: ...
@@ -56,6 +59,7 @@ class DeclaredTotalConnector:
     partitions: tuple[tuple[str, dict[str, str]], ...]
     secret_param_names: frozenset[str]
     pagination: Pagination
+    accepted_success_codes: frozenset[str] = DEFAULT_API_SUCCESS_CODES
     completeness_mode: CompletenessMode = CompletenessMode.DECLARED_TOTAL
 
     def initial_requests(self) -> Sequence[RequestSpec]:
@@ -84,7 +88,7 @@ class DeclaredTotalConnector:
         self, request: RequestSpec, body: bytes, content_type: str
     ) -> PageMetadata:
         document = parse_response_document(body, content_type)
-        validate_api_result(document)
+        validate_api_result(document, accepted_success_codes=self.accepted_success_codes)
         total = extract_first_int(document, ("totalCount", "total", "scn_cnt"))
         if total is None or total < 0:
             raise ResponseContractError("Response does not contain a valid declared total")
@@ -185,16 +189,20 @@ def parse_response_document(body: bytes, content_type: str) -> object:
         raise ResponseContractError("Response is neither valid JSON nor XML") from error
 
 
-def validate_api_result(document: object) -> None:
+def validate_api_result(
+    document: object,
+    *,
+    accepted_success_codes: frozenset[str] = DEFAULT_API_SUCCESS_CODES,
+) -> None:
     result_codes = list(find_values(document, {"resultCode"}))
     for code in result_codes:
-        if str(code).strip() not in {"00", "0", "SUCCESS"}:
+        if str(code).strip() not in accepted_success_codes:
             raise ResponseContractError(f"Provider returned resultCode={code!s}")
 
     mapping = cast(dict[object, object], document) if isinstance(document, dict) else {}
     if "code" in mapping and not any(key in mapping for key in ("jobs", "response", "HRDNet")):
         code = str(mapping["code"]).strip()
-        if code not in {"00", "0", "SUCCESS"}:
+        if code not in accepted_success_codes:
             raise ResponseContractError(f"Provider returned code={code}")
 
 
