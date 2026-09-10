@@ -1,9 +1,23 @@
 # Jobtology data ingestion
 
 This repository owns source fetching, immutable raw storage, processing, grounding, and loading for
-the Jobtology ontology. The current executable slice implements **fetching only**: official source
-connectors validate each response, store its bytes by SHA-256, and write an append-only fetch ledger
-to PostgreSQL. It deliberately does not write Neo4j yet.
+the Jobtology ontology. The executable pipeline now implements **fetching, deterministic parsing,
+normalization, PostgreSQL staging, and an optional Neo4j staging loader**. A global updater runs
+due sources, detects changes, and reuses processing checkpoints. Final grounded claims and serving
+corpus publication remain subsequent work; graph staging is not a recommendation dataset.
+
+See [the processing/operations guide](docs/processing-pipeline.md) for implementation, deployment
+instructions, limitations, and local processing results.
+
+For a manual Apache Hop implementation, start with the
+[beginner's Hop migration guide](docs/hop-migration-guide.md). It includes an isolated Docker
+learning kit, visual pipeline exercises, and a source-by-source migration checklist.
+
+The [canonical schema guide](docs/canonical-schemas.md) covers the source-independent NCS, posting,
+organization, Person-projection and grounding contracts, PostgreSQL migration and Neo4j constraint
+DDL. Inspect them offline with `uv run jobtology schema list`. Load validated saved staging into
+canonical PostgreSQL with `uv run jobtology load canonical-latest`. This explicit offline step is
+not yet automatically invoked by the scheduler and does not publish a serving graph.
 
 ## Quick start
 
@@ -16,6 +30,25 @@ uv run alembic upgrade head
 uv run jobtology sources doctor --allow-incomplete-sources
 uv run jobtology sources list
 ```
+
+Process saved full fetches without calling upstream providers:
+
+```bash
+uv run jobtology process latest
+uv run jobtology pipeline status
+```
+
+Recurring update entrypoints (choose one launch mode for the deployment):
+
+```bash
+uv run jobtology pipeline update   # one tick; cron/Coolify invokes this every 15 minutes
+uv run jobtology pipeline worker   # foreground polling using the same persisted schedule
+```
+
+The [schedule](config/pipeline.yaml) checks jobs/exam sessions daily, NCS APIs weekly, and
+organizations/the pinned career-path file every 30 days. Due sources perform a full fetch; hashes
+avoid duplicate processing/storage, not the network requests themselves. See the guide before
+enabling a recurring job or the optional `--neo4j` staging load.
 
 An ignored `.env` with safe local defaults has already been created. Put issued keys there—never in
 Git or chat. See [the credential checklist](docs/credentials.md) for the exact applications.
@@ -66,8 +99,8 @@ uv run jobtology fetch run job_alio --mode scheduled-full
 ```
 
 `scheduled-full` never accepts `--max-pages`; a truncated run must not look complete. A successful
-fetch stops at `state=RUNNING, stage=FETCHED` because parsing, schema mapping, validation, and release
-publication still have to run before the overall connector run may become `SUCCEEDED`.
+fetch stops at `state=RUNNING, stage=FETCHED`. Processing has a separate `control.processing_run`
+state; `READY` means validated staging, not final source acceptance or a published serving release.
 
 ## Storage and network boundary
 

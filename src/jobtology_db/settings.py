@@ -42,6 +42,13 @@ class Settings(BaseSettings):
     JOBTOLOGY_SOURCE_RIGHTS_FILE: Path = (
         Path(__file__).resolve().parents[2] / "config" / "source_rights.yaml"
     )
+    JOBTOLOGY_PIPELINE_SCHEDULE: Path = Path("config/pipeline.yaml")
+    JOBTOLOGY_UPDATE_REQUESTS_PER_24H: int = Field(default=1000, ge=1)
+    JOBTOLOGY_UPDATE_REQUEST_INTERVAL_SECONDS: float = Field(default=0.2, ge=0, le=60)
+    JOBTOLOGY_NEO4J_URI: str | None = None
+    JOBTOLOGY_NEO4J_USERNAME: str = "neo4j"
+    JOBTOLOGY_NEO4J_PASSWORD: SecretStr | None = None
+    JOBTOLOGY_NEO4J_DATABASE: str = "neo4j"
 
     DATA_GO_KR_SERVICE_KEY: SecretStr | None = None
     SARAMIN_ACCESS_KEY: SecretStr | None = None

@@ -2,6 +2,9 @@
 
 Snapshot: **2026-09-06 KST**
 
+This is the **fetching milestone snapshot**. The subsequent preprocessing implementation and local
+results are documented in [processing-pipeline.md](processing-pipeline.md).
+
 The fetching milestone is complete for the six usable official sources. Responses are preserved in
 the immutable raw store and indexed in the PostgreSQL fetch ledger. These runs correctly remain at
 `state=RUNNING, stage=FETCHED`: parsing, schema matching, grounding, release publication, and the

@@ -97,6 +97,7 @@ class FetchEngine:
         raw_max_used_fraction: float = 0.85,
         sleeper: Callable[[float], None] = time.sleep,
         clock: Callable[[], datetime] | None = None,
+        before_request: Callable[[], None] | None = None,
     ) -> None:
         self.client = client
         self.raw_store = raw_store
@@ -114,6 +115,7 @@ class FetchEngine:
         self.raw_max_used_fraction = raw_max_used_fraction
         self.sleeper = sleeper
         self.clock = clock or (lambda: datetime.now(UTC))
+        self.before_request = before_request
 
     def run(
         self,
@@ -232,6 +234,8 @@ class FetchEngine:
         attempt_ids: list[str] = []
 
         for attempt_no in range(1, self.retry_policy.max_attempts + 1):
+            if self.before_request is not None:
+                self.before_request()
             try:
                 self.raw_store.ensure_capacity(
                     incoming_limit_bytes=self.max_response_bytes,

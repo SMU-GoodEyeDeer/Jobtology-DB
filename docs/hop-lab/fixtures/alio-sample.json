@@ -1,0 +1,23 @@
+{
+  "resultCode": 200,
+  "resultMsg": "Synthetic tutorial fixture; not provider data",
+  "totalCount": 2,
+  "pageNo": 1,
+  "numOfRows": 100,
+  "result": [
+    {
+      "instCd": "LAB001",
+      "instNm": "  실습기관 하나  ",
+      "instTypeNm": "교육",
+      "siteUrl": "https://example.org/one",
+      "fndnYmd": "20010101"
+    },
+    {
+      "instCd": "LAB002",
+      "instNm": "실습기관 둘",
+      "instTypeNm": "연구",
+      "siteUrl": null,
+      "fndnYmd": "20100520"
+    }
+  ]
+}

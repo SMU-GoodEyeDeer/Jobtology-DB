@@ -1,0 +1,101 @@
+name: jobtology-hop-lab
+
+# Learning environment only. It has its own databases and volumes.
+# See ../hop-migration-guide.md before starting it.
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: jobtology_hop_lab
+      POSTGRES_USER: hop_lab
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/010-hop-lab.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hop_lab -d jobtology_hop_lab"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  hop-web:
+    image: apache/hop-web:${HOP_VERSION:-2.19.0}
+    ports:
+      - "127.0.0.1:18080:8080"
+    environment:
+      # Create/register the project in the editor during the first lesson.
+      # Its registration persists in hop-web-config after container recreation.
+      HOP_PROJECT_FOLDER: ""
+      HOP_ENVIRONMENT_NAME: ""
+      HOP_CONFIG_FOLDER: /usr/local/tomcat/webapps/ROOT/config
+      HOP_AUDIT_FOLDER: /files/audit
+      HOP_SHARED_JDBC_FOLDERS: /usr/local/tomcat/jdbc-drivers,/jdbc
+      HOP_OPTIONS: -Xms256m -Xmx1024m
+      HOP_PG_HOST: postgres
+      HOP_PG_PORT: "5432"
+      HOP_PG_DATABASE: jobtology_hop_lab
+      HOP_PG_USER: hop_lab
+      HOP_PG_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      HOP_NEO4J_URI: bolt://neo4j:7687
+      HOP_NEO4J_PASSWORD: ${NEO4J_PASSWORD:?Set NEO4J_PASSWORD in .env}
+      DATA_GO_KR_SERVICE_KEY: ${DATA_GO_KR_SERVICE_KEY:-}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+    volumes:
+      - hop-files:/files
+      - hop-web-config:/usr/local/tomcat/webapps/ROOT/config
+      - ./fixtures:/fixtures:ro
+      - ./jdbc:/jdbc:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  neo4j:
+    image: neo4j:5.26-community
+    profiles: ["graph"]
+    environment:
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:?Set NEO4J_PASSWORD in .env}
+      NEO4J_server_memory_heap_initial__size: 256m
+      NEO4J_server_memory_heap_max__size: 512m
+      NEO4J_server_memory_pagecache_size: 256m
+    ports:
+      - "127.0.0.1:17474:7474"
+      - "127.0.0.1:17687:7687"
+    volumes:
+      - neo4j-data:/data
+      - neo4j-logs:/logs
+
+  hop-runner:
+    image: apache/hop:${HOP_VERSION:-2.19.0}
+    profiles: ["run"]
+    environment:
+      HOP_PROJECT_NAME: jobtology-hop-lab
+      HOP_PROJECT_FOLDER: /files/jobtology
+      HOP_ENVIRONMENT_NAME: ""
+      HOP_FILE_PATH: /files/jobtology/workflows/00_lab.hwf
+      HOP_RUN_CONFIG: local
+      HOP_LOG_LEVEL: Basic
+      HOP_OPTIONS: -Xms256m -Xmx1024m
+      HOP_SHARED_JDBC_FOLDERS: /opt/hop/lib/jdbc,/jdbc
+      HOP_PG_HOST: postgres
+      HOP_PG_PORT: "5432"
+      HOP_PG_DATABASE: jobtology_hop_lab
+      HOP_PG_USER: hop_lab
+      HOP_PG_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      HOP_NEO4J_URI: bolt://neo4j:7687
+      HOP_NEO4J_PASSWORD: ${NEO4J_PASSWORD:?Set NEO4J_PASSWORD in .env}
+      DATA_GO_KR_SERVICE_KEY: ${DATA_GO_KR_SERVICE_KEY:-}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+    volumes:
+      - hop-files:/files
+      - ./fixtures:/fixtures:ro
+      - ./jdbc:/jdbc:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  hop-files:
+  hop-web-config:
+  postgres-data:
+  neo4j-data:
+  neo4j-logs:

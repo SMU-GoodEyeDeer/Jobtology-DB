@@ -31,6 +31,8 @@ from jobtology_db.partition_config import (
 )
 from jobtology_db.pipeline.fetch import FetchEngine, FetchRunError, RetryPolicy, planned_requests
 from jobtology_db.pipeline.request_security import redacted_url
+from jobtology_db.processing_cli import load_app, pipeline_app, process_app
+from jobtology_db.schema_cli import schema_app
 from jobtology_db.settings import Settings
 from jobtology_db.storage.ledger import PostgresFetchLedger
 from jobtology_db.storage.raw_files import RawFileStore
@@ -42,6 +44,10 @@ derive_app = typer.Typer(help="Derive connector partitions from fetched runs", n
 app.add_typer(sources_app, name="sources")
 app.add_typer(fetch_app, name="fetch")
 app.add_typer(derive_app, name="derive")
+app.add_typer(process_app, name="process")
+app.add_typer(load_app, name="load")
+app.add_typer(pipeline_app, name="pipeline")
+app.add_typer(schema_app, name="schema")
 
 _DEFAULT_NCS_QUALIFICATION_CODES_PATH = Path("config/ncs_qualification_codes.txt")
 _DEFAULT_QNET_ITEM_CODES_PATH = Path("config/qnet_item_codes.txt")

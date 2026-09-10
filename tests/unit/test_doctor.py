@@ -82,7 +82,7 @@ def test_repository_alembic_head_is_discoverable() -> None:
     repository_root = Path(__file__).resolve().parents[2]
 
     assert repository_alembic_heads(repository_root / "alembic.ini") == frozenset(
-        {"0003_rights_policy_binding"}
+        {"0006_canonical_assembly"}
     )
 
 

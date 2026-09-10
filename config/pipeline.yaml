@@ -1,0 +1,17 @@
+version: 1
+# Intervals are elapsed UTC time; cron can invoke `pipeline update` every 15 minutes.
+# Dependency order is validated. Failed stages retry after retry_seconds, not in a hot loop.
+retry_seconds: 3600
+sources:
+  - source_id: ncs_career_path
+    interval_seconds: 2592000
+  - source_id: ncs_competency
+    interval_seconds: 604800
+  - source_id: ncs_qualification
+    interval_seconds: 604800
+  - source_id: qnet_schedule
+    interval_seconds: 86400
+  - source_id: alio_organization
+    interval_seconds: 2592000
+  - source_id: job_alio
+    interval_seconds: 86400

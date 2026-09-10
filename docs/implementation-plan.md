@@ -1,9 +1,23 @@
 # Jobtology Data Platform: Finalized MVP Implementation Plan
 
-- **Status:** Finalized for implementation
+- **Status:** Product/ontology design; operational decisions amended by ADR 0002
 - **Date:** 2026-09-04
 - **Repository:** `Jobtology-DB`
 - **Product scope:** Noncommercial Korean university course project
+
+**2026-09-06 implementation amendment:** [ADR 0002](decisions/0002-processing-and-updates.md) and
+[the processing guide](processing-pipeline.md) are authoritative for current deployment, source
+scope, scheduling, and implemented functionality. Production uses Coolify-managed PostgreSQL 18;
+the updater uses cron/Coolify or its equivalent foreground entrypoint, not host systemd timers.
+Six official sources are supported; Saramin is deferred and Work24 is post-MVP. Historical systemd
+and backup/bootstrap details below are future design material, not installed components. Staging
+readiness is not a serving corpus release.
+
+**Canonical contract implementation:** [the schema guide](canonical-schemas.md) describes the
+executable NCS/posting/organization/Person and grounding contracts, additive PostgreSQL migration,
+and Neo4j constraint DDL. Its draft/storage contracts are not the complete publication contracts
+below; release selection, semantic acceptance, JSON-LD/SHACL and serving graph assembly remain
+future integration work.
 
 ## 1. Decision summary
 
@@ -30,7 +44,9 @@ Company-specific hiring forecasts, external-person enrichment, referrals, coffee
 
 ### 2.1 Data repository
 
-`Jobtology-DB` currently contains only a generic Python `.gitignore`. There is no existing schema, pipeline, test suite, migration, or deployment manifest to preserve.
+At the original assessment on 2026-09-04, `Jobtology-DB` contained only a generic Python `.gitignore`.
+The repository now includes fetching, deterministic preprocessing, staging loaders, an updater,
+migrations, tests, and a deployment image; see the current processing guide above.
 
 ### 2.2 Frontend proof of concept
 
@@ -224,7 +240,9 @@ Neo4j stores accepted canonical entities, append-only grounded claims, accepted 
 
 ### 5.2 PostgreSQL
 
-A dedicated PostgreSQL 17 container named `jobtology-postgres` will be deployed and pinned by version and digest. It will use its own credentials, network, and volume. Coolify's database will remain untouched. The container hosts two isolated databases:
+Production PostgreSQL 18 is managed as a database service in the user's Coolify stack, separate
+from Coolify's own control-plane database. The local PostgreSQL 17 instance remains a development
+fixture. The product design separates two databases:
 
 - `jobtology_pipeline`, owned by NOLOGIN role `jobtology_pipeline_owner`, migrated through `jobtology_pipeline_migrator`, and used by `jobtology_ingest`.
 - `jobtology_app`, owned by NOLOGIN role `jobtology_app_owner`, migrated through `jobtology_app_migrator`, and used by `jobtology_backend`.
@@ -318,11 +336,11 @@ The ingestion system will use:
 
 The MVP's constrained extraction runtime is the hosted [`gpt-5.6-luna`](https://developers.openai.com/api/docs/models/gpt-5.6-luna) model with Structured Outputs. The same model is the backend chat default because chat only orchestrates typed tools and explains supported results. Goldship runs no local language model and needs no GPU. Every Responses API call sets `store: false`. Each call records the requested model ID, model ID returned by the provider, prompt hash, schema version, response ID, token usage, and raw structured result. A model change is a new extractor and methodology version and requires the frozen evaluation suite before publication.
 
-The MVP scheduler will use root-owned systemd timers on Goldship. Each timer invokes the same idempotent CLI inside the ingestion container. Units run `After=docker.service tailscaled.service network-online.target`, declare `RequiresMountsFor=/home/maxjo/jobtology-data`, and use `Persistent=true`. `TimeoutStartSec` is 15 minutes for incremental connectors, 4 hours for backfills, 30 minutes for publication, 2 hours for backup, and 8 hours for restore/full rebuild; `TimeoutStopSec=5min`.
+The implemented scheduler is `jobtology pipeline update`, invoked by Coolify Scheduled Tasks/cron every 15 minutes. A foreground `pipeline worker` entrypoint runs the same tick loop. PostgreSQL persists cadence, attempts, checkpoints, and failures; advisory lock `74120260904` prevents concurrent updater ticks. No systemd timers are installed. See ADR 0002 and `docs/processing-pipeline.md` for the authoritative runtime contract.
 
 The host unit runs `flock -n /run/lock/jobtology-global.lock -- docker compose run ...`, and that host process retains the file descriptor for the entire job. Every manual backup, migration, publication, purge, and restore must use the same checked-in wrapper. The deletion finalizer is the sole exception to host-side acquisition: it locks an explicit bind mount of that same host file, and deployment preflight verifies the host/container device-and-inode pair before enabling it. Normal online jobs and scratch restores also open one dedicated `jobtology_pipeline` connection, acquire advisory lock key `74120260904`, and hold that connection through cleanup. Initial bootstrap and a production restore rely on maintenance mode plus the host lock while PostgreSQL is absent or being replaced; immediately after `jobtology_pipeline` is restored, they acquire the advisory lock for validation and reconciliation. The host filesystem lock is the cross-container and cross-database authority; the advisory lock is a second guard only while its database exists. A workflow-orchestration server will not be introduced.
 
-KST timers are staggered: the JOB-ALIO recruitment API at `01:10`; Q-Net at `01:40`; NCS APIs Mondays at `02:10`; monthly NCS career-path update check and ALIO institution API refresh on day 2 at `02:30` and `02:40`; corpus publication at `03:00`; the coordinated restore-set backup daily at `04:00`; and doctor every 15 minutes. Saramin's former four daily slots and Work24's `00:40` slot are not installed while their rights policies are blocked; their activation ADR must define quota-safe cadences before adding timers. A lock miss exits with code `75` and triggers a retry exactly 10 minutes later, up to 12 attempts; exhaustion writes a failed run and makes doctor unhealthy. It never waits silently until the next normal cadence.
+Implemented update intervals are 24 hours for JOB-ALIO and Q-Net, 7 days for the NCS APIs, and 30 days for the pinned career-path file and ALIO institutions. Failure retries default to one hour; lock conflicts exit 75 and the external launcher invokes another tick. Publication, coordinated backup, doctor, Saramin, and Work24 have no installed schedule in this implementation.
 
 Application containers run as non-root. The deletion finalizer is the sole root-running operations container and has a 512 MiB memory and one-CPU limit. Fixed container limits are Neo4j 14 GiB, PostgreSQL 3 GiB, ingestion 4 GiB, and backend 2 GiB; at most one OCR/model/backfill job runs concurrently. Neo4j admin/check and scratch-restore jobs are separately limited to 6 GiB, 4 CPUs, and `--max-off-heap-memory=3G`, with temporary extraction under `/home/maxjo/jobtology-data/tmp` and required free space of twice the dump size plus 100 GiB.
 
@@ -332,7 +350,7 @@ Every command accepts a `run_id`, supports dry-run validation, writes its state 
 
 `jobtology doctor` runs every 15 minutes and after deploy, publication, backup, restore, and upgrade. It checks container health, host sockets, Docker network `Internal` flags, Neo4j advertised settings, active-release agreement and checksums, migration heads, last successful off-host coordinated restore-set age below 26 hours, last scratch-restore drill age below 35 days, restic integrity, source freshness, deletion-finalizer health, any deletion request pending longer than 15 minutes, and disk pressure. It warns at 75% disk use and stops new fetches at 85% use or below 100 GiB free, whichever happens first. Every unit failure is written to journald and the quality ledger.
 
-Automatic container updates are disabled. Before a Neo4j or PostgreSQL update, the operator verifies backups, restores them into scratch volumes using the candidate exact-digest images, runs migrations, database checks, and smoke tests, then cuts over in a maintenance window. The untouched old volume and pre-upgrade dumps remain for 14 days. PostgreSQL stays on major version 17 throughout the MVP.
+Automatic container updates are disabled. Before a Neo4j or PostgreSQL update, the operator verifies backups, restores them into scratch volumes using the candidate exact-digest images, runs migrations, database checks, and smoke tests, then cuts over in a maintenance window. The untouched old volume and pre-upgrade dumps remain for 14 days. Production PostgreSQL stays on major version 18; the existing local PG17 fixture is not upgraded in place.
 
 GitHub Actions is the fixed CI system. Pull requests run Ruff, Pyright, unit tests, contract tests, golden-fixture tests, SHACL validation, migration checks, secret scanning, and a container build. Network integration tests run manually against sandbox credentials and never run on untrusted pull requests.
 
@@ -416,7 +434,7 @@ Every source execution first creates one pipeline-only `ConnectorRun`. Its contr
 
 Every HTTP attempt appends one immutable `FetchObservation` keyed by `(connector_run_id, request_fingerprint, response_ordinal, attempt_no)`; a retry increments `attempt_no` and never overwrites the failed attempt, while a later scheduled run creates a new series even when the body is unchanged. A successful observation references the content-addressed `SourceSnapshot`; failures have no snapshot. Each logical request names exactly one selected successful observation after retries finish. A complete run hashes both the full attempt set and the selected-success set, and sets `source_watermark_at` to the maximum `retrieved_at` among that selected-success set. Source freshness advances only to `source_watermark_at` of the latest `SUCCEEDED SCHEDULED_FULL` run, never from an individual response, validation/override time, or file modification time. Entity `last_seen_at` is the selected successful observation time for that entity inside such a run. Failed, incomplete, review-pending, and backfill runs remain queryable for operations but contribute neither freshness nor last-seen updates.
 
-Every `serving_scope=MVP` release requires all eight external sources in Section 7.1 plus the current `INTERNAL_EDITORIAL` revision. It selects the newest eligible `SUCCEEDED SCHEDULED_FULL` run for each external source and persists those IDs in PostgreSQL, the release manifest, and the Neo4j `CorpusRelease`. Its `data_as_of` is the minimum `source_watermark_at` across those eight selected runs, normalized to an RFC 3339 `+09:00` instant. It is a conservative corpus watermark; a cohort's own `as_of` and each event's source-valid timestamp remain separately available. A Phase 0 release with no external input has `serving_scope=BOOTSTRAP` and `data_as_of=created_at`; it cannot serve analyses, roadmaps, or chat. Every product response copies `data_as_of` from its pinned `serving_scope=MVP` release rather than recalculating it.
+Every `serving_scope=MVP` release requires the six allowed official external sources in ADR 0002 plus the current `INTERNAL_EDITORIAL` revision. It selects the newest eligible `SUCCEEDED SCHEDULED_FULL` run for each external source and persists those IDs in PostgreSQL, the release manifest, and the Neo4j `CorpusRelease`. Its `data_as_of` is the minimum `source_watermark_at` across those six selected runs, normalized to an RFC 3339 `+09:00` instant. It is a conservative corpus watermark; a cohort's own `as_of` and each event's source-valid timestamp remain separately available. A Phase 0 release with no external input has `serving_scope=BOOTSTRAP` and `data_as_of=created_at`; it cannot serve analyses, roadmaps, or chat. Every product response copies `data_as_of` from its pinned `serving_scope=MVP` release rather than recalculating it.
 
 Content-derived parse/extract/resolve stages use idempotency key `(source_id, source_record_id, content_sha256, pipeline_version)`, while the observation-time projection uses `(entity_id, connector_run_id, projection_version)`. Reprocessing either key produces no duplicate snapshot, assertion, revision, observation state, or graph entity. A later successful full run creates a new immutable `EntityObservationState` for changed seen/absence state while reusing the unchanged content revision and its claims; observation time alone never creates an `EntityRevision`.
 
@@ -789,7 +807,8 @@ A new analysis additionally requires the selected successful full-run watermarks
 All frontend statistics come from a persisted `PostingCohort`. Its filter is fixed to:
 
 - exactly one of the four canonical occupations
-- source set exactly `{JOB_ALIO, SARAMIN}`
+- source set exactly `{JOB_ALIO}` for initial public-sector methodology v1; Saramin activation
+  requires a new source-scope/methodology version and is not a first-release prerequisite
 - country `KR`
 - `date_posted` in the inclusive interval from `as_of - 179 calendar days` through `as_of`, evaluated in KST, yielding exactly 180 local calendar dates
 - an explicit `신입`, `인턴`, or `경력무관` source label; a `신입·경력` posting only when its new-graduate track is separately extractable or its parsed maximum experience is at most 24 months; or another posting with parsed maximum experience of at most 24 months
@@ -1549,7 +1568,7 @@ Jobtology-DB/
     neo4j/
   deploy/goldship/
     compose.yaml
-    systemd/
+    scheduled-tasks/
   tests/
     unit/
     contract/
@@ -1569,11 +1588,11 @@ Downloaded source data, credentials, Neo4j volumes, PostgreSQL volumes, and mode
 - Add the reviewed Korean major-concept and alias catalog.
 - Track the Goldship Compose deployment without secrets.
 - Retain the public Coolify frontend/API route, replace wildcard Neo4j/database-proxy host publishing with the loopback/private-network design, and retain the tailnet-only boundary for administration and internal tools.
-- Deploy dedicated PostgreSQL 17 with isolated pipeline and application databases and roles.
+- Provision Coolify-managed PostgreSQL 18 with isolated pipeline/application databases and roles.
 - Create the raw filesystem and permissions.
 - Configure Tailscale-only administration and internal-tool access plus off-host backups.
 - Add `jobtology_pipeline` PostgreSQL and Neo4j migrations plus the database/role bootstrap; the backend phase supplies `jobtology_app` migrations.
-- Add CI, systemd locks/timers, `jobtology doctor`, and a full scratch-restore test.
+- Add CI, the shared updater lock/cron entrypoint, `jobtology doctor`, and a full scratch-restore test.
 
 **Exit:** Empty end-to-end publication produces a valid corpus release and passes backup restoration.
 
@@ -1732,10 +1751,10 @@ The following is scheduled after the MVP and is not included in its schema-loadi
 | LLM role | Explain typed retrieval and solver output; no fact/statistic/route authority |
 | LLM runtime | OpenAI Responses API with `gpt-5.6-luna`; model changes require a new evaluated methodology version |
 | Graph database | Existing Neo4j Community 2026.06 |
-| Relational storage | One dedicated PostgreSQL 17 container with isolated `jobtology_pipeline` and `jobtology_app` databases/roles |
+| Relational storage | Coolify-managed PostgreSQL 18, isolated pipeline/application databases; local PG17 fixture retained |
 | Raw storage | Content-addressed Goldship filesystem plus Parquet; no runtime object-store service |
 | Off-host backup | Encrypted restic backup to private Cloudflare R2 |
-| Scheduler | systemd timers invoking an idempotent Python CLI |
+| Scheduler | Coolify/cron invokes `pipeline update`; the same runner has a foreground worker entrypoint |
 | Publication cadence | `03:00`, `07:00`, `13:00`, and `19:00` KST |
 | Connector completeness | Only a validated `SUCCEEDED SCHEDULED_FULL` run advances freshness or can be selected for publication |
 | Corpus watermark | Release `data_as_of` is the minimum source watermark across its selected external-source full runs |

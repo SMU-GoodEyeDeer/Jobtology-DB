@@ -7,6 +7,7 @@ requires-python = ">=3.12,<3.15"
 dependencies = [
   "alembic>=1.16,<2",
   "httpx>=0.28,<1",
+  "neo4j>=6,<7",
   "psycopg[binary]>=3.2,<4",
   "pydantic>=2.11,<3",
   "pydantic-settings>=2.10,<3",
@@ -50,4 +51,3 @@ select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
 pythonVersion = "3.12"
 typeCheckingMode = "strict"
 include = ["src", "tests"]
-
