@@ -1,5 +1,9 @@
 # Build the Jobtology ingestion pipeline in Apache Hop
 
+Already comfortable with Hop? Use the [real-data migration guide](hop-real-data-guide.md) for
+the actual API requests, complete field mappings, PostgreSQL loading SQL, Neo4j projection and
+comparison against the current pipeline. This page remains the beginner/setup reference.
+
 This is a manual implementation guide for someone who has never used Hop. Start with the
 offline lessons, then implement the live sources one at a time. The accompanying
 [learning kit](hop-lab/) supplies Docker configuration, two synthetic responses, and learning
@@ -624,7 +628,7 @@ Build these as sequential workflow stages:
 
 ```text
 Complete NCS competency snapshot
-  → distinct full versioned ncsClCd values
+  → the 11 allowed MVP subcategories → distinct full versioned ncsClCd values
   → qualification requests for those codes
   → distinct jmCd values from the completed qualification snapshot
   → Q-Net requests for each item × configured year
@@ -632,6 +636,8 @@ Complete NCS competency snapshot
 
 Use validated upstream data to generate partitions. Do not manually maintain thousands of codes
 in the canvas. Preserve a full code such as `2001010506_19v3`, including its version suffix.
+The exact subcategory allowlist and request-generation SQL are in the
+[real-data guide](hop-real-data-guide.md#34-ncs-qualification-mappings-filter-the-request-codes).
 
 Normalization rules to implement:
 

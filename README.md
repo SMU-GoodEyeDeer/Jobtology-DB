@@ -9,9 +9,11 @@ corpus publication remain subsequent work; graph staging is not a recommendation
 See [the processing/operations guide](docs/processing-pipeline.md) for implementation, deployment
 instructions, limitations, and local processing results.
 
-For a manual Apache Hop implementation, start with the
-[beginner's Hop migration guide](docs/hop-migration-guide.md). It includes an isolated Docker
-learning kit, visual pipeline exercises, and a source-by-source migration checklist.
+For Apache Hop, use the [real-data migration guide](docs/hop-real-data-guide.md) to fetch the six
+current sources, map their actual fields, load a separate PostgreSQL schema, and project to Neo4j.
+It includes SQL assets and comparison steps before replacing the current pipeline. The
+[beginner's Hop guide](docs/hop-migration-guide.md) covers installation, the Docker learning kit,
+visual pipeline exercises, and editor troubleshooting.
 
 The [canonical schema guide](docs/canonical-schemas.md) covers the source-independent NCS, posting,
 organization, Person-projection and grounding contracts, PostgreSQL migration and Neo4j constraint
