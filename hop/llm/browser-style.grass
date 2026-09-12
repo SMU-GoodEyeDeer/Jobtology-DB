@@ -1,0 +1,75 @@
+node.ingestionBatch {
+  diameter: 70px;
+  color: #475569;
+  border-color: #334155;
+  text-color-internal: #FFFFFF;
+  caption: '{batch_date}';
+}
+
+node.ingestionRecord {
+  diameter: 35px;
+  color: #CBD5E1;
+  border-color: #94A3B8;
+  text-color-internal: #0F172A;
+  caption: '{name}';
+}
+
+node.entity {
+  diameter: 60px;
+  caption: '{name}';
+}
+
+node.organization {
+  diameter: 65px;
+  color: #2563EB;
+  border-color: #1D4ED8;
+  text-color-internal: #FFFFFF;
+  caption: '{name}';
+}
+
+node.jobPosting {
+  diameter: 80px;
+  color: #0D9488;
+  border-color: #0F766E;
+  text-color-internal: #FFFFFF;
+  caption: '{title}';
+}
+
+node.occupation {
+  diameter: 65px;
+  color: #7C3AED;
+  border-color: #6D28D9;
+  text-color-internal: #FFFFFF;
+  caption: '{name}';
+}
+
+node.ncsCompetency {
+  diameter: 65px;
+  color: #D97706;
+  border-color: #B45309;
+  text-color-internal: #FFFFFF;
+  caption: '{name}';
+}
+
+node.qualification {
+  diameter: 65px;
+  color: #DB2777;
+  border-color: #BE185D;
+  text-color-internal: #FFFFFF;
+  caption: '{name}';
+}
+
+relationship {
+  color: #94A3B8;
+  shaft-width: 1px;
+  font-size: 8px;
+  caption: '<type>';
+}
+
+node.jobEnrichment {
+  diameter: 75px;
+  color: #4F46E5;
+  border-color: #3730A3;
+  text-color-internal: #FFFFFF;
+  caption: '{name}';
+}

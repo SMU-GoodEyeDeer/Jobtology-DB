@@ -1,0 +1,11 @@
+{
+  "name": "ncs-local",
+  "description": "Local NCS competency workflow execution. Child pipelines use ncs-local.",
+  "engineRunConfiguration": {
+    "Local": {
+      "safe_mode": false
+    }
+  },
+  "executionInfoLocationName": "",
+  "defaultSelection": false
+}

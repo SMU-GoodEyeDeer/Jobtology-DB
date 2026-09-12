@@ -1,0 +1,119 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<workflow>
+  <name>Prepare a frozen Korean evaluation dataset</name>
+  <description>Prepare a frozen Korean evaluation dataset</description>
+  <workflow_version>1</workflow_version>
+  <workflow_status>0</workflow_status>
+  <parameters>
+    <parameter>
+      <name>JOB_RUN_ID</name>
+      <default_value>LATEST</default_value>
+      <description>Pin one accepted JOB-ALIO snapshot.</description>
+    </parameter>
+    <parameter>
+      <name>NCS_RUN_ID</name>
+      <default_value>LATEST</default_value>
+      <description>Pin one accepted NCS snapshot.</description>
+    </parameter>
+    <parameter>
+      <name>DATASET_ID</name>
+      <default_value>korean-jd-v1</default_value>
+      <description>Prepared frozen evaluation dataset; ignored for ENRICH.</description>
+    </parameter>
+    <parameter>
+      <name>DATASET_SIZE</name>
+      <default_value>20</default_value>
+      <description>Sample size, stratified by Korean posting characteristics.</description>
+    </parameter>
+    <parameter>
+      <name>SAMPLE_SEED</name>
+      <default_value>ko-v1</default_value>
+      <description>Stable sampling seed.</description>
+    </parameter>
+  </parameters>
+  <actions>
+    <action>
+      <name>Start</name>
+      <type>SPECIAL</type>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <attributes />
+      <start>Y</start>
+      <repeat>N</repeat>
+      <schedulerType>0</schedulerType>
+      <intervalSeconds>0</intervalSeconds>
+      <intervalMinutes>60</intervalMinutes>
+      <DayOfMonth>1</DayOfMonth>
+      <weekDay>1</weekDay>
+      <minutes>0</minutes>
+      <hour>12</hour>
+    </action>
+    <action>
+      <name>Freeze evaluation cases</name>
+      <type>PIPELINE</type>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <attributes />
+      <filename>${PROJECT_HOME}/llm/prepare_dataset.hpl</filename>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <run_configuration>llm-local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+    </action>
+    <action>
+      <name>Success</name>
+      <type>SUCCESS</type>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <attributes />
+    </action>
+    <action>
+      <name>Abort</name>
+      <type>ABORT</type>
+      <xloc>1040</xloc>
+      <yloc>80</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <attributes />
+      <message>LLM workflow failed. Inspect enrichment.batch_report and enrichment.attempt.</message>
+    </action>
+  </actions>
+  <hops>
+    <hop>
+      <from>Start</from>
+      <to>Freeze evaluation cases</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>Y</unconditional>
+    </hop>
+    <hop>
+      <from>Freeze evaluation cases</from>
+      <to>Abort</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Freeze evaluation cases</from>
+      <to>Success</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+  </hops>
+  <notepads />
+  <attributes />
+</workflow>

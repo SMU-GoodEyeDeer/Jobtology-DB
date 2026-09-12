@@ -1,0 +1,434 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<workflow>
+  <name>Evaluate Korean postings</name>
+  <description>Evaluate Korean postings</description>
+  <workflow_version>1</workflow_version>
+  <workflow_status>0</workflow_status>
+  <parameters>
+    <parameter>
+      <name>RUN_MODE</name>
+      <default_value>EVAL</default_value>
+      <description>EVAL stays separate from publishable enrichment.</description>
+    </parameter>
+    <parameter>
+      <name>JOB_RUN_ID</name>
+      <default_value>LATEST</default_value>
+      <description>Pin one accepted JOB-ALIO snapshot.</description>
+    </parameter>
+    <parameter>
+      <name>NCS_RUN_ID</name>
+      <default_value>LATEST</default_value>
+      <description>Pin one accepted NCS snapshot.</description>
+    </parameter>
+    <parameter>
+      <name>DATASET_ID</name>
+      <default_value>korean-jd-v1</default_value>
+      <description>Prepared frozen evaluation dataset; ignored for ENRICH.</description>
+    </parameter>
+    <parameter>
+      <name>EXTRACT_MODEL</name>
+      <default_value>google/gemini-3.8-flash</default_value>
+      <description>OpenRouter model ID for evidence extraction.</description>
+    </parameter>
+    <parameter>
+      <name>CATEGORIZE_MODEL</name>
+      <default_value>google/gemini-3.8-flash</default_value>
+      <description>OpenRouter model ID for NCS matching.</description>
+    </parameter>
+    <parameter>
+      <name>PROMPT_VERSION</name>
+      <default_value>ko-v1</default_value>
+      <description>Installed immutable prompt/schema version.</description>
+    </parameter>
+    <parameter>
+      <name>TEMPERATURE</name>
+      <default_value />
+      <description>Optional 0..2; blank omits the parameter for models that do not support it.</description>
+    </parameter>
+    <parameter>
+      <name>REASONING_EFFORT</name>
+      <default_value />
+      <description>Optional none/minimal/low/medium/high/xhigh/max; blank uses provider default.</description>
+    </parameter>
+    <parameter>
+      <name>EXTRA_PARAMS_JSON</name>
+      <default_value>{}</default_value>
+      <description>Optional numeric top_p, seed, frequency_penalty, presence_penalty JSON object.</description>
+    </parameter>
+    <parameter>
+      <name>POSTING_LIMIT</name>
+      <default_value>20</default_value>
+      <description>Maximum postings in this batch. Raise explicitly for a complete source snapshot.</description>
+    </parameter>
+    <parameter>
+      <name>CANDIDATE_LIMIT</name>
+      <default_value>40</default_value>
+      <description>NCS shortlist size per posting, 1..100.</description>
+    </parameter>
+    <parameter>
+      <name>MAX_MATCHES</name>
+      <default_value>8</default_value>
+      <description>Maximum duty-to-NCS matches per posting.</description>
+    </parameter>
+    <parameter>
+      <name>MAX_INPUT_CHARS</name>
+      <default_value>60000</default_value>
+      <description>Reject oversized complete requests; never silently truncate source text.</description>
+    </parameter>
+    <parameter>
+      <name>MAX_OUTPUT_TOKENS</name>
+      <default_value>6000</default_value>
+      <description>Maximum billed output tokens per request, including reasoning.</description>
+    </parameter>
+    <parameter>
+      <name>MAX_REQUESTS</name>
+      <default_value>40</default_value>
+      <description>Maximum charged/uncertain HTTP requests in this batch; no automatic retries.</description>
+    </parameter>
+    <parameter>
+      <name>REQUEST_RESERVE_USD</name>
+      <default_value>0.10</default_value>
+      <description>Conservative reservation per request; set for chosen models. Not a provider-enforced price cap.</description>
+    </parameter>
+    <parameter>
+      <name>MAX_COST_USD</name>
+      <default_value>5</default_value>
+      <description>Batch accounting cap using the greater of reservation and reported cost.</description>
+    </parameter>
+    <parameter>
+      <name>DAILY_BUDGET_USD</name>
+      <default_value>20</default_value>
+      <description>Rolling 24-hour accounting cap shared by these workflows.</description>
+    </parameter>
+    <parameter>
+      <name>EXECUTE_REQUESTS</name>
+      <default_value>N</default_value>
+      <description>N plans requests without reading a key or making model calls; Y executes.</description>
+    </parameter>
+    <parameter>
+      <name>REUSE_CACHE</name>
+      <default_value>N</default_value>
+      <description>Y reuses valid outputs with identical content/prompt/model/options; N repeats an evaluation.</description>
+    </parameter>
+    <parameter>
+      <name>ACCEPTANCE_POLICY</name>
+      <default_value>REVIEW</default_value>
+      <description>REVIEW waits for a review; VALIDATED automatically accepts checked ENRICH items. EVAL remains isolated.</description>
+    </parameter>
+    <parameter>
+      <name>ENDPOINT</name>
+      <default_value>https://openrouter.ai/api/v1/chat/completions</default_value>
+      <description>HTTPS OpenRouter-compatible chat completion endpoint.</description>
+    </parameter>
+    <parameter>
+      <name>API_KEY_FILE</name>
+      <default_value>${HOP_CONFIG_FOLDER}/secrets/openrouter.csv</default_value>
+      <description>Protected UTF-8 CSV with api_key header and exactly one key row.</description>
+    </parameter>
+    <parameter>
+      <name>REQUEST_DELAY_MS</name>
+      <default_value>250</default_value>
+      <description>Delay before each sequential model request.</description>
+    </parameter>
+    <parameter>
+      <name>READ_TIMEOUT_MS</name>
+      <default_value>180000</default_value>
+      <description>Finite HTTP read timeout in milliseconds.</description>
+    </parameter>
+  </parameters>
+  <actions>
+    <action>
+      <name>Start</name>
+      <type>SPECIAL</type>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <attributes />
+      <start>Y</start>
+      <repeat>N</repeat>
+      <schedulerType>0</schedulerType>
+      <intervalSeconds>0</intervalSeconds>
+      <intervalMinutes>60</intervalMinutes>
+      <DayOfMonth>1</DayOfMonth>
+      <weekDay>1</weekDay>
+      <minutes>0</minutes>
+      <hour>12</hour>
+    </action>
+    <action>
+      <name>Freeze inputs and options</name>
+      <type>PIPELINE</type>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <attributes />
+      <filename>${PROJECT_HOME}/llm/start_batch.hpl</filename>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <run_configuration>llm-local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+    </action>
+    <action>
+      <name>Plan extraction</name>
+      <type>PIPELINE</type>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <attributes />
+      <filename>${PROJECT_HOME}/llm/plan_extract.hpl</filename>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <run_configuration>llm-local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+    </action>
+    <action>
+      <name>Extract supported facts</name>
+      <type>PIPELINE</type>
+      <xloc>800</xloc>
+      <yloc>80</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <attributes />
+      <filename>${PROJECT_HOME}/llm/run_extract.hpl</filename>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <run_configuration>llm-local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+    </action>
+    <action>
+      <name>Retrieve NCS and plan matches</name>
+      <type>PIPELINE</type>
+      <xloc>1040</xloc>
+      <yloc>80</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <attributes />
+      <filename>${PROJECT_HOME}/llm/plan_categorize.hpl</filename>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <run_configuration>llm-local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+    </action>
+    <action>
+      <name>Categorize explicit duties</name>
+      <type>PIPELINE</type>
+      <xloc>80</xloc>
+      <yloc>240</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <attributes />
+      <filename>${PROJECT_HOME}/llm/run_categorize.hpl</filename>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <run_configuration>llm-local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+    </action>
+    <action>
+      <name>Validate and report</name>
+      <type>PIPELINE</type>
+      <xloc>320</xloc>
+      <yloc>240</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <attributes />
+      <filename>${PROJECT_HOME}/llm/finish_batch.hpl</filename>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <run_configuration>llm-local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+    </action>
+    <action>
+      <name>Success</name>
+      <type>SUCCESS</type>
+      <xloc>560</xloc>
+      <yloc>240</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <attributes />
+    </action>
+    <action>
+      <name>Record failure</name>
+      <type>PIPELINE</type>
+      <xloc>800</xloc>
+      <yloc>240</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <attributes />
+      <filename>${PROJECT_HOME}/llm/mark_failed.hpl</filename>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <run_configuration>llm-local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+    </action>
+    <action>
+      <name>Abort</name>
+      <type>ABORT</type>
+      <xloc>1040</xloc>
+      <yloc>240</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <attributes />
+      <message>LLM workflow failed. Inspect enrichment.batch_report and enrichment.attempt.</message>
+    </action>
+  </actions>
+  <hops>
+    <hop>
+      <from>Start</from>
+      <to>Freeze inputs and options</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>Y</unconditional>
+    </hop>
+    <hop>
+      <from>Freeze inputs and options</from>
+      <to>Record failure</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Freeze inputs and options</from>
+      <to>Plan extraction</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Plan extraction</from>
+      <to>Record failure</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Plan extraction</from>
+      <to>Extract supported facts</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Extract supported facts</from>
+      <to>Record failure</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Extract supported facts</from>
+      <to>Retrieve NCS and plan matches</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Retrieve NCS and plan matches</from>
+      <to>Record failure</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Retrieve NCS and plan matches</from>
+      <to>Categorize explicit duties</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Categorize explicit duties</from>
+      <to>Record failure</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Categorize explicit duties</from>
+      <to>Validate and report</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Validate and report</from>
+      <to>Record failure</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Validate and report</from>
+      <to>Success</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Record failure</from>
+      <to>Abort</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Record failure</from>
+      <to>Abort</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+  </hops>
+  <notepads />
+  <attributes />
+</workflow>

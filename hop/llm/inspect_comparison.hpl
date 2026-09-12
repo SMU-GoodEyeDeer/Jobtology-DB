@@ -1,0 +1,99 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>inspect_comparison</name>
+    <description>Preview reports for one frozen dataset; unlabelled quality metrics remain empty.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters>
+      <parameter>
+        <name>DATASET_ID</name>
+        <default_value>korean-jd-v1</default_value>
+        <description>DATASET_ID</description>
+      </parameter>
+    </parameters>
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Dataset</from>
+      <to>Model comparison</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Model comparison</from>
+      <to>Preview comparison here</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Dataset</name>
+    <fields>
+      <field>
+        <name>dataset_id</name>
+        <variable>${DATASET_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Model comparison</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT batch_id,created_at,state,settings-&gt;&gt;'extract_model' AS extract_model,
+settings-&gt;&gt;'categorize_model' AS categorize_model,postings,validated,rejected,requests,reported_cost_usd,unknown_cost_requests,labeled_postings,
+requirement_precision,requirement_recall,duty_precision,duty_recall,ncs_precision,ncs_recall,retrieval_recall,no_match_cases,correct_abstentions
+FROM enrichment.batch_report WHERE dataset_id=? ORDER BY created_at DESC</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>dataset_id</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Dummy</type>
+    <name>Preview comparison here</name>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

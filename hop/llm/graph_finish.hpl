@@ -1,0 +1,389 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>graph_finish</name>
+    <description>Verify graph totals and provenance, then checkpoint each reviewed item.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Batch</from>
+      <to>Expected items</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Expected items</from>
+      <to>Verify and finish enrichment</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Verify and finish enrichment</from>
+      <to>Verified item</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Verified item</from>
+      <to>Save graph checkpoint</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Save graph checkpoint</from>
+      <to>Check review still current</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Check review still current</from>
+      <to>Check graph result</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Check graph result</from>
+      <to>Verified</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Check graph result</from>
+      <to>Graph mismatch</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Verified item</from>
+      <to>Graph mismatch</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Batch</name>
+    <fields>
+      <field>
+        <name>batch_id_filter</name>
+        <variable>${BATCH_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Expected items</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT * FROM enrichment.graph_item WHERE batch_id=? ORDER BY item_id</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>batch_id_filter</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Neo4jCypherOutput</type>
+    <name>Verify and finish enrichment</name>
+    <connection>${NEO4J_CONNECTION}</connection>
+    <cypher>MATCH (p:jobPosting {id:$posting_identity})-[:HAS_ENRICHMENT]-&gt;(e:jobEnrichment {id:$item_id,state:'LOADING'})
+WHERE e.name=$name AND e.batch_id=$batch_id AND e.posting_id=$posting_id AND e.source_hash=$source_hash
+ AND e.job_run_id=$job_run_id AND e.ncs_run_id=$ncs_run_id AND e.extraction_json=$extraction_json
+ AND e.categorization_json=$categorization_json AND e.extraction_model=$extraction_model AND e.categorization_model=$categorization_model
+ AND e.prompt_version=$prompt_version AND e.review_id=$review_id AND e.decision=$decision
+OPTIONAL MATCH (e)-[r:ALIGNS_WITH_NCS {accepted:true}]-&gt;()
+WITH e,count(r) AS matches WHERE matches=$match_count
+SET e.state='READY'
+RETURN count(e)=1 AS verified</cypher>
+    <batch_size>1</batch_size>
+    <read_only>N</read_only>
+    <retry>N</retry>
+    <nr_retries_on_error>0</nr_retries_on_error>
+    <cypher_from_field>N</cypher_from_field>
+    <unwind>N</unwind>
+    <returning_graph>N</returning_graph>
+    <mappings>
+      <mapping>
+        <parameter>item_id</parameter>
+        <field>item_id</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>batch_id</parameter>
+        <field>batch_id</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>posting_id</parameter>
+        <field>posting_id</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>posting_identity</parameter>
+        <field>posting_identity</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>name</parameter>
+        <field>name</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>source_hash</parameter>
+        <field>source_hash</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>job_run_id</parameter>
+        <field>job_run_id</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>ncs_run_id</parameter>
+        <field>ncs_run_id</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>extraction_json</parameter>
+        <field>extraction_json</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>categorization_json</parameter>
+        <field>categorization_json</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>extraction_model</parameter>
+        <field>extraction_model</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>categorization_model</parameter>
+        <field>categorization_model</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>prompt_version</parameter>
+        <field>prompt_version</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>decision</parameter>
+        <field>decision</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>review_id</parameter>
+        <field>review_id</field>
+        <type>Integer</type>
+      </mapping>
+      <mapping>
+        <parameter>match_count</parameter>
+        <field>match_count</field>
+        <type>Integer</type>
+      </mapping>
+    </mappings>
+    <returns>
+      <return>
+        <name>verified</name>
+        <type>Boolean</type>
+        <source_type>Boolean</source_type>
+      </return>
+    </returns>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>Verified item</name>
+    <send_true_to>Save graph checkpoint</send_true_to>
+    <send_false_to>Graph mismatch</send_false_to>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>verified</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Boolean</type>
+          <text>Y</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>800</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>ExecSql</type>
+    <name>Save graph checkpoint</name>
+    <connection>jobtology-postgres</connection>
+    <sql>INSERT INTO enrichment.graph_export(item_id,review_id)
+SELECT item_id,review_id FROM enrichment.latest_review WHERE item_id=? AND review_id=?
+ON CONFLICT(item_id) DO UPDATE SET review_id=excluded.review_id,exported_at=clock_timestamp()</sql>
+    <execute_each_row>Y</execute_each_row>
+    <single_statement>Y</single_statement>
+    <set_params>Y</set_params>
+    <replace_variables>N</replace_variables>
+    <quoteString>N</quoteString>
+    <arguments>
+      <argument>
+        <name>item_id</name>
+      </argument>
+      <argument>
+        <name>review_id</name>
+      </argument>
+    </arguments>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>1040</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Check review still current</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT EXISTS(SELECT 1 FROM enrichment.latest_review r JOIN enrichment.graph_export g USING(item_id,review_id) WHERE r.item_id=? AND r.review_id=?) AS review_current</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>item_id</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>review_id</name>
+        <type>Integer</type>
+      </field>
+    </parameter>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>240</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>Check graph result</name>
+    <send_true_to>Verified</send_true_to>
+    <send_false_to>Graph mismatch</send_false_to>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>review_current</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Boolean</type>
+          <text>Y</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>240</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Dummy</type>
+    <name>Verified</name>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>240</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Abort</type>
+    <name>Graph mismatch</name>
+    <message>Enrichment graph is missing, conflicting, or the human review changed. Re-run the same BATCH_ID after correction.</message>
+    <always_log_rows>N</always_log_rows>
+    <abort_option>ABORT_WITH_ERROR</abort_option>
+    <row_threshold>0</row_threshold>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>800</xloc>
+      <yloc>240</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

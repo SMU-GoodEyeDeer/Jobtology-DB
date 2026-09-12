@@ -1,0 +1,11 @@
+{
+  "name": "alio-local",
+  "description": "Local ALIO workflow execution. Child pipelines use alio-local.",
+  "engineRunConfiguration": {
+    "Local": {
+      "safe_mode": false
+    }
+  },
+  "executionInfoLocationName": "",
+  "defaultSelection": false
+}

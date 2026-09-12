@@ -1,0 +1,220 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>begin_batch</name>
+    <description>Create or reopen exactly this graph batch; use the source run date for its display name.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>1000</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Snapshot</from>
+      <to>Read batch source</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Read batch source</from>
+      <to>Begin graph batch</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Begin graph batch</from>
+      <to>Check result</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Check result</from>
+      <to>Complete</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Check result</from>
+      <to>Check failed</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Snapshot</name>
+    <fields>
+      <field>
+        <name>run_id</name>
+        <variable>${RUN_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>100</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Read batch source</name>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <sql>SELECT source_id,
+to_char(created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS source_created_at,
+to_char(created_at AT TIME ZONE 'Asia/Seoul','YYYY-MM-DD') AS batch_date,
+to_char(created_at AT TIME ZONE 'Asia/Seoul','YYYY-MM-DD HH24:MI') || ' KST · ' || source_id AS batch_name
+FROM ingestion.run WHERE run_id=? AND state='READY' AND mode&lt;&gt;'SMOKE'</sql>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <parameter>
+      <field>
+        <name>run_id</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <replace_vars>N</replace_vars>
+    <connection>jobtology-postgres</connection>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>330</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Neo4jCypherOutput</type>
+    <name>Begin graph batch</name>
+    <connection>${NEO4J_CONNECTION}</connection>
+    <cypher>MERGE (b:ingestionBatch {id:$run_id})
+ON CREATE SET b.source_id=$source_id
+SET b.state='LOADING',b.serving_scope='STAGING',b.loader_version='hop-graph-v2',b.load_started_at=datetime(),
+b.source_created_at=$source_created_at,b.batch_date=$batch_date,b.name=$batch_name
+RETURN count(CASE WHEN b.source_id=$source_id THEN b END)=1 AS batch_valid</cypher>
+    <batch_size>1</batch_size>
+    <read_only>N</read_only>
+    <retry>N</retry>
+    <nr_retries_on_error>0</nr_retries_on_error>
+    <cypher_from_field>N</cypher_from_field>
+    <unwind>N</unwind>
+    <returning_graph>N</returning_graph>
+    <mappings>
+      <mapping>
+        <parameter>run_id</parameter>
+        <field>run_id</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>source_id</parameter>
+        <field>source_id</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>source_created_at</parameter>
+        <field>source_created_at</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>batch_date</parameter>
+        <field>batch_date</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>batch_name</parameter>
+        <field>batch_name</field>
+        <type>String</type>
+      </mapping>
+    </mappings>
+    <returns>
+      <return>
+        <name>batch_valid</name>
+        <type>Boolean</type>
+        <source_type>Boolean</source_type>
+      </return>
+    </returns>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>Check result</name>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>batch_valid</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Boolean</type>
+          <text>Y</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <send_true_to>Complete</send_true_to>
+    <send_false_to>Check failed</send_false_to>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>790</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Dummy</type>
+    <name>Complete</name>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>1020</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Abort</type>
+    <name>Check failed</name>
+    <row_threshold>0</row_threshold>
+    <message>Existing graph batch has a conflicting source identity.</message>
+    <always_log_rows>N</always_log_rows>
+    <abort_option>ABORT_WITH_ERROR</abort_option>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>100</xloc>
+      <yloc>270</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

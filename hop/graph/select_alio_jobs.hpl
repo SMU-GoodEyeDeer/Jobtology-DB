@@ -1,0 +1,242 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>select_alio_jobs</name>
+    <description>Select one accepted JOB-ALIO snapshot and its pinned employer snapshot for the convenience workflow.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>1000</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Requested jobs snapshot</from>
+      <to>Resolve current jobs</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Resolve current jobs</from>
+      <to>Both snapshots available</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Both snapshots available</from>
+      <to>Snapshots found</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Pin graph inputs</from>
+      <to>Graph inputs</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Snapshots found</from>
+      <to>Pin graph inputs</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Snapshots found</from>
+      <to>Snapshot unavailable</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Requested jobs snapshot</name>
+    <fields>
+      <field>
+        <name>choice</name>
+        <variable>${JOB_RUN_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>100</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Resolve current jobs</name>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <sql>WITH chosen AS (
+SELECT u.run_id FROM ingestion.run u WHERE u.source_id='job_alio' AND u.state='READY' AND u.mode&lt;&gt;'SMOKE' AND (?='LATEST' OR u.run_id=?)
+ORDER BY u.created_at DESC,u.run_id DESC LIMIT 1)
+SELECT (SELECT run_id FROM chosen) AS job_run_id,
+(SELECT dep.input_run_id FROM chosen c JOIN ingestion.dependency dep ON dep.run_id=c.run_id AND dep.input_source_id='alio_organization'
+ JOIN ingestion.run o ON o.run_id=dep.input_run_id AND o.source_id='alio_organization' AND o.state='READY' AND o.mode&lt;&gt;'SMOKE') AS organization_run_id</sql>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <parameter>
+      <field>
+        <name>choice</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>choice</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <replace_vars>N</replace_vars>
+    <connection>jobtology-postgres</connection>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>330</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Both snapshots available</name>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <sql>SELECT ?::text IS NOT NULL AND ?::text IS NOT NULL AS pair_ready</sql>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <parameter>
+      <field>
+        <name>job_run_id</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>organization_run_id</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <replace_vars>N</replace_vars>
+    <connection>jobtology-postgres</connection>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>Snapshots found</name>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>pair_ready</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Boolean</type>
+          <text>Y</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <send_true_to>Pin graph inputs</send_true_to>
+    <send_false_to>Snapshot unavailable</send_false_to>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>790</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>SetVariable</type>
+    <name>Pin graph inputs</name>
+    <fields>
+      <field>
+        <field_name>job_run_id</field_name>
+        <variable_name>GRAPH_JOB_RUN_ID</variable_name>
+        <variable_type>PARENT_WORKFLOW</variable_type>
+        <default_value />
+      </field>
+      <field>
+        <field_name>organization_run_id</field_name>
+        <variable_name>GRAPH_ORGANIZATION_RUN_ID</variable_name>
+        <variable_type>PARENT_WORKFLOW</variable_type>
+        <default_value />
+      </field>
+    </fields>
+    <use_formatting>Y</use_formatting>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>1020</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>WriteToLog</type>
+    <name>Graph inputs</name>
+    <displayHeader>Y</displayHeader>
+    <limitRows>N</limitRows>
+    <limitRowsNumber>0</limitRowsNumber>
+    <logmessage>Pinned organization and jobs snapshots</logmessage>
+    <loglevel>Basic</loglevel>
+    <fields>
+      <field>
+        <name>job_run_id</name>
+      </field>
+      <field>
+        <name>organization_run_id</name>
+      </field>
+    </fields>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>100</xloc>
+      <yloc>270</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Abort</type>
+    <name>Snapshot unavailable</name>
+    <row_threshold>0</row_threshold>
+    <message>Choose a READY JOB-ALIO snapshot with a READY ALIO employer dependency.</message>
+    <always_log_rows>N</always_log_rows>
+    <abort_option>ABORT_WITH_ERROR</abort_option>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>330</xloc>
+      <yloc>270</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

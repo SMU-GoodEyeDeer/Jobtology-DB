@@ -9,9 +9,18 @@ The target is a **separate `ingestion` PostgreSQL schema**. Its name describes t
 and can stay the same when the ETL tool changes.
 Use real provider responses, retain their history, and compare the resulting facts with the
 current pipeline before replacing a writer. The supplied SQL creates the loading tables and
-readable data views. You build the `.hpl`/`.hwf` files described here in Hop.
+readable data views. All six sources now have executable Hop workflows, including
+[qualification mappings](../hop/ingestions/ncs_qualification/README.md),
+[Q-Net schedules](../hop/ingestions/qnet_schedule/README.md), and
+[career paths](../hop/ingestions/ncs_career_path/README.md).
 
-This is a manual implementation recipe with SQL assets, not a completed Hop project. It uses
+For regular updates, start with the [refresh and recovery guide](../hop/operations/README.md).
+Its `operations/refresh_<source>.hwf` entry points fetch, validate and load both databases.
+The original `ingestions/<source>/full.hwf` entry points perform PostgreSQL ingestion only.
+The [deployment verification report](hop-migration/live-status.md) lists the six accepted
+live snapshots and the independent PostgreSQL/Neo4j checks.
+
+The workflows use
 native Hop transforms/actions and PostgreSQL/Cypher statements; no Python/script transform is
 required at runtime. The initial output is validated source data and a draft graph. Existing
 `control`, `raw_manifest`, `staging`, `canonical`, and `grounding` tables keep their current roles.
@@ -29,6 +38,7 @@ Jump to:
 - [Field-by-field mappings](hop-migration/field-mappings.md)
 - [Finish and inspect PostgreSQL loads](#4-finish-and-inspect-a-postgresql-load)
 - [Load Neo4j](#5-load-neo4j-from-the-accepted-postgresql-run)
+- [LLM extraction, NCS matching and evaluation batches](../hop/llm/README.md)
 - [Replay and compare existing saved data](#6-compare-with-the-current-pipeline-using-the-same-inputs)
 
 ## What you are loading
@@ -50,35 +60,39 @@ the current six-source scope. Keep them out of the migration schedule for now.
 
 ## 1. Create the destination once
 
-Create a PostgreSQL connection in Hop named **`jobtology_hop`** using the actual private database
+Create a PostgreSQL connection in Hop named **`jobtology-postgres`** using the actual private database
 host, port 5432, database and migration role. The example credentials in `hop-lab` are not your
 server credentials. If the schema shares a database with the current corpus, give this role write
 access to `ingestion` and read access only to the reference tables needed for comparison.
 Do not point it at Coolify's own administration database.
 
-Run these two files, in order, through a database SQL editor or the **SQL workflow actions** below:
+Run these five files, in order, through a database SQL editor or the **SQL workflow actions** below:
 
 1. [`hop-migration/schema.sql`](hop-migration/schema.sql)
-2. [`hop-migration/checks.sql`](hop-migration/checks.sql)
+2. [`hop-migration/reference-support.sql`](hop-migration/reference-support.sql)
+3. [`hop-migration/career-support.sql`](hop-migration/career-support.sql)
+4. [`hop-migration/checks.sql`](hop-migration/checks.sql)
+5. [`hop-migration/operations.sql`](hop-migration/operations.sql)
 
 ### 1.1 Initialize with a workflow
 
 Create a **workflow** named `init_db.hwf` and add these actions:
 
 ```text
-Start → SQL: create_schema → SQL: create_validation_view → Success
+Start → SQL: schema → SQL: reference_support → SQL: career_support
+      → SQL: checks → SQL: operations → Success
 ```
 
 Use **success hops** between the actions so the validation view is created only after its tables
 exist. `checks.sql` installs a view used for validation; it does not itself return validation rows.
 
-Configure both SQL actions as follows:
+Configure each SQL action as follows:
 
 | Setting | Value |
 |---|---|
-| Database Connection | Your PostgreSQL metadata connection (`jobtology_hop` in this guide; select your existing name if different) |
+| Database Connection | `jobtology-postgres`, the connection name used by the supplied native workflows |
 | SQL from file | Enabled |
-| SQL filename | Container-visible path to `schema.sql` for the first action, `checks.sql` for the second |
+| SQL filename | Container-visible path to the corresponding file in the five-file list above |
 | File encoding | UTF-8 |
 | Send SQL as single statement? | Enabled for these supplied scripts |
 | Use variable substitution? | Disabled; these bootstrap scripts have no SQL variables |
@@ -270,13 +284,15 @@ Pipeline Executor; group size 1, one executor copy initially.
 | `MODE` | `SMOKE` for a bounded preview; `FULL` for live complete collection; `REPLAY` for a saved complete run |
 | `RAW_ROOT` | Container-visible persistent raw directory |
 | `DATA_GO_KR_SERVICE_KEY` | Decoded/raw runtime secret for the five APIs; URL-encode once in REST Client |
-| `UPSTREAM_RUN_ID` | Selected READY input for qualification/Q-Net, or ALIO employer reference for jobs |
+| `UPSTREAM_RUN_ID` | JOB-ALIO's ALIO employer snapshot; `LATEST` pins the latest accepted run |
+| `INPUT_RUN_ID` | Qualification/Q-Net dependency; blank pins latest, or specify an exact READY run |
 | `POLICY_REVISION` | Reviewed [source policy revision](../config/source_rights.yaml); currently `2026-09-05.1` |
 
 Keep the key in container runtime secrets, not project JSON or a saved request URL. The five API
 subscriptions and the public CSV are listed in [credentials](credentials.md). Request shapes below
 come from [the implemented connectors](../src/jobtology_db/connectors/sources.py) and saved bodies
-inspected on 2026-09-10; no new provider requests were made to write this guide.
+inspected on 2026-09-10. Executable workflow verification is recorded in the source sections and
+their implementation READMEs.
 
 ## 2. Build one reusable page-fetch and load pattern
 
@@ -376,7 +392,8 @@ For the first successful page (`page_no=1`, `confirmation_no=0`), set the partit
 `expected_total` from that response. Never overwrite it from a later page. A later response with
 a different total fails the snapshot. For a transport failure with no response file, record the
 attempt/error in the execution log; leave the request incomplete. Count all attempts when applying
-the source request budget. A production attempt ledger is part of the cutover work in section 7.
+the source request budget. The installed `ingestion.request_attempt` ledger reserves requests
+before transmission; see the [operations guide](../hop/operations/README.md).
 
 ### 2.3 Split, transform and load the source records
 
@@ -456,6 +473,27 @@ use a bounded workflow retry with a new attempt number and filename.
 
 ### 3.1 ALIO organizations: your first complete load
 
+The [runnable ALIO implementation](../hop/ingestions/alio/README.md) is installed in Goldship's
+default Hop project. Open **`ingestions/alio/full.hwf`**, choose the **`alio-local`** workflow run
+configuration and **Basic** logging. Run with `MODE=SMOKE` first, then `MODE=FULL` for a new complete
+snapshot. The final log reports the run ID, selected document count, record count and state.
+
+The bundle contains seven native pipelines plus the orchestration workflow and two run
+configurations. It implements sections 2 and 4 for ALIO, including raw binary archives, pagination,
+empty confirmations, strict normalization, rejected rows, file verification and READY gating.
+Database Join handles JSON expansion and the eight-field SQL mapping; no Python or JavaScript
+transform is involved. See the implementation README for the stage-by-stage file list.
+
+Responses are saved under `${PROJECT_HOME}/data/alio-raw`. The API key is read from a protected
+runtime CSV at `${HOP_CONFIG_FOLDER}/secrets/data-go-kr.csv`, outside the versioned project,
+using the `API_KEY_FILE` parameter. This file-based secret avoids redeploying Hop merely to add
+an environment variable. Use the supplied `alio-local` run configuration so input rows containing
+the key are not sampled into the existing execution-history store.
+
+SMOKE executions retain their first-page rows in `ingestion.record` with state REVIEW_REQUIRED;
+they never appear in `ingestion.organization`. A validated FULL execution becomes READY and is
+visible through that view. Each invocation creates a new run and preserves earlier runs.
+
 Endpoint: `https://apis.data.go.kr/1051000/public_inst/list`.
 
 | Incoming field | Query parameter | Value |
@@ -471,9 +509,77 @@ full coverage means pages 1–4 with 100/100/100/55 rows. A fresh run uses its o
 After section 4 succeeds, `SELECT * FROM ingestion.organization WHERE run_id = 'your-run-id';`
 shows the complete institutions you actually loaded.
 
+Verified live on 2026-09-10 with the native Hop runner:
+
+| Mode | Run ID | Selected responses | Records | Final state |
+|---|---|---:|---:|---|
+| SMOKE | `82ed03d8-1e0b-4e70-8b79-5d9ea48827f8` | 1 | 100 | REVIEW_REQUIRED, intentionally excluded from READY views |
+| FULL | `cb6db580-6cdb-4015-8fd6-2d7f682e460a` | 4 | 355 | READY |
+
+The FULL run had zero rejected rows and zero validation issues. All four archived files were
+independently rehashed, and all 355 records matched the existing parser on those same raw bodies:
+source objects, normalized fields, source IDs, lineage and quality flags. These checks made five
+provider requests in total, including the SMOKE page. Basic execution logs contained no API key.
+The logs are saved in `${PROJECT_HOME}/data/alio-logs/` on Goldship.
+
+To inspect the accepted run now:
+
+```sql
+SELECT code, name, organization_type
+FROM ingestion.organization
+WHERE run_id = 'cb6db580-6cdb-4015-8fd6-2d7f682e460a'
+ORDER BY code;
+```
+
 ### 3.2 JOB-ALIO: list plus detail
 
-First finish an ALIO organization run. Record it in `dependency` for this job run as
+Open **`ingestions/job_alio/full.hwf`**, select **job-alio-local**, and use **Basic** logging.
+`MODE=FULL` fetches the complete active list and every posting detail into a new snapshot.
+`UPSTREAM_RUN_ID=LATEST` selects one READY ALIO organization run at startup and pins that exact
+run for the entire execution. You can instead supply an explicit organization run ID.
+
+The [runnable implementation](../hop/ingestions/job_alio/README.md) uses the existing
+`jobtology-postgres` connection and protected `${HOP_CONFIG_FOLDER}/secrets/data-go-kr.csv`
+credential file. Responses are archived under `${PROJECT_HOME}/data/job-alio-raw/<run_id>/`.
+Its defaults are `MAX_PAGES=100` and `MAX_REQUESTS=1000`; the latter counts both list and detail
+requests. A complete 510-posting snapshot needs 516 requests. The operations ledger also
+reserves a rolling 24-hour allowance for this Hop writer; it cannot see other applications' calls.
+
+`MODE=SMOKE` fetches the first list page **and every detail for that page**, up to 101 requests.
+It retains a REVIEW_REQUIRED snapshot and never appears in the READY-only posting views.
+For a regular refresh after verification, run FULL directly. Earlier snapshots remain stored;
+filter inspection queries by the new run ID. No automatic refresh schedule is installed.
+
+The workflow validates and verifies the list before planning details, then validates all
+list/detail pairs and rechecks the archived files before marking a FULL run READY. It reports
+unmatched employer codes while retaining their postings. See the implementation README for
+the parameter reference, stage descriptions and unmatched-employer query.
+
+Verified live on **2026-09-11 (KST)**: run `77ccb77b-3afc-4965-8ce5-efd687304954` became **READY**
+with **506 active postings**, 6 list pages, 506 detail responses and 1,012 stored source records.
+It pinned ALIO run `cb6db580-6cdb-4015-8fd6-2d7f682e460a`, with zero rejected rows, validation
+issues or unmatched employers. This was one FULL execution; the SMOKE and failure scenarios
+were tested with offline fixtures in a disposable database. The run took about 5 minutes
+25 seconds, and its Basic log contained no API key.
+Independent verification rehashed all 512 archived files, matched all 1,012 source records
+against the existing parser on the same bytes, and checked all 506 assembled postings and
+their field-origin maps. There were zero differences.
+
+To inspect the accepted jobs snapshot:
+
+```sql
+SELECT posting_id,
+       normalized->>'title' AS title,
+       normalized->>'organization_name' AS employer,
+       normalized->>'closing_date' AS closing_date,
+       normalized->>'eligibility_text' AS eligibility_text
+FROM ingestion.job_posting
+WHERE run_id = '77ccb77b-3afc-4965-8ce5-efd687304954'
+ORDER BY posting_id;
+```
+
+The following describes the implemented request and loading contract. First finish an ALIO
+organization run. Record it in `dependency` for this job run as
 `input_source_id='alio_organization'`; use that exact run when resolving employer codes.
 
 List endpoint: `https://apis.data.go.kr/1051000/recruitment/list`.
@@ -508,6 +614,13 @@ byte retrieval is separate from the current contract.
 
 ### 3.3 NCS competency: full API dataset
 
+The [native NCS workflow](../hop/ingestions/ncs_competency/README.md) implements this recipe.
+Open **`ingestions/ncs_competency/full.hwf`**, select **ncs-local**, and use **Basic** logging.
+`MODE=FULL` fetches every page; `MODE=SMOKE` fetches one page and stays REVIEW_REQUIRED.
+The workflow uses `jobtology-postgres`, the existing protected `API_KEY_FILE`, and
+`${PROJECT_HOME}/data/ncs-raw` for response archives. `MAX_PAGES=100` caps actual requests,
+including the second confirmation of an empty full result.
+
 Endpoint: `https://c.q-net.or.kr/openapi/Ncs1info/ncsinfo.do`.
 Query parameters: **lowercase `serviceKey`**, **`type=json`**, `pageNo`, `numOfRows=1000`.
 Seed one PAGED partition `all`, page size 1000.
@@ -521,7 +634,25 @@ competencies first, including occupations outside the product's CS/AI focus. The
 has 15,520 unique versioned codes and 32 level-zero flags. Duplicate codes across pages fail the
 snapshot; Unique Rows must not hide the overlap.
 
+After a run becomes READY, inspect **`ingestion.competency`** filtered by its `run_id`.
+The accepted live FULL run on 2026-09-11 is **`a32170ed-7485-4e31-82d3-ed48b3398946`**:
+15,520 records across 16 verified response files, zero validation issues, and 32 retained
+unspecified-level flags. It includes all 11 categories needed by the qualification API step,
+which yields 139 versioned request codes. See the source workflow README for logs and the
+excluded SMOKE/failed attempts.
+
+To project it into Neo4j, run **`graph/load_snapshot.hwf`** using **graph-local** and set
+`RUN_ID` to that accepted NCS snapshot. The graph loader verifies both the source records and
+their full-version competency/occupation identity references. The qualification recipe below
+then uses the same accepted PostgreSQL snapshot as its upstream input.
+
 ### 3.4 NCS qualification mappings: filter the request codes
+
+**Implemented:** run `ingestions/ncs_qualification/full.hwf` with `reference-local`,
+or `operations/refresh_ncs_qualification.hwf` to include Neo4j. Leave `INPUT_RUN_ID`
+blank to pin the latest accepted NCS snapshot. The workflow generates and checks
+the full eleven-occupation scope automatically; it does not use a manually pasted
+code list. See [parameters and behavior](../hop/ingestions/ncs_qualification/README.md).
 
 This API is queried **once per selected full versioned NCS unit**, with pagination within that
 unit. The current request scope uses these exact 11 `ncsSubdCdnm`/`occupation_name` values:
@@ -571,6 +702,12 @@ training-hour fields belong in PostgreSQL even when Neo4j only links the credent
 
 ### 3.5 Q-Net exam schedules: item code × year
 
+**Implemented:** run `ingestions/qnet_schedule/full.hwf` with `reference-local`,
+or `operations/refresh_qnet_schedule.hwf` to include Neo4j. It pins a qualification
+snapshot and generates every qualification/year partition. `YEAR_FROM` and
+`YEAR_TO` default to the current and next Asia/Seoul year. See
+[parameters and snapshot updates](../hop/ingestions/qnet_schedule/README.md).
+
 From one READY qualification run, select distinct `qualification_code`, uppercase for requests,
 and validate `^[A-Z0-9]{4}$`. Preserve leading zeroes. Join each code to the current and next
 calendar years with Table Input:
@@ -598,6 +735,11 @@ requested item code alongside each response even when the body omits it. Load al
 missing dates remain null. This is exam scheduling data, not a credential price/eligibility feed.
 
 ### 3.6 NCS career-path CSV
+
+**Implemented:** run `ingestions/ncs_career_path/full.hwf` with `reference-local`,
+or `operations/refresh_ncs_career_path.hwf` to include Neo4j. Encoding detection,
+strict file checks, native CSV Input and full source-row retention are provided.
+See [the workflow guide](../hop/ingestions/ncs_career_path/README.md).
 
 Fetch the pinned `NCS_CAREER_PATH_DOWNLOAD_URL` from [.env.example](../.env.example), currently:
 
@@ -677,24 +819,46 @@ may be represented as identifier-only drafts until the source/reference is corre
 
 ## 5. Load Neo4j from the accepted PostgreSQL run
 
-Create private Bolt connection metadata **`jobtology_hop_graph`**. Use **Neo4j Cypher** with bound
-parameters. This guide uses dedicated `HopMigrationBatch`, `HopMigrationRecord` and
-`HopMigrationIdentity` labels so comparison loads remain separate from the existing `Ingest*`
-projection. PostgreSQL keeps full source bodies and long text; the graph contains selected facts
-and explicit source-identity references.
+The [native graph workflows](../hop/graph/README.md) are implemented and installed in the live
+Hop server's persistent default project, with a verified live Neo4j load. Open
+**`graph/alio_jobs.hwf`**, select **graph-local**, use **Basic** logging, and set
+`JOB_RUN_ID=LATEST` or an explicit accepted jobs run. This loads the jobs run's pinned ALIO
+employer snapshot first, then its list/detail records. To load or retry one source independently,
+use **`graph/load_snapshot.hwf`** with `RUN_ID=<accepted run ID>`.
+
+The current installation uses private Bolt connection metadata **`jobtology-neo4j`**, which is
+the workflow default. For another connection, override `NEO4J_CONNECTION`. Use **Neo4j Cypher** with bound
+parameters. Batches use `ingestionBatch`, historical source rows use `ingestionRecord`, and shared
+business nodes use `organization`, `jobPosting`, `occupation`, `ncsCompetency` or `qualification`.
+Business nodes also carry `entity` for a shared ID uniqueness constraint. These remain separate
+from the existing `Ingest*` projection. PostgreSQL keeps source objects and long text, and the raw archive keeps the complete
+API responses. The graph contains selected facts and explicit source-identity references.
 [Neo4j Cypher transform](https://hop.apache.org/manual/latest/pipeline/transforms/neo4j-cypher.html).
 
-Build four sequential pipeline actions in `workflows/load_graph.hwf`:
+The implemented workflows follow this sequence:
 
-1. Create uniqueness constraints once, then create the batch in LOADING state.
+1. Verify the PostgreSQL run, inspect/create uniqueness constraints, upgrade old labels in place,
+   then create the batch in LOADING state with the source run date.
 2. Table Input `SELECT * FROM ingestion.graph_record WHERE run_id = ?` → Neo4j Cypher.
 3. Table Input `SELECT * FROM ingestion.graph_reference WHERE run_id = ?` → Neo4j Cypher.
-4. Read back record IDs and reference triples, compare to PostgreSQL, then set graph batch READY.
+4. Set entity names from accepted PostgreSQL facts, retaining their source run/record IDs.
+5. Compare record properties, reference triples, semantic labels, names and batch dates to
+   PostgreSQL, reject extra membership, then set the graph batch READY.
 
-Use [the supplied Cypher statements](hop-migration/graph.cypher); paste each labeled statement
-into its corresponding transform, not all of them into one per-row invocation. Parameter names
-match input column names. Start per-row, then batch with the transform's UNWIND option only after
-the simple path passes. Compare record IDs and their loaded properties, plus the relationship set;
+For readable node captions, type **`:style`** in Neo4j Browser and upload
+[browser-style.grass](../hop/graph/browser-style.grass). It shows organization names, posting
+titles, NCS occupation/competency names, and batch dates. Alternatively, click a node label in
+the result overview and select its caption property: **name**, **title** for `jobPosting`, or
+**batch_date** for `ingestionBatch`. The dates use **Asia/Seoul** and represent when the source
+snapshot began, so a graph-only rerun keeps the same date. Caption settings belong to each
+Browser profile; the graph properties and Hop files persist independently.
+See [Neo4j Browser styling](https://neo4j.com/docs/browser/operations/browser-styling/).
+
+The [supplied Cypher statements](hop-migration/graph.cypher) explain the model. The executable
+workflows include explicit failure checks, property/reference comparisons and empty-set handling.
+They also inspect constraints before creating them: Hop 2.19 treats Neo4j's harmless existing-
+constraint information notification as an error. Parameter names match input column names.
+The implementation runs parameter-bound statements per row. Compare record IDs and their loaded properties, plus the relationship set;
 counts alone can hide wrong identities or properties. A zero-row graph still needs a batch and
 successful empty-set verification.
 
@@ -783,30 +947,36 @@ Acceptance exercises before replacing a writer:
 
 ## 7. What comes after the first matching data load
 
-Implement the six workflows first; LLM enrichment is not needed to load the current source fields.
-Later, select incomplete/free-text fields from the accepted PostgreSQL documents, call the model
-through REST Client/Language Model Chat, retain the response and validate structured candidates.
-Store extracted values separately with text hashes, exact evidence, prompt/model versions and
-review state. Missing information remains unknown when the text does not support a value. The
-[existing extraction/grounding contracts](canonical-schemas.md) define that next stage.
+All six workflows are implemented. Regular refresh and recovery are described in
+[the operations guide](../hop/operations/README.md): jobs/Q-Net daily, NCS competencies
+and qualification mappings weekly, organizations/career paths every 30 days.
+
+LLM extraction, NCS categorization and quality-check batches now have separate native
+workflows. Follow the [LLM workflow guide](../hop/llm/README.md): prepare a frozen dataset,
+plan an evaluation without API calls, choose model settings, and add reviewed labels before
+comparing quality. Results live in the additive `enrichment` schema with evidence and model
+metadata. A separate workflow publishes reviewed ENRICH results to Neo4j; evaluation results
+cannot be published. Model requests are off by default and are not part of the source scheduler.
+
+There is no existing backend to cut over. Application query design can use the accepted source
+and enrichment views when the backend is built. Automatic retention and attachment-text
+extraction remain separate work.
 
 This experiment retains source facts and per-run history but does not yet replace the current
-canonical assembly, evidence-span store, content-addressed revision IDs or full scheduler ledger.
-Before cutover, explicitly map/migrate those contracts, add durable per-attempt retry/quota records,
-source-policy binding, source locks/checkpoints and the raw-store protections. Match the current
-0.2-second spacing and per-source rolling request budget within the approved provider allowance;
-retain the 64 MiB response ceiling and Goldship's 100 GiB raw-store reserve. A post-download size
-check alone is not an equivalent streaming response-size limit.
+canonical assembly, evidence-span store or content-addressed revision IDs. Their application
+integration remains separate from source ingestion. Durable request reservations, refresh
+execution history, quota checks and a PostgreSQL-to-Neo4j recovery checkpoint are now supplied.
+The host scheduler checks Goldship's 100 GiB raw-volume reserve and serializes its own executions.
+Direct editor executions bypass that host lock and disk check. Responses over 64 MiB are rejected
+after download; native REST does not provide an equivalent streaming response-size limit here.
 
-Then schedule the verified workflows: ALIO/career-path every 30 days, NCS competency/qualification
-every 7 days, Q-Net/jobs every 24 hours. Regenerate dependent partitions when upstream input changes.
-Run one scheduler, stop the corresponding old writer before enabling the replacement, and keep
+Use one scheduler and stop any other writer sharing its provider allowance. Keep
 the last accepted dataset available for rollback. A job missing from a new active-list snapshot
 stays in history; absence alone does not set its status to closed or delete it.
 
 ## Verification of this documentation
 
-Checked on 2026-09-10:
+Checked on 2026-09-10–11:
 
 - Source recipes/mappings against the repository and saved envelopes, including absent ALIO
   pagination fields, the 11-category NCS allowlist and the CP949 career file.
@@ -820,8 +990,55 @@ Checked on 2026-09-10:
   views produced 29,902 records and 59,393 identity-reference rows.
 - Missing-page, missing-empty-confirmation, missing-detail and unverified-file metadata gates;
   changed-fact and missing-reference comparison checks; offline row replay without duplicates.
+- The native ALIO workflow in Hop 2.19: a 201-record, three-page fixture matched the reference
+  normalizer; SMOKE, empty confirmation, invalid dates/types, duplicates, missing pages, changed
+  totals, malformed JSON, page-budget and changed-file checks behaved as specified. A dummy-key
+  transport failure exercised the sanitized error branch without leaking the key into logs.
+- ALIO live SMOKE and FULL runs in `ingestion`: 100 preview records, then 355 accepted organizations
+  across four archived pages. Independent raw-file/parser comparison returned zero differences.
+- JOB-ALIO native execution: full list pagination, every detail, pinned employer dependencies,
+  pair/field validation, request caps, failure propagation and SMOKE isolation were tested with
+  offline fixtures. A live FULL run then loaded 506 accepted postings from 512 archived responses,
+  with zero rejected rows, validation issues or unmatched employers. All 1,012 source records
+  and all 506 assembled postings matched the reference parser and merge rules on the same bytes.
+- Native NCS competency ingestion: all 16 saved baseline pages and all 15,520 records matched
+  the reference parser, including lineage and 32 unspecified-level flags. Pagination, empty
+  confirmations, duplicate codes, malformed fields/envelopes, request caps, replay and archive
+  verification were tested. The live FULL run `a32170ed-7485-4e31-82d3-ed48b3398946` then accepted
+  15,520 records from 16 archived responses with zero validation issues and zero independent
+  raw/parser differences. A page-11 connection timeout left an earlier run FAILED; its partial
+  rows remain excluded. All 11 qualification-scope categories are present, with 139 request codes.
+- Native Neo4j loading in Hop 2.19.0 against disposable PostgreSQL 18 and Neo4j 5.26 Community,
+  using copies of the accepted ALIO/JOB-ALIO snapshots: 1,367 records, 2,379 identity references
+  and 861 identities matched PostgreSQL with zero differences. Both batches became READY;
+  repeating the complete workflow preserved the graph. Changed record/identity properties,
+  extra records and duplicate references failed verification. A repaired batch could be retried,
+  a confirmed empty snapshot completed, and a SMOKE snapshot was rejected before graph writes.
+- A live native graph load through the saved `jobtology-neo4j` connection into Neo4j 2026.06.0
+  Community. Both graph batches became READY, and independent read-back of all 1,367 records
+  and 2,379 identity references returned zero differences against PostgreSQL. All 506 postings
+  resolved to their official employers. Repeating the full graph load preserved the same
+  records, properties and references without duplicates. PostgreSQL snapshots remained READY
+  with zero issues.
 
-The SQL assets are a migration scaffold. The visual Hop pipelines, live API execution and Neo4j
-workflow have not been executed by this documentation work. The original corpus was read-only;
-verification used a disposable database. No provider/model calls or current ETL deployment changes
-were made.
+- The v2 graph update renamed existing nodes in place and added organization/posting/NCS names
+  and source batch dates. All 2,230 prior node IDs and 3,746 relationship IDs were preserved.
+  The live NCS load added 15,520 source records and 31,040 references. Across all three accepted
+  sources, independent comparison verified 16,887 records, 33,419 references, 17,475 entity names
+  with provenance, semantic labels and batch dates, with zero differences. All three batches
+  were READY in both stores. Repeating the NCS graph load preserved the same complete graph
+  without duplicates. The saved Browser style uses these readable properties as captions.
+
+All six sources now have executable Hop artifacts. The qualification/Q-Net/career workflows
+replayed the saved provider bytes through native Hop: 87, 56 and 12,864 normalized records
+respectively, with zero differences in source objects, normalized fields, lineage and flags.
+The 237 qualification responses cover all 139 scoped units; the 104 exam responses cover
+all 62 code/year partitions, including repeated empty confirmations. Career encoding, CSV
+quoting/width, invalid field/date and quota-denial checks were also exercised.
+
+The original corpus was read-only during comparison;
+synthetic tests used disposable databases, and real Hop source runs wrote to `ingestion`.
+The graph uses `ingestionBatch`, `ingestionRecord` and named business entities in STAGING scope.
+Those source-graph checks preceded the separate [LLM workflow implementation](../hop/llm/README.md).
+No paid model calls were made during LLM implementation; model quality awaits funded evaluations.
+The current Python ETL deployment was not changed.

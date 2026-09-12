@@ -1,0 +1,789 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>load_document</name>
+    <description>Read the archived JSON, validate its envelope, normalize every source object and retain rejected rows.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>1000</size_rowset>
+    <parameters>
+      <parameter>
+        <name>DOCUMENT_ID</name>
+        <default_value />
+        <description>DOCUMENT_ID</description>
+      </parameter>
+    </parameters>
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Document identity</from>
+      <to>Read document manifest</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Read document manifest</from>
+      <to>HTTP success</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Read saved JSON</from>
+      <to>Validate envelope</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Validate envelope</from>
+      <to>Save envelope metadata</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Save envelope metadata</from>
+      <to>Envelope accepted</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Envelope accepted</from>
+      <to>Split source objects</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>HTTP success</from>
+      <to>Read saved JSON</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>HTTP success</from>
+      <to>HTTP failure</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Envelope accepted</from>
+      <to>Envelope failure</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Split source objects</from>
+      <to>Normalize organization fields</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Normalize organization fields</from>
+      <to>Valid organization</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Valid organization</from>
+      <to>Load organization</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Load organization</from>
+      <to>Confirm record write</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Confirm record write</from>
+      <to>Record written</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Record written</from>
+      <to>Record complete</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Valid organization</from>
+      <to>Retain rejected organization</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Record written</from>
+      <to>Record write failed</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Document identity</name>
+    <fields>
+      <field>
+        <name>run_id</name>
+        <variable>${ALIO_RUN_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>document_id</name>
+        <variable>${DOCUMENT_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>raw_root</name>
+        <variable>${RAW_ROOT}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>max_pages</name>
+        <variable>${MAX_PAGES}</variable>
+        <type>Integer</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>100</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Read document manifest</name>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <sql>SELECT ?||'/'||d.raw_path AS raw_filename,d.page_no,d.confirmation_no,d.http_status,d.byte_length,p.page_size,p.expected_total
+FROM ingestion.document d JOIN ingestion.partition p USING(run_id,partition_id)
+JOIN ingestion.run u USING(run_id)
+WHERE d.run_id=? AND d.document_id=? AND u.state='LOADING'</sql>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <parameter>
+      <field>
+        <name>raw_root</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>run_id</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>document_id</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <replace_vars>N</replace_vars>
+    <connection>jobtology-postgres</connection>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>330</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>HTTP success</name>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>http_status</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Integer</type>
+          <text>200</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <send_true_to>Read saved JSON</send_true_to>
+    <send_false_to>HTTP failure</send_false_to>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>JsonInput</type>
+    <name>Read saved JSON</name>
+    <include>N</include>
+    <include_field />
+    <rownum>N</rownum>
+    <rownum_field />
+    <limit>0</limit>
+    <valueField>raw_filename</valueField>
+    <IsInFields>Y</IsInFields>
+    <IsAFile>Y</IsAFile>
+    <addresultfile>N</addresultfile>
+    <IsIgnoreEmptyFile>N</IsIgnoreEmptyFile>
+    <doNotFailIfNoFile>N</doNotFailIfNoFile>
+    <ignoreMissingPath>N</ignoreMissingPath>
+    <readurl>N</readurl>
+    <removeSourceField>N</removeSourceField>
+    <defaultPathLeafToNull>Y</defaultPathLeafToNull>
+    <files />
+    <fields>
+      <field>
+        <name>envelope_json</name>
+        <path>$</path>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+        <repeat>N</repeat>
+      </field>
+    </fields>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>790</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Validate envelope</name>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <sql>WITH input AS (SELECT ?::jsonb AS b, ?::integer AS requested_page, ?::integer AS requested_size,
+ ?::integer AS previous_total, ?::bigint AS byte_length, ?::integer AS max_pages), parsed AS (
+ SELECT *, CASE WHEN b-&gt;&gt;'totalCount' ~ '^[0-9]+$' AND length(b-&gt;&gt;'totalCount')&lt;=10
+ AND (b-&gt;&gt;'totalCount')::numeric&lt;=2147483647 THEN (b-&gt;&gt;'totalCount')::integer END AS declared_total,
+ CASE WHEN jsonb_typeof(b-&gt;'result')='array' THEN jsonb_array_length(b-&gt;'result') END AS item_count,
+ b-&gt;&gt;'resultCode' AS provider_result FROM input), checked AS (
+ SELECT *, CASE
+ WHEN jsonb_typeof(b)&lt;&gt;'object' OR provider_result IS DISTINCT FROM '200' THEN 'INVALID_PROVIDER_RESULT'
+ WHEN byte_length&lt;=0 OR byte_length&gt;67108864 THEN 'INVALID_RESPONSE_SIZE'
+ WHEN declared_total IS NULL OR item_count IS NULL THEN 'INVALID_ENVELOPE'
+ WHEN max_pages&lt;1 OR (CASE WHEN declared_total=0 THEN 2 ELSE ceil(declared_total::numeric/requested_size) END)&gt;max_pages THEN 'PAGE_BUDGET_EXCEEDED'
+ WHEN previous_total IS NOT NULL AND previous_total&lt;&gt;declared_total THEN 'TOTAL_CHANGED'
+ WHEN b-&gt;'pageNo' IS NOT NULL AND b-&gt;'pageNo'&lt;&gt;'null'::jsonb AND b-&gt;&gt;'pageNo'&lt;&gt;requested_page::text THEN 'PAGE_MISMATCH'
+ WHEN b-&gt;'numOfRows' IS NOT NULL AND b-&gt;'numOfRows'&lt;&gt;'null'::jsonb AND b-&gt;&gt;'numOfRows'&lt;&gt;requested_size::text THEN 'PAGE_SIZE_MISMATCH'
+ WHEN item_count&lt;&gt;greatest(0,least(requested_size,declared_total-(requested_page-1)*requested_size)) THEN 'PAGE_ROW_COUNT_MISMATCH'
+ ELSE NULL END AS envelope_error FROM parsed)
+SELECT declared_total,item_count,provider_result,envelope_error,envelope_error IS NULL AS envelope_valid FROM checked</sql>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <parameter>
+      <field>
+        <name>envelope_json</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>page_no</name>
+        <type>Integer</type>
+      </field>
+      <field>
+        <name>page_size</name>
+        <type>Integer</type>
+      </field>
+      <field>
+        <name>expected_total</name>
+        <type>Integer</type>
+      </field>
+      <field>
+        <name>byte_length</name>
+        <type>Integer</type>
+      </field>
+      <field>
+        <name>max_pages</name>
+        <type>Integer</type>
+      </field>
+    </parameter>
+    <replace_vars>N</replace_vars>
+    <connection>jobtology-postgres</connection>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>1020</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>ExecSql</type>
+    <name>Save envelope metadata</name>
+    <sql>WITH updated AS (
+ UPDATE ingestion.document SET declared_total=?,item_count=?,provider_result=?,effective_page=page_no,effective_page_size=?,selected=CAST(? AS boolean)
+ WHERE run_id=? AND document_id=? RETURNING run_id,partition_id,declared_total,selected,page_no,confirmation_no
+) UPDATE ingestion.partition p SET expected_total=d.declared_total FROM updated d
+WHERE p.run_id=d.run_id AND p.partition_id=d.partition_id AND p.expected_total IS NULL
+AND d.selected AND d.page_no=1 AND d.confirmation_no=0;</sql>
+    <execute_each_row>Y</execute_each_row>
+    <single_statement>Y</single_statement>
+    <replace_variables>N</replace_variables>
+    <quoteString>N</quoteString>
+    <set_params>Y</set_params>
+    <arguments>
+      <argument>
+        <name>declared_total</name>
+      </argument>
+      <argument>
+        <name>item_count</name>
+      </argument>
+      <argument>
+        <name>provider_result</name>
+      </argument>
+      <argument>
+        <name>page_size</name>
+      </argument>
+      <argument>
+        <name>envelope_valid</name>
+      </argument>
+      <argument>
+        <name>run_id</name>
+      </argument>
+      <argument>
+        <name>document_id</name>
+      </argument>
+    </arguments>
+    <connection>jobtology-postgres</connection>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>100</xloc>
+      <yloc>270</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>Envelope accepted</name>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>envelope_valid</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Boolean</type>
+          <text>Y</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <send_true_to>Split source objects</send_true_to>
+    <send_false_to>Envelope failure</send_false_to>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>330</xloc>
+      <yloc>270</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Split source objects</name>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <sql>SELECT value::text AS source_payload_json, '/result/'||(ordinality-1)::text AS locator FROM jsonb_array_elements(?::jsonb-&gt;'result') WITH ORDINALITY</sql>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <parameter>
+      <field>
+        <name>envelope_json</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <replace_vars>N</replace_vars>
+    <connection>jobtology-postgres</connection>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>270</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Abort</type>
+    <name>HTTP failure</name>
+    <row_threshold>0</row_threshold>
+    <message>ALIO returned a non-200 HTTP response. The body remains archived.</message>
+    <always_log_rows>N</always_log_rows>
+    <abort_option>ABORT_WITH_ERROR</abort_option>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>790</xloc>
+      <yloc>270</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Abort</type>
+    <name>Envelope failure</name>
+    <row_threshold>0</row_threshold>
+    <message>ALIO envelope or page coverage is invalid. Inspect the archived document.</message>
+    <always_log_rows>N</always_log_rows>
+    <abort_option>ABORT_WITH_ERROR</abort_option>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>1020</xloc>
+      <yloc>270</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Normalize organization fields</name>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <sql>WITH source AS (SELECT ?::jsonb AS b), cleaned AS (SELECT b,NULLIF(btrim(normalize(replace(replace(b-&gt;&gt;'instCd', E'\r\n', E'\n'), E'\r', E'\n'), NFC), chr(9) || chr(10) || chr(11) || chr(12) || chr(13) || chr(28) || chr(29) || chr(30) || chr(31) || chr(32) || chr(133) || chr(160) || chr(5760) || chr(8192) || chr(8193) || chr(8194) || chr(8195) || chr(8196) || chr(8197) || chr(8198) || chr(8199) || chr(8200) || chr(8201) || chr(8202) || chr(8232) || chr(8233) || chr(8239) || chr(8287) || chr(12288)),'') AS code,
+NULLIF(btrim(normalize(replace(replace(b-&gt;&gt;'instNm', E'\r\n', E'\n'), E'\r', E'\n'), NFC), chr(9) || chr(10) || chr(11) || chr(12) || chr(13) || chr(28) || chr(29) || chr(30) || chr(31) || chr(32) || chr(133) || chr(160) || chr(5760) || chr(8192) || chr(8193) || chr(8194) || chr(8195) || chr(8196) || chr(8197) || chr(8198) || chr(8199) || chr(8200) || chr(8201) || chr(8202) || chr(8232) || chr(8233) || chr(8239) || chr(8287) || chr(12288)),'') AS name,
+NULLIF(btrim(normalize(replace(replace(b-&gt;&gt;'pbadmsStdInstCd', E'\r\n', E'\n'), E'\r', E'\n'), NFC), chr(9) || chr(10) || chr(11) || chr(12) || chr(13) || chr(28) || chr(29) || chr(30) || chr(31) || chr(32) || chr(133) || chr(160) || chr(5760) || chr(8192) || chr(8193) || chr(8194) || chr(8195) || chr(8196) || chr(8197) || chr(8198) || chr(8199) || chr(8200) || chr(8201) || chr(8202) || chr(8232) || chr(8233) || chr(8239) || chr(8287) || chr(12288)),'') AS government_code,
+NULLIF(btrim(normalize(replace(replace(b-&gt;&gt;'instTypeNm', E'\r\n', E'\n'), E'\r', E'\n'), NFC), chr(9) || chr(10) || chr(11) || chr(12) || chr(13) || chr(28) || chr(29) || chr(30) || chr(31) || chr(32) || chr(133) || chr(160) || chr(5760) || chr(8192) || chr(8193) || chr(8194) || chr(8195) || chr(8196) || chr(8197) || chr(8198) || chr(8199) || chr(8200) || chr(8201) || chr(8202) || chr(8232) || chr(8233) || chr(8239) || chr(8287) || chr(12288)),'') AS organization_type,
+NULLIF(btrim(normalize(replace(replace(b-&gt;&gt;'sprvsnInstCd', E'\r\n', E'\n'), E'\r', E'\n'), NFC), chr(9) || chr(10) || chr(11) || chr(12) || chr(13) || chr(28) || chr(29) || chr(30) || chr(31) || chr(32) || chr(133) || chr(160) || chr(5760) || chr(8192) || chr(8193) || chr(8194) || chr(8195) || chr(8196) || chr(8197) || chr(8198) || chr(8199) || chr(8200) || chr(8201) || chr(8202) || chr(8232) || chr(8233) || chr(8239) || chr(8287) || chr(12288)),'') AS supervising_organization_code,
+NULLIF(btrim(normalize(replace(replace(b-&gt;&gt;'siteUrl', E'\r\n', E'\n'), E'\r', E'\n'), NFC), chr(9) || chr(10) || chr(11) || chr(12) || chr(13) || chr(28) || chr(29) || chr(30) || chr(31) || chr(32) || chr(133) || chr(160) || chr(5760) || chr(8192) || chr(8193) || chr(8194) || chr(8195) || chr(8196) || chr(8197) || chr(8198) || chr(8199) || chr(8200) || chr(8201) || chr(8202) || chr(8232) || chr(8233) || chr(8239) || chr(8287) || chr(12288)),'') AS website,
+NULLIF(btrim(normalize(replace(replace(b-&gt;&gt;'roadNmAddr', E'\r\n', E'\n'), E'\r', E'\n'), NFC), chr(9) || chr(10) || chr(11) || chr(12) || chr(13) || chr(28) || chr(29) || chr(30) || chr(31) || chr(32) || chr(133) || chr(160) || chr(5760) || chr(8192) || chr(8193) || chr(8194) || chr(8195) || chr(8196) || chr(8197) || chr(8198) || chr(8199) || chr(8200) || chr(8201) || chr(8202) || chr(8232) || chr(8233) || chr(8239) || chr(8287) || chr(12288)),'') AS address,
+NULLIF(btrim(normalize(replace(replace(b-&gt;&gt;'fndnYmd', E'\r\n', E'\n'), E'\r', E'\n'), NFC), chr(9) || chr(10) || chr(11) || chr(12) || chr(13) || chr(28) || chr(29) || chr(30) || chr(31) || chr(32) || chr(133) || chr(160) || chr(5760) || chr(8192) || chr(8193) || chr(8194) || chr(8195) || chr(8196) || chr(8197) || chr(8198) || chr(8199) || chr(8200) || chr(8201) || chr(8202) || chr(8232) || chr(8233) || chr(8239) || chr(8287) || chr(12288)),'') AS established_date FROM source), dated AS (
+ SELECT *,CASE WHEN established_date ~ '^[0-9]{8}$' THEN substr(established_date,1,4)||'-'||substr(established_date,5,2)||'-'||substr(established_date,7,2) END AS established_iso FROM cleaned), checked AS (
+ SELECT *, CASE WHEN jsonb_typeof(b)&lt;&gt;'object' THEN 'INVALID_OBJECT'
+ WHEN (coalesce(jsonb_typeof(b-&gt;'instCd'),'null') NOT IN ('null','string','number') OR (jsonb_typeof(b-&gt;'instCd')='number' AND b-&gt;&gt;'instCd' !~ '^-?[0-9]+$')) OR (coalesce(jsonb_typeof(b-&gt;'instNm'),'null') NOT IN ('null','string','number') OR (jsonb_typeof(b-&gt;'instNm')='number' AND b-&gt;&gt;'instNm' !~ '^-?[0-9]+$')) OR (coalesce(jsonb_typeof(b-&gt;'pbadmsStdInstCd'),'null') NOT IN ('null','string','number') OR (jsonb_typeof(b-&gt;'pbadmsStdInstCd')='number' AND b-&gt;&gt;'pbadmsStdInstCd' !~ '^-?[0-9]+$')) OR (coalesce(jsonb_typeof(b-&gt;'instTypeNm'),'null') NOT IN ('null','string','number') OR (jsonb_typeof(b-&gt;'instTypeNm')='number' AND b-&gt;&gt;'instTypeNm' !~ '^-?[0-9]+$')) OR (coalesce(jsonb_typeof(b-&gt;'sprvsnInstCd'),'null') NOT IN ('null','string','number') OR (jsonb_typeof(b-&gt;'sprvsnInstCd')='number' AND b-&gt;&gt;'sprvsnInstCd' !~ '^-?[0-9]+$')) OR (coalesce(jsonb_typeof(b-&gt;'siteUrl'),'null') NOT IN ('null','string','number') OR (jsonb_typeof(b-&gt;'siteUrl')='number' AND b-&gt;&gt;'siteUrl' !~ '^-?[0-9]+$')) OR (coalesce(jsonb_typeof(b-&gt;'roadNmAddr'),'null') NOT IN ('null','string','number') OR (jsonb_typeof(b-&gt;'roadNmAddr')='number' AND b-&gt;&gt;'roadNmAddr' !~ '^-?[0-9]+$')) OR (coalesce(jsonb_typeof(b-&gt;'fndnYmd'),'null') NOT IN ('null','string','number') OR (jsonb_typeof(b-&gt;'fndnYmd')='number' AND b-&gt;&gt;'fndnYmd' !~ '^-?[0-9]+$')) THEN 'INVALID_STRING'
+ WHEN code IS NULL OR name IS NULL THEN 'MISSING_REQUIRED_FIELD'
+ WHEN established_date IS NOT NULL AND (established_iso IS NULL OR NOT pg_input_is_valid(established_iso,'date')) THEN 'INVALID_DATE'
+ ELSE NULL END AS record_error FROM dated)
+SELECT jsonb_build_object('row',jsonb_build_array(jsonb_build_object('kind','Organization','code',code,'name',name,'government_code',government_code,'organization_type',organization_type,'supervising_organization_code',supervising_organization_code,'website',website,'address',address,'established_date',CASE WHEN record_error IS NULL THEN established_iso ELSE NULL END)))::text AS normalized_block_json,
+ '{"code":["/instCd"],"name":["/instNm"],"government_code":["/pbadmsStdInstCd"],"organization_type":["/instTypeNm"],"supervising_organization_code":["/sprvsnInstCd"],"website":["/siteUrl"],"address":["/roadNmAddr"],"established_date":["/fndnYmd"]}'::text AS field_lineage_json,'[]'::text AS quality_flags_json,record_error,record_error IS NULL AS record_valid FROM checked</sql>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <parameter>
+      <field>
+        <name>source_payload_json</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <replace_vars>N</replace_vars>
+    <connection>jobtology-postgres</connection>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>100</xloc>
+      <yloc>440</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>Valid organization</name>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>record_valid</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Boolean</type>
+          <text>Y</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <send_true_to>Load organization</send_true_to>
+    <send_false_to>Retain rejected organization</send_false_to>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>330</xloc>
+      <yloc>440</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>ExecSql</type>
+    <name>Load organization</name>
+    <sql>-- Execute SQL script: execute for each row, bind parameters, single statement.
+-- Bind in order: run_id, document_id, locator, source_payload_json,
+-- normalized_block_json, field_lineage_json, quality_flags_json.
+-- JSON Output must emit {"row":[{...}]} with exactly one row per block.
+-- This statement writes only LOADING runs. Treat zero affected rows as an error.
+WITH input AS (
+    SELECT CAST(? AS text) AS run_id, CAST(? AS text) AS document_id,
+           CAST(? AS text) AS locator, CAST(? AS jsonb) AS source_payload,
+           CAST(? AS jsonb)-&gt;'row'-&gt;0 AS flat,
+           CAST(? AS jsonb) AS field_lineage, CAST(? AS jsonb) AS quality_flags
+), shaped AS (
+    SELECT i.*, u.source_id,
+      CASE u.source_id
+        WHEN 'ncs_competency' THEN
+          (flat - ARRAY['classification_1', 'classification_2', 'classification_3'])
+          || jsonb_build_object('classification_names', jsonb_build_array(
+               COALESCE(flat-&gt;&gt;'classification_1', ''),
+               COALESCE(flat-&gt;&gt;'classification_2', ''),
+               COALESCE(flat-&gt;&gt;'classification_3', '')))
+        WHEN 'qnet_schedule' THEN
+          (flat - ARRAY['docRegStartDt', 'docRegEndDt', 'docExamStartDt', 'docExamEndDt',
+                       'docPassDt', 'pracRegStartDt', 'pracRegEndDt', 'pracExamStartDt',
+                       'pracExamEndDt', 'pracPassDt'])
+          || jsonb_build_object('dates', jsonb_build_object(
+               'docRegStartDt', flat-&gt;'docRegStartDt', 'docRegEndDt', flat-&gt;'docRegEndDt',
+               'docExamStartDt', flat-&gt;'docExamStartDt', 'docExamEndDt', flat-&gt;'docExamEndDt',
+               'docPassDt', flat-&gt;'docPassDt', 'pracRegStartDt', flat-&gt;'pracRegStartDt',
+               'pracRegEndDt', flat-&gt;'pracRegEndDt', 'pracExamStartDt', flat-&gt;'pracExamStartDt',
+               'pracExamEndDt', flat-&gt;'pracExamEndDt', 'pracPassDt', flat-&gt;'pracPassDt'))
+        ELSE flat END AS normalized
+    FROM input i JOIN ingestion.run u USING (run_id)
+    WHERE u.state = 'LOADING'
+), keyed AS (
+    SELECT s.*,
+      CASE source_id
+        WHEN 'alio_organization' THEN normalized-&gt;&gt;'code'
+        WHEN 'ncs_competency' THEN normalized-&gt;&gt;'code'
+        WHEN 'job_alio' THEN (normalized-&gt;&gt;'posting_id') || ':' || (normalized-&gt;&gt;'representation')
+        WHEN 'ncs_qualification' THEN (normalized-&gt;&gt;'competency_code') || ':'
+            || (normalized-&gt;&gt;'qualification_code') || ':' || (normalized-&gt;&gt;'standard_version')
+        WHEN 'qnet_schedule' THEN (normalized-&gt;&gt;'qualification_code') || ':'
+            || (normalized-&gt;&gt;'year') || ':' || (normalized-&gt;&gt;'category_code') || ':'
+            || (normalized-&gt;&gt;'round')
+        -- New, versioned migration identity: NOT the Python JSON serialization/hash.
+        WHEN 'ncs_career_path' THEN 'hop-career-v1:' || encode(
+            sha256(convert_to(normalized::text, 'UTF8')), 'hex') END AS source_record_id
+    FROM shaped s
+)
+INSERT INTO ingestion.record
+    (run_id, document_id, locator, source_record_id, source_payload,
+     normalized, field_lineage, quality_flags)
+SELECT run_id, document_id, locator, source_record_id, source_payload,
+       normalized, field_lineage, quality_flags FROM keyed
+ON CONFLICT (run_id, document_id, locator) DO UPDATE SET
+    source_record_id = EXCLUDED.source_record_id, source_payload = EXCLUDED.source_payload,
+    normalized = EXCLUDED.normalized, field_lineage = EXCLUDED.field_lineage,
+    quality_flags = EXCLUDED.quality_flags;</sql>
+    <execute_each_row>Y</execute_each_row>
+    <single_statement>Y</single_statement>
+    <replace_variables>N</replace_variables>
+    <quoteString>N</quoteString>
+    <set_params>Y</set_params>
+    <arguments>
+      <argument>
+        <name>run_id</name>
+      </argument>
+      <argument>
+        <name>document_id</name>
+      </argument>
+      <argument>
+        <name>locator</name>
+      </argument>
+      <argument>
+        <name>source_payload_json</name>
+      </argument>
+      <argument>
+        <name>normalized_block_json</name>
+      </argument>
+      <argument>
+        <name>field_lineage_json</name>
+      </argument>
+      <argument>
+        <name>quality_flags_json</name>
+      </argument>
+    </arguments>
+    <connection>jobtology-postgres</connection>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>440</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Confirm record write</name>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <sql>SELECT EXISTS(SELECT 1 FROM ingestion.record r JOIN ingestion.run u USING(run_id)
+WHERE r.run_id=? AND r.document_id=? AND r.locator=? AND r.normalized=?::jsonb-&gt;'row'-&gt;0 AND u.state='LOADING') AS record_written</sql>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <parameter>
+      <field>
+        <name>run_id</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>document_id</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>locator</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>normalized_block_json</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <replace_vars>N</replace_vars>
+    <connection>jobtology-postgres</connection>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>790</xloc>
+      <yloc>440</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>Record written</name>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>record_written</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Boolean</type>
+          <text>Y</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <send_true_to>Record complete</send_true_to>
+    <send_false_to>Record write failed</send_false_to>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>1020</xloc>
+      <yloc>440</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Dummy</type>
+    <name>Record complete</name>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>100</xloc>
+      <yloc>610</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>ExecSql</type>
+    <name>Retain rejected organization</name>
+    <sql>INSERT INTO ingestion.rejected_row(run_id,document_id,locator,error_code,source_payload)
+SELECT ?,?,?,?,?::jsonb;</sql>
+    <execute_each_row>Y</execute_each_row>
+    <single_statement>Y</single_statement>
+    <replace_variables>N</replace_variables>
+    <quoteString>N</quoteString>
+    <set_params>Y</set_params>
+    <arguments>
+      <argument>
+        <name>run_id</name>
+      </argument>
+      <argument>
+        <name>document_id</name>
+      </argument>
+      <argument>
+        <name>locator</name>
+      </argument>
+      <argument>
+        <name>record_error</name>
+      </argument>
+      <argument>
+        <name>source_payload_json</name>
+      </argument>
+    </arguments>
+    <connection>jobtology-postgres</connection>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>330</xloc>
+      <yloc>610</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Abort</type>
+    <name>Record write failed</name>
+    <row_threshold>0</row_threshold>
+    <message>The run was not LOADING or the normalized record was not stored.</message>
+    <always_log_rows>N</always_log_rows>
+    <abort_option>ABORT_WITH_ERROR</abort_option>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>610</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

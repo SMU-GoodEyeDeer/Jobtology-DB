@@ -1,0 +1,280 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>start_run</name>
+    <description>Create a new isolated NCS run and its all partition. Sets QUALIFICATION_RUN_ID only on the parent workflow.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>1000</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Run options</from>
+      <to>Generate run ID</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Generate run ID</from>
+      <to>Valid options</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Remember run ID</from>
+      <to>Create run and partition</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Create run and partition</from>
+      <to>Seed intended partitions</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Valid options</from>
+      <to>Remember run ID</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Valid options</from>
+      <to>Invalid options</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Run options</name>
+    <fields>
+      <field>
+        <name>mode</name>
+        <variable>${MODE}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>raw_root</name>
+        <variable>${RAW_ROOT}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>max_pages</name>
+        <variable>${MAX_PAGES}</variable>
+        <type>Integer</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>input_run_id</name>
+        <variable>${INPUT_RUN_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>100</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Generate run ID</name>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <sql>WITH input AS (SELECT ?::text AS mode,?::text AS raw_root,?::integer AS max_pages,?::text AS requested_run,NULL::integer AS year_from,NULL::integer AS year_to), dep AS (
+ SELECT u.run_id FROM ingestion.run u CROSS JOIN input i WHERE u.source_id='ncs_competency' AND u.state='READY' AND u.mode&lt;&gt;'SMOKE'
+ AND (nullif(i.requested_run,'') IS NULL OR u.run_id=i.requested_run) ORDER BY u.created_at DESC,u.run_id DESC LIMIT 1)
+ SELECT gen_random_uuid()::text AS run_id,dep.run_id AS input_run_id_selected,year_from,year_to,
+ (i.mode IN ('FULL','SMOKE') AND nullif(i.raw_root,'') IS NOT NULL AND i.max_pages BETWEEN 1 AND 1000 AND dep.run_id IS NOT NULL AND (SELECT count(DISTINCT c.occupation_name) FROM ingestion.competency c JOIN ingestion.qualification_scope s USING(occupation_name) WHERE c.run_id=dep.run_id)=11) AS options_ok
+ FROM input i LEFT JOIN dep ON true</sql>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <parameter>
+      <field>
+        <name>mode</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>raw_root</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>max_pages</name>
+        <type>Integer</type>
+      </field>
+      <field>
+        <name>input_run_id</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <replace_vars>N</replace_vars>
+    <connection>jobtology-postgres</connection>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>330</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>Valid options</name>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>options_ok</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Boolean</type>
+          <text>Y</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <send_true_to>Remember run ID</send_true_to>
+    <send_false_to>Invalid options</send_false_to>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>SetVariable</type>
+    <name>Remember run ID</name>
+    <fields>
+      <field>
+        <field_name>run_id</field_name>
+        <variable_name>QUALIFICATION_RUN_ID</variable_name>
+        <variable_type>PARENT_WORKFLOW</variable_type>
+        <default_value />
+      </field>
+    </fields>
+    <use_formatting>Y</use_formatting>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>790</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>ExecSql</type>
+    <name>Create run and partition</name>
+    <sql>WITH new_run AS (
+ INSERT INTO ingestion.run(run_id,source_id,mode,parser_version,policy_revision,settings)
+ VALUES (?,'ncs_qualification',?,'hop-ncs_qualification-v1','2026-09-05.1',jsonb_build_object('year_from',?::integer,'year_to',?::integer,'max_requests',?::integer)) RETURNING run_id)
+ INSERT INTO ingestion.dependency(run_id,input_source_id,input_run_id) SELECT run_id,'ncs_competency',? FROM new_run</sql>
+    <execute_each_row>Y</execute_each_row>
+    <single_statement>Y</single_statement>
+    <replace_variables>N</replace_variables>
+    <quoteString>N</quoteString>
+    <set_params>Y</set_params>
+    <arguments>
+      <argument>
+        <name>run_id</name>
+      </argument>
+      <argument>
+        <name>mode</name>
+      </argument>
+      <argument>
+        <name>year_from</name>
+      </argument>
+      <argument>
+        <name>year_to</name>
+      </argument>
+      <argument>
+        <name>max_pages</name>
+      </argument>
+      <argument>
+        <name>input_run_id_selected</name>
+      </argument>
+    </arguments>
+    <connection>jobtology-postgres</connection>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>1020</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>ExecSql</type>
+    <name>Seed intended partitions</name>
+    <sql>INSERT INTO ingestion.partition(run_id,partition_id,kind,request_context,page_size) SELECT run_id,partition_id,'PAGED',request_context,50 FROM ingestion.expected_reference_partition WHERE run_id=?</sql>
+    <execute_each_row>Y</execute_each_row>
+    <single_statement>Y</single_statement>
+    <replace_variables>N</replace_variables>
+    <quoteString>N</quoteString>
+    <set_params>Y</set_params>
+    <arguments>
+      <argument>
+        <name>run_id</name>
+      </argument>
+    </arguments>
+    <connection>jobtology-postgres</connection>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>100</xloc>
+      <yloc>270</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Abort</type>
+    <name>Invalid options</name>
+    <row_threshold>0</row_threshold>
+    <message>Invalid options or no accepted upstream snapshot with the complete required scope. Q-Net requires two consecutive years.</message>
+    <always_log_rows>N</always_log_rows>
+    <abort_option>ABORT_WITH_ERROR</abort_option>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>330</xloc>
+      <yloc>270</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

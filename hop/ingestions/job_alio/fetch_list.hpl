@@ -1,0 +1,879 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>fetch_list</name>
+    <description>Fetch one JOB-ALIO list page; archive exact response bytes before parsing. No automatic retries or REST pagination.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>1000</size_rowset>
+    <parameters>
+      <parameter>
+        <name>PAGE_NO</name>
+        <default_value>1</default_value>
+        <description>PAGE_NO</description>
+      </parameter>
+      <parameter>
+        <name>CONFIRMATION_NO</name>
+        <default_value>0</default_value>
+        <description>CONFIRMATION_NO</description>
+      </parameter>
+    </parameters>
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Read runtime API key</from>
+      <to>Page context</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Page context</from>
+      <to>Build archive location</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Build archive location</from>
+      <to>Space provider requests</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Space provider requests</from>
+      <to>Reserve provider request</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Fetch JOB-ALIO page</from>
+      <to>Remove API key</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Remove API key</from>
+      <to>Archive response bytes</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Archive response bytes</from>
+      <to>Release response bytes</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Release response bytes</from>
+      <to>Hash saved response</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Hash saved response</from>
+      <to>Measure saved response</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Measure saved response</from>
+      <to>Register archived response</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Finish request accounting</from>
+      <to>Run child pipeline</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Run child pipeline</from>
+      <to>Child error count</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Child error count</from>
+      <to>Child completed</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Child completed</from>
+      <to>Child success</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Child error count</from>
+      <to>Child failed</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Child completed</from>
+      <to>Child failed</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Remove failed request details</from>
+      <to>Transport failed</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Fetch JOB-ALIO page</from>
+      <to>Remove failed request details</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Reserve provider request</from>
+      <to>Request allowed</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Request allowed</from>
+      <to>Fetch JOB-ALIO page</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Request allowed</from>
+      <to>Remove denied request key</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Remove denied request key</from>
+      <to>Request denied</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Register archived response</from>
+      <to>Finish request accounting</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>CsvInput</type>
+    <name>Read runtime API key</name>
+    <include_filename>N</include_filename>
+    <header>Y</header>
+    <separator>,</separator>
+    <enclosure>"</enclosure>
+    <buffer_size>50000</buffer_size>
+    <lazy_conversion>N</lazy_conversion>
+    <add_filename_result>N</add_filename_result>
+    <parallel>N</parallel>
+    <newline_possible>N</newline_possible>
+    <ignoreFields>N</ignoreFields>
+    <fields>
+      <field>
+        <name>service_key</name>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>both</trim_type>
+      </field>
+    </fields>
+    <filename>${API_KEY_FILE}</filename>
+    <encoding>UTF-8</encoding>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>100</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>GetVariable</type>
+    <name>Page context</name>
+    <fields>
+      <field>
+        <name>run_id</name>
+        <variable>${JOB_ALIO_RUN_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>page_no</name>
+        <variable>${PAGE_NO}</variable>
+        <type>Integer</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>confirmation_no</name>
+        <variable>${CONFIRMATION_NO}</variable>
+        <type>Integer</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>raw_root</name>
+        <variable>${RAW_ROOT}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>ongoing_filter</name>
+        <variable>Y</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>max_requests</name>
+        <variable>${MAX_REQUESTS}</variable>
+        <type>Integer</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>330</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Build archive location</name>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <sql>WITH context AS (SELECT ?::text AS run_id, ?::integer AS page_no, ?::integer AS confirmation_no, ?::text AS raw_root)
+SELECT 'index'::text AS partition_id, 'index:'||page_no||':'||confirmation_no||':1' AS document_id,
+ run_id||'/index/page-'||page_no||'-confirm-'||confirmation_no||'-attempt-1.json' AS raw_path,
+ raw_root||'/'||run_id||'/index/page-'||page_no||'-confirm-'||confirmation_no||'-attempt-1.json' AS raw_filename,
+ 100::bigint AS page_size, 'json'::text AS result_type, CURRENT_TIMESTAMP AS retrieved_at
+FROM context c JOIN ingestion.run u USING(run_id)
+WHERE u.state='LOADING' AND u.source_id='job_alio' AND page_no&gt;0 AND confirmation_no IN (0,1)</sql>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <parameter>
+      <field>
+        <name>run_id</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>page_no</name>
+        <type>Integer</type>
+      </field>
+      <field>
+        <name>confirmation_no</name>
+        <type>Integer</type>
+      </field>
+      <field>
+        <name>raw_root</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <replace_vars>N</replace_vars>
+    <connection>jobtology-postgres</connection>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Delay</type>
+    <name>Space provider requests</name>
+    <timeout>200</timeout>
+    <scaletime>milliseconds</scaletime>
+    <scaletime_from_field>N</scaletime_from_field>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>790</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Rest</type>
+    <name>Fetch JOB-ALIO page</name>
+    <applicationType>JSON</applicationType>
+    <urlInField>N</urlInField>
+    <non_preemptive_basic_auth>N</non_preemptive_basic_auth>
+    <method>GET</method>
+    <dynamicMethod>N</dynamicMethod>
+    <connectionTimeout>10000</connectionTimeout>
+    <readTimeout>60000</readTimeout>
+    <ignoreSsl>N</ignoreSsl>
+    <headers />
+    <parameters>
+      <parameter>
+        <field>service_key</field>
+        <name>serviceKey</name>
+      </parameter>
+      <parameter>
+        <field>result_type</field>
+        <name>resultType</name>
+      </parameter>
+      <parameter>
+        <field>page_no</field>
+        <name>pageNo</name>
+      </parameter>
+      <parameter>
+        <field>page_size</field>
+        <name>numOfRows</name>
+      </parameter>
+      <parameter>
+        <field>ongoing_filter</field>
+        <name>ongoingYn</name>
+      </parameter>
+    </parameters>
+    <matrixParameters />
+    <result>
+      <binary>Y</binary>
+      <name>response_bytes</name>
+      <code>http_status</code>
+    </result>
+    <retryTimes>0</retryTimes>
+    <retryDelayMs>200</retryDelayMs>
+    <retryStatusCodes>
+      <retryStatusCode>503</retryStatusCode>
+      <retryStatusCode>504</retryStatusCode>
+      <retryStatusCode>429</retryStatusCode>
+      <retryStatusCode>500</retryStatusCode>
+      <retryStatusCode>502</retryStatusCode>
+    </retryStatusCodes>
+    <retryMethods>
+      <retryMethod>GET</retryMethod>
+      <retryMethod>DELETE</retryMethod>
+      <retryMethod>PUT</retryMethod>
+    </retryMethods>
+    <paginationEnabled>N</paginationEnabled>
+    <maxPagesLoops>256</maxPagesLoops>
+    <streamingEnabled>N</streamingEnabled>
+    <streamingFormat>NDJSON</streamingFormat>
+    <url>https://apis.data.go.kr/1051000/recruitment/list</url>
+    <connection_name />
+    <httpLogin />
+    <httpPassword />
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>1020</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>SelectValues</type>
+    <name>Remove API key</name>
+    <fields>
+      <select_unspecified>Y</select_unspecified>
+      <remove>
+        <name>service_key</name>
+      </remove>
+    </fields>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>100</xloc>
+      <yloc>270</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>BinaryFileOutput</type>
+    <name>Archive response bytes</name>
+    <createparentfolder>Y</createparentfolder>
+    <overwritefile>N</overwritefile>
+    <addresultfilenames>N</addresultfilenames>
+    <binaryfield>response_bytes</binaryfield>
+    <filenamefield>raw_filename</filenamefield>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>330</xloc>
+      <yloc>270</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>SelectValues</type>
+    <name>Release response bytes</name>
+    <fields>
+      <select_unspecified>Y</select_unspecified>
+      <remove>
+        <name>response_bytes</name>
+      </remove>
+    </fields>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>270</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Calculator</type>
+    <name>Hash saved response</name>
+    <failIfNoFile>Y</failIfNoFile>
+    <calculation>
+      <field_name>raw_sha256</field_name>
+      <calc_type>SHA256</calc_type>
+      <field_a>raw_filename</field_a>
+      <value_type>String</value_type>
+      <value_length>-1</value_length>
+      <value_precision>-1</value_precision>
+      <remove>N</remove>
+    </calculation>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>790</xloc>
+      <yloc>270</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>GetFileNames</type>
+    <name>Measure saved response</name>
+    <filter>
+      <filterfiletype>all_files</filterfiletype>
+    </filter>
+    <rownum>N</rownum>
+    <rownum_field />
+    <filename_Field>raw_filename</filename_Field>
+    <wildcard_Field />
+    <exclude_wildcard_Field />
+    <filefield>Y</filefield>
+    <dynamic_include_subfolders>N</dynamic_include_subfolders>
+    <isaddresult>N</isaddresult>
+    <limit>0</limit>
+    <doNotFailIfNoFile>N</doNotFailIfNoFile>
+    <raiseAnExceptionIfNoFile>Y</raiseAnExceptionIfNoFile>
+    <file>
+      <name>${PROJECT_HOME}</name>
+      <filemask />
+      <exclude_filemask />
+      <file_required>N</file_required>
+      <include_subfolders>N</include_subfolders>
+    </file>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>1020</xloc>
+      <yloc>270</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>ExecSql</type>
+    <name>Register archived response</name>
+    <sql>INSERT INTO ingestion.document
+(run_id,document_id,partition_id,page_no,confirmation_no,attempt_no,selected,raw_path,raw_sha256,byte_length,encoding,http_status,retrieved_at)
+VALUES (?,?,?,?,?,1,false,?,lower(?),?,'utf-8',?,?);</sql>
+    <execute_each_row>Y</execute_each_row>
+    <single_statement>Y</single_statement>
+    <replace_variables>N</replace_variables>
+    <quoteString>N</quoteString>
+    <set_params>Y</set_params>
+    <arguments>
+      <argument>
+        <name>run_id</name>
+      </argument>
+      <argument>
+        <name>document_id</name>
+      </argument>
+      <argument>
+        <name>partition_id</name>
+      </argument>
+      <argument>
+        <name>page_no</name>
+      </argument>
+      <argument>
+        <name>confirmation_no</name>
+      </argument>
+      <argument>
+        <name>raw_path</name>
+      </argument>
+      <argument>
+        <name>raw_sha256</name>
+      </argument>
+      <argument>
+        <name>size</name>
+      </argument>
+      <argument>
+        <name>http_status</name>
+      </argument>
+      <argument>
+        <name>retrieved_at</name>
+      </argument>
+    </arguments>
+    <connection>jobtology-postgres</connection>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>100</xloc>
+      <yloc>440</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>PipelineExecutor</type>
+    <name>Run child pipeline</name>
+    <filenameInField>N</filenameInField>
+    <group_size>1</group_size>
+    <group_field />
+    <group_time />
+    <parameters>
+      <variable_mapping>
+        <variable>DOCUMENT_ID</variable>
+        <field>document_id</field>
+        <input />
+      </variable_mapping>
+    </parameters>
+    <inherit_all_vars>Y</inherit_all_vars>
+    <execution_time_field>ExecutionTime</execution_time_field>
+    <execution_result_field>ExecutionResult</execution_result_field>
+    <execution_errors_field>ExecutionNrErrors</execution_errors_field>
+    <execution_lines_read_field>ExecutionLinesRead</execution_lines_read_field>
+    <execution_lines_written_field>ExecutionLinesWritten</execution_lines_written_field>
+    <execution_lines_input_field>ExecutionLinesInput</execution_lines_input_field>
+    <execution_lines_output_field>ExecutionLinesOutput</execution_lines_output_field>
+    <execution_lines_rejected_field>ExecutionLinesRejected</execution_lines_rejected_field>
+    <execution_lines_updated_field>ExecutionLinesUpdated</execution_lines_updated_field>
+    <execution_lines_deleted_field>ExecutionLinesDeleted</execution_lines_deleted_field>
+    <execution_files_retrieved_field>ExecutionFilesRetrieved</execution_files_retrieved_field>
+    <execution_exit_status_field>ExecutionExitStatus</execution_exit_status_field>
+    <execution_log_text_field />
+    <execution_log_channelid_field>ExecutionLogChannelId</execution_log_channelid_field>
+    <result_files_file_name_field>FileName</result_files_file_name_field>
+    <filename>${PROJECT_HOME}/ingestions/job_alio/load_document.hpl</filename>
+    <run_configuration>job-alio-local</run_configuration>
+    <execution_result_target_transform>Child error count</execution_result_target_transform>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>330</xloc>
+      <yloc>440</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>Child error count</name>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>ExecutionNrErrors</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Integer</type>
+          <text>0</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <send_true_to>Child completed</send_true_to>
+    <send_false_to>Child failed</send_false_to>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>440</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>Child completed</name>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>ExecutionResult</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Boolean</type>
+          <text>Y</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <send_true_to>Child success</send_true_to>
+    <send_false_to>Child failed</send_false_to>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>790</xloc>
+      <yloc>440</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Dummy</type>
+    <name>Child success</name>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>1020</xloc>
+      <yloc>440</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Abort</type>
+    <name>Child failed</name>
+    <row_threshold>0</row_threshold>
+    <message>JOB-ALIO child pipeline failed; this run cannot be accepted.</message>
+    <always_log_rows>N</always_log_rows>
+    <abort_option>ABORT_WITH_ERROR</abort_option>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>100</xloc>
+      <yloc>610</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>SelectValues</type>
+    <name>Remove failed request details</name>
+    <fields>
+      <select_unspecified>Y</select_unspecified>
+      <remove>
+        <name>service_key</name>
+      </remove>
+      <remove>
+        <name>rest_error_description</name>
+      </remove>
+      <remove>
+        <name>rest_error_fields</name>
+      </remove>
+      <remove>
+        <name>rest_error_code</name>
+      </remove>
+      <remove>
+        <name>rest_error_count</name>
+      </remove>
+    </fields>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>330</xloc>
+      <yloc>610</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Abort</type>
+    <name>Transport failed</name>
+    <row_threshold>0</row_threshold>
+    <message>JOB-ALIO transport failed before a response could be archived. Start a fresh run after resolving connectivity.</message>
+    <always_log_rows>N</always_log_rows>
+    <abort_option>ABORT_WITH_ERROR</abort_option>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>610</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling>
+    <error>
+      <source_transform>Fetch JOB-ALIO page</source_transform>
+      <target_transform>Remove failed request details</target_transform>
+      <is_enabled>Y</is_enabled>
+      <nr_valuename>rest_error_count</nr_valuename>
+      <descriptions_valuename>rest_error_description</descriptions_valuename>
+      <fields_valuename>rest_error_fields</fields_valuename>
+      <codes_valuename>rest_error_code</codes_valuename>
+      <max_errors>0</max_errors>
+      <max_pct_errors>0</max_pct_errors>
+      <min_pct_rows>0</min_pct_rows>
+    </error>
+  </transform_error_handling>
+  <attributes />
+  <transform>
+    <type>DBJoin</type>
+    <name>Reserve provider request</name>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <sql>SELECT * FROM ingestion.reserve_request(?,?,?::integer,?::integer,?::integer)</sql>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <parameter>
+      <field>
+        <name>run_id</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>partition_id</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>page_no</name>
+        <type>Integer</type>
+      </field>
+      <field>
+        <name>confirmation_no</name>
+        <type>Integer</type>
+      </field>
+      <field>
+        <name>max_requests</name>
+        <type>Integer</type>
+      </field>
+    </parameter>
+    <replace_vars>N</replace_vars>
+    <connection>jobtology-postgres</connection>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>100</xloc>
+      <yloc>1200</yloc>
+    </GUI>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>Request allowed</name>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>request_allowed</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Boolean</type>
+          <text>Y</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <send_true_to>Fetch JOB-ALIO page</send_true_to>
+    <send_false_to>Remove denied request key</send_false_to>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>350</xloc>
+      <yloc>1200</yloc>
+    </GUI>
+  </transform>
+  <transform>
+    <type>SelectValues</type>
+    <name>Remove denied request key</name>
+    <fields>
+      <select_unspecified>Y</select_unspecified>
+      <remove>
+        <name>service_key</name>
+      </remove>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>600</xloc>
+      <yloc>1200</yloc>
+    </GUI>
+  </transform>
+  <transform>
+    <type>Abort</type>
+    <name>Request denied</name>
+    <row_threshold>0</row_threshold>
+    <message>Request quota exhausted, duplicate reservation, or run no longer LOADING. No HTTP request was sent.</message>
+    <always_log_rows>N</always_log_rows>
+    <abort_option>ABORT_WITH_ERROR</abort_option>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>850</xloc>
+      <yloc>1200</yloc>
+    </GUI>
+  </transform>
+  <transform>
+    <type>ExecSql</type>
+    <name>Finish request accounting</name>
+    <sql>UPDATE ingestion.request_attempt SET outcome='RESPONSE_ARCHIVED',completed_at=clock_timestamp() WHERE run_id=? AND partition_id=? AND page_no=? AND confirmation_no=?</sql>
+    <execute_each_row>Y</execute_each_row>
+    <single_statement>Y</single_statement>
+    <replace_variables>N</replace_variables>
+    <quoteString>N</quoteString>
+    <set_params>Y</set_params>
+    <arguments>
+      <argument>
+        <name>run_id</name>
+      </argument>
+      <argument>
+        <name>partition_id</name>
+      </argument>
+      <argument>
+        <name>page_no</name>
+      </argument>
+      <argument>
+        <name>confirmation_no</name>
+      </argument>
+    </arguments>
+    <connection>jobtology-postgres</connection>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>1100</xloc>
+      <yloc>1200</yloc>
+    </GUI>
+  </transform>
+</pipeline>

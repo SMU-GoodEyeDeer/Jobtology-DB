@@ -1,0 +1,99 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>inspect_results</name>
+    <description>Preview the last transform to inspect source text, extraction, NCS candidates and validation issues.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters>
+      <parameter>
+        <name>BATCH_ID</name>
+        <default_value />
+        <description>BATCH_ID</description>
+      </parameter>
+    </parameters>
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Batch</from>
+      <to>Review rows</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Review rows</from>
+      <to>Preview results here</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Batch</name>
+    <fields>
+      <field>
+        <name>batch_id</name>
+        <variable>${BATCH_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Review rows</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT item_id,posting_id,source_data-&gt;&gt;'title' AS title,state,
+source_data::text AS source_json,extraction::text AS extraction_json,categorization::text AS categorization_json,candidates::text AS candidate_json,
+extraction_issues::text AS extraction_issues,categorization_issues::text AS categorization_issues,decision
+FROM enrichment.result WHERE batch_id=? ORDER BY ordinal</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>batch_id</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Dummy</type>
+    <name>Preview results here</name>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

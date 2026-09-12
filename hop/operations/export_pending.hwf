@@ -1,0 +1,167 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<workflow>
+  <name>Export accepted snapshot</name>
+  <description>Retry an accepted PostgreSQL snapshot in Neo4j without downloading provider data.</description>
+  <workflow_version>1</workflow_version>
+  <workflow_status>0</workflow_status>
+  <parameters>
+    <parameter>
+      <name>RUN_ID</name>
+      <default_value />
+      <description>Exact READY source run.</description>
+    </parameter>
+    <parameter>
+      <name>NEO4J_CONNECTION</name>
+      <default_value>jobtology-neo4j</default_value>
+      <description>Private graph metadata name.</description>
+    </parameter>
+  </parameters>
+  <actions>
+    <action>
+      <attributes />
+      <repeat>N</repeat>
+      <schedulerType>0</schedulerType>
+      <intervalSeconds>0</intervalSeconds>
+      <intervalMinutes>60</intervalMinutes>
+      <DayOfMonth>1</DayOfMonth>
+      <weekDay>1</weekDay>
+      <minutes>0</minutes>
+      <hour>12</hour>
+      <doNotWaitOnFirstExecution>N</doNotWaitOnFirstExecution>
+      <description />
+      <attributes />
+      <name>Start</name>
+      <type>SPECIAL</type>
+      <xloc>100</xloc>
+      <yloc>80</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <start>Y</start>
+    </action>
+    <action>
+      <attributes />
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <create_parent_folder>N</create_parent_folder>
+      <set_logfile>N</set_logfile>
+      <set_append_logfile>N</set_append_logfile>
+      <add_date>N</add_date>
+      <add_time>N</add_time>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+        <parameter>
+          <name>RUN_ID</name>
+          <value>${RUN_ID}</value>
+          <stream_name />
+        </parameter>
+      </parameters>
+      <attributes />
+      <name>Load graph</name>
+      <type>WORKFLOW</type>
+      <filename>${PROJECT_HOME}/graph/load_snapshot.hwf</filename>
+      <run_configuration>graph-local</run_configuration>
+      <draw>Y</draw>
+      <xloc>1100</xloc>
+      <yloc>800</yloc>
+      <parallel>N</parallel>
+    </action>
+    <action>
+      <attributes />
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <create_parent_folder>N</create_parent_folder>
+      <set_logfile>N</set_logfile>
+      <set_append_logfile>N</set_append_logfile>
+      <add_date>N</add_date>
+      <add_time>N</add_time>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+        <parameter>
+          <name>RUN_ID</name>
+          <value>${RUN_ID}</value>
+          <stream_name />
+        </parameter>
+      </parameters>
+      <attributes />
+      <name>Save checkpoint</name>
+      <type>PIPELINE</type>
+      <filename>${PROJECT_HOME}/operations/record_graph_export.hpl</filename>
+      <run_configuration>graph-local</run_configuration>
+      <draw>Y</draw>
+      <xloc>1100</xloc>
+      <yloc>800</yloc>
+      <parallel>N</parallel>
+    </action>
+    <action>
+      <attributes />
+      <name>Success</name>
+      <description />
+      <attributes />
+      <type>SUCCESS</type>
+      <xloc>100</xloc>
+      <yloc>400</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+    </action>
+    <action>
+      <attributes />
+      <loglevel>Error</loglevel>
+      <name>Abort</name>
+      <description />
+      <attributes />
+      <type>ABORT</type>
+      <xloc>680</xloc>
+      <yloc>400</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <message>Graph load failed. Inspect the graph batch; PostgreSQL snapshots are unchanged.</message>
+    </action>
+  </actions>
+  <hops>
+    <hop>
+      <from>Start</from>
+      <to>Load graph</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>Y</unconditional>
+    </hop>
+    <hop>
+      <from>Load graph</from>
+      <to>Save checkpoint</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Load graph</from>
+      <to>Abort</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Save checkpoint</from>
+      <to>Success</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Save checkpoint</from>
+      <to>Abort</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+  </hops>
+  <notepads />
+  <attributes />
+</workflow>

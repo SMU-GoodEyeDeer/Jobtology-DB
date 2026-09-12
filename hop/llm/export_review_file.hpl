@@ -1,0 +1,139 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>export_review_file</name>
+    <description>Write a human-readable frozen-case review document; refuse to overwrite an existing file.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Review file options</from>
+      <to>Build review document</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Build review document</from>
+      <to>Save review JSON</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Save review JSON</from>
+      <to>Review file saved</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Review file options</name>
+    <fields>
+      <field>
+        <name>dataset_id</name>
+        <variable>${DATASET_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>review_filename</name>
+        <variable>${REVIEW_FILE}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Build review document</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT convert_to(jsonb_pretty(jsonb_build_object('dataset_id',d.dataset_id,'reviewer','',
+ 'cases',(SELECT jsonb_agg(jsonb_build_object('posting_id',c.posting_id,'source_data',c.source_data,
+ 'labels',coalesce((SELECT g.labels FROM enrichment.gold g WHERE g.dataset_id=c.dataset_id AND g.posting_id=c.posting_id ORDER BY gold_id DESC LIMIT 1),
+ jsonb_build_object('requirements','[]'::jsonb,'duties','[]'::jsonb,'ncs_codes','[]'::jsonb,
+ 'requirements_complete',false,'duties_complete',false,'ncs_complete',false))) ORDER BY c.ordinal)
+ FROM enrichment.test_case c WHERE c.dataset_id=d.dataset_id))),'UTF8') AS review_bytes
+ FROM enrichment.dataset d WHERE d.dataset_id=?</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>dataset_id</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>BinaryFileOutput</type>
+    <name>Save review JSON</name>
+    <binaryfield>review_bytes</binaryfield>
+    <filenamefield>review_filename</filenamefield>
+    <createparentfolder>Y</createparentfolder>
+    <overwritefile>N</overwritefile>
+    <addresultfilenames>N</addresultfilenames>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>WriteToLog</type>
+    <name>Review file saved</name>
+    <loglevel>Basic</loglevel>
+    <displayHeader>Y</displayHeader>
+    <logmessage>Fill reviewer and labels, remove unlabelled cases, then run import_gold.hwf.</logmessage>
+    <fields>
+      <field>
+        <name>dataset_id</name>
+      </field>
+      <field>
+        <name>review_filename</name>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>800</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

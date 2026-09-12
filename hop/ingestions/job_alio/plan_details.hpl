@@ -1,0 +1,268 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>plan_details</name>
+    <description>Validate the complete list and seed one detail partition per posting, before any detail requests.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>1000</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>List to validate</from>
+      <to>Check list completeness</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Check list completeness</from>
+      <to>Validate detail plan</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Validate detail plan</from>
+      <to>List validation</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>List validation</from>
+      <to>List accepted</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>List accepted</from>
+      <to>Create detail partitions</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>List accepted</from>
+      <to>List invalid</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>List to validate</name>
+    <fields>
+      <field>
+        <name>run_id</name>
+        <variable>${JOB_ALIO_RUN_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>max_requests</name>
+        <variable>${MAX_REQUESTS}</variable>
+        <type>Integer</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>100</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Check list completeness</name>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <sql>SELECT u.mode,
+(SELECT count(*) FROM ingestion.validation_issue v WHERE v.run_id=u.run_id AND v.issue NOT IN ('SMOKE_NOT_FULL','POSTING_PAIR_MISSING_OR_DUPLICATED')
+ AND NOT(u.mode='SMOKE' AND v.issue='PARTITION_INCOMPLETE' AND v.location='index')) AS list_issue_count,
+(SELECT count(*) FROM ingestion.record r JOIN ingestion.document d USING(run_id,document_id) WHERE r.run_id=u.run_id AND d.selected) AS list_count,
+(SELECT count(*) FROM ingestion.document d WHERE d.run_id=u.run_id AND d.selected AND d.partition_id='index') AS list_documents,
+?::bigint AS request_limit FROM ingestion.run u WHERE u.run_id=? AND u.state='LOADING' AND u.source_id='job_alio'</sql>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <parameter>
+      <field>
+        <name>max_requests</name>
+        <type>Integer</type>
+      </field>
+      <field>
+        <name>run_id</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <replace_vars>N</replace_vars>
+    <connection>jobtology-postgres</connection>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>330</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Validate detail plan</name>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <sql>SELECT (?::bigint=0 AND ?::bigint&gt;=1 AND ?::bigint+?::bigint&lt;=?::bigint) AS plan_valid</sql>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <parameter>
+      <field>
+        <name>list_issue_count</name>
+        <type>Integer</type>
+      </field>
+      <field>
+        <name>list_documents</name>
+        <type>Integer</type>
+      </field>
+      <field>
+        <name>list_count</name>
+        <type>Integer</type>
+      </field>
+      <field>
+        <name>list_documents</name>
+        <type>Integer</type>
+      </field>
+      <field>
+        <name>request_limit</name>
+        <type>Integer</type>
+      </field>
+    </parameter>
+    <replace_vars>N</replace_vars>
+    <connection>jobtology-postgres</connection>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>WriteToLog</type>
+    <name>List validation</name>
+    <displayHeader>Y</displayHeader>
+    <limitRows>N</limitRows>
+    <limitRowsNumber>0</limitRowsNumber>
+    <logmessage>JOB-ALIO list checked before detail requests</logmessage>
+    <loglevel>Basic</loglevel>
+    <fields>
+      <field>
+        <name>run_id</name>
+      </field>
+      <field>
+        <name>list_count</name>
+      </field>
+      <field>
+        <name>list_documents</name>
+      </field>
+      <field>
+        <name>list_issue_count</name>
+      </field>
+    </fields>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>790</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>List accepted</name>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>plan_valid</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Boolean</type>
+          <text>Y</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <send_true_to>Create detail partitions</send_true_to>
+    <send_false_to>List invalid</send_false_to>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>1020</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>ExecSql</type>
+    <name>Create detail partitions</name>
+    <sql>INSERT INTO ingestion.partition(run_id,partition_id,kind,request_context,page_size,expected_total)
+SELECT r.run_id,'detail-'||(r.normalized-&gt;&gt;'posting_id'),'DETAIL',jsonb_build_object('sn',r.normalized-&gt;&gt;'posting_id'),1,1
+FROM ingestion.record r JOIN ingestion.document d USING(run_id,document_id)
+JOIN ingestion.run u USING(run_id) WHERE r.run_id=? AND u.state='LOADING' AND u.source_id='job_alio' AND d.selected AND d.partition_id='index';</sql>
+    <execute_each_row>Y</execute_each_row>
+    <single_statement>Y</single_statement>
+    <replace_variables>N</replace_variables>
+    <quoteString>N</quoteString>
+    <set_params>Y</set_params>
+    <arguments>
+      <argument>
+        <name>run_id</name>
+      </argument>
+    </arguments>
+    <connection>jobtology-postgres</connection>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>100</xloc>
+      <yloc>270</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Abort</type>
+    <name>List invalid</name>
+    <row_threshold>0</row_threshold>
+    <message>JOB-ALIO list is incomplete, invalid or over the request limit. No detail requests were started.</message>
+    <always_log_rows>N</always_log_rows>
+    <abort_option>ABORT_WITH_ERROR</abort_option>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>330</xloc>
+      <yloc>270</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

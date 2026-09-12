@@ -1,0 +1,182 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>prepare_dataset</name>
+    <description>Freeze a stratified, repeatable sample of real Korean postings for model comparisons.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Dataset options</from>
+      <to>Prepare frozen dataset</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Prepare frozen dataset</from>
+      <to>Dataset counts</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Dataset counts</from>
+      <to>Dataset ready</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Dataset options</name>
+    <fields>
+      <field>
+        <name>dataset_id</name>
+        <variable>${DATASET_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>job_run_id</name>
+        <variable>${JOB_RUN_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>ncs_run_id</name>
+        <variable>${NCS_RUN_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>dataset_size</name>
+        <variable>${DATASET_SIZE}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>sample_seed</name>
+        <variable>${SAMPLE_SEED}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>ExecSql</type>
+    <name>Prepare frozen dataset</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT enrichment.prepare_dataset(?,?,?,?::integer,?)</sql>
+    <execute_each_row>Y</execute_each_row>
+    <single_statement>Y</single_statement>
+    <set_params>Y</set_params>
+    <replace_variables>N</replace_variables>
+    <quoteString>N</quoteString>
+    <arguments>
+      <argument>
+        <name>dataset_id</name>
+      </argument>
+      <argument>
+        <name>job_run_id</name>
+      </argument>
+      <argument>
+        <name>ncs_run_id</name>
+      </argument>
+      <argument>
+        <name>dataset_size</name>
+      </argument>
+      <argument>
+        <name>sample_seed</name>
+      </argument>
+    </arguments>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Dataset counts</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT job_run_id AS pinned_jobs,ncs_run_id AS pinned_ncs,(SELECT count(*) FROM enrichment.test_case c WHERE c.dataset_id=d.dataset_id) AS case_count FROM enrichment.dataset d WHERE dataset_id=?</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>dataset_id</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>WriteToLog</type>
+    <name>Dataset ready</name>
+    <loglevel>Basic</loglevel>
+    <displayHeader>Y</displayHeader>
+    <logmessage>Dataset frozen. Use the same DATASET_ID for every model comparison.</logmessage>
+    <fields>
+      <field>
+        <name>dataset_id</name>
+      </field>
+      <field>
+        <name>pinned_jobs</name>
+      </field>
+      <field>
+        <name>pinned_ncs</name>
+      </field>
+      <field>
+        <name>case_count</name>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>800</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

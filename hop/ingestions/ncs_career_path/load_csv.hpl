@@ -1,0 +1,563 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>load_csv</name>
+    <description>Read the validated original CSV through native CSV Input and retain every source column with logical record locations.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>1000</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Read career rows</from>
+      <to>Row context</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Row context</from>
+      <to>Build source object</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Build source object</from>
+      <to>Normalize career fields</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Normalize career fields</from>
+      <to>Valid career row</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Valid career row</from>
+      <to>Load career row</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Load career row</from>
+      <to>Confirm record write</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Confirm record write</from>
+      <to>Record written</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Record written</from>
+      <to>Record complete</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Valid career row</from>
+      <to>Retain rejected row</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Record written</from>
+      <to>Record write failed</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>CsvInput</type>
+    <name>Read career rows</name>
+    <include_filename>N</include_filename>
+    <header>Y</header>
+    <separator>,</separator>
+    <enclosure>"</enclosure>
+    <buffer_size>50000</buffer_size>
+    <lazy_conversion>N</lazy_conversion>
+    <add_filename_result>N</add_filename_result>
+    <parallel>N</parallel>
+    <newline_possible>N</newline_possible>
+    <ignoreFields>N</ignoreFields>
+    <fields>
+      <field>
+        <name>column_0</name>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>column_1</name>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>column_2</name>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>column_3</name>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>column_4</name>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>column_5</name>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>column_6</name>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>column_7</name>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>column_8</name>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>column_9</name>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <filename>${RAW_ROOT}/${CAREER_RUN_ID}/file/source.csv</filename>
+    <encoding>${CSV_ENCODING}</encoding>
+    <rownum_field>row_number</rownum_field>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>100</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>GetVariable</type>
+    <name>Row context</name>
+    <fields>
+      <field>
+        <name>run_id</name>
+        <variable>${CAREER_RUN_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>document_id</name>
+        <variable>file:1:0:1</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>330</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Build source object</name>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <sql>SELECT 'csv:record:'||?::bigint AS locator,jsonb_build_object('대분류코드',coalesce(?::text,''),'중분류코드',coalesce(?::text,''),'소분류코드',coalesce(?::text,''),'직무코드',coalesce(?::text,''),'직무명',coalesce(?::text,''),'직무역량코드',coalesce(?::text,''),'직무역량수준(능력단위수준 이면서 세분류의 자식)',coalesce(?::text,''),'직무역량명',coalesce(?::text,''),'수준(직급수준)',coalesce(?::text,''),'직급명',coalesce(?::text,''))::text AS source_payload_json</sql>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <parameter>
+      <field>
+        <name>row_number</name>
+        <type>Integer</type>
+      </field>
+      <field>
+        <name>column_0</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>column_1</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>column_2</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>column_3</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>column_4</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>column_5</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>column_6</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>column_7</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>column_8</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>column_9</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <replace_vars>N</replace_vars>
+    <connection>jobtology-postgres</connection>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Normalize career fields</name>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <sql>SELECT * FROM ingestion.normalize_reference('ncs_career_path',?::json,'file')</sql>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <parameter>
+      <field>
+        <name>source_payload_json</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <replace_vars>N</replace_vars>
+    <connection>jobtology-postgres</connection>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>790</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>Valid career row</name>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>record_valid</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Boolean</type>
+          <text>Y</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <send_true_to>Load career row</send_true_to>
+    <send_false_to>Retain rejected row</send_false_to>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>1020</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>ExecSql</type>
+    <name>Load career row</name>
+    <sql>-- Execute SQL script: execute for each row, bind parameters, single statement.
+-- Bind in order: run_id, document_id, locator, source_payload_json,
+-- normalized_block_json, field_lineage_json, quality_flags_json.
+-- JSON Output must emit {"row":[{...}]} with exactly one row per block.
+-- This statement writes only LOADING runs. Treat zero affected rows as an error.
+WITH input AS (
+    SELECT CAST(? AS text) AS run_id, CAST(? AS text) AS document_id,
+           CAST(? AS text) AS locator, CAST(? AS jsonb) AS source_payload,
+           CAST(? AS jsonb)-&gt;'row'-&gt;0 AS flat,
+           CAST(? AS jsonb) AS field_lineage, CAST(? AS jsonb) AS quality_flags
+), shaped AS (
+    SELECT i.*, u.source_id,
+      CASE u.source_id
+        WHEN 'ncs_competency' THEN
+          (flat - ARRAY['classification_1', 'classification_2', 'classification_3'])
+          || jsonb_build_object('classification_names', jsonb_build_array(
+               COALESCE(flat-&gt;&gt;'classification_1', ''),
+               COALESCE(flat-&gt;&gt;'classification_2', ''),
+               COALESCE(flat-&gt;&gt;'classification_3', '')))
+        WHEN 'qnet_schedule' THEN
+          (flat - ARRAY['docRegStartDt', 'docRegEndDt', 'docExamStartDt', 'docExamEndDt',
+                       'docPassDt', 'pracRegStartDt', 'pracRegEndDt', 'pracExamStartDt',
+                       'pracExamEndDt', 'pracPassDt'])
+          || jsonb_build_object('dates', jsonb_build_object(
+               'docRegStartDt', flat-&gt;'docRegStartDt', 'docRegEndDt', flat-&gt;'docRegEndDt',
+               'docExamStartDt', flat-&gt;'docExamStartDt', 'docExamEndDt', flat-&gt;'docExamEndDt',
+               'docPassDt', flat-&gt;'docPassDt', 'pracRegStartDt', flat-&gt;'pracRegStartDt',
+               'pracRegEndDt', flat-&gt;'pracRegEndDt', 'pracExamStartDt', flat-&gt;'pracExamStartDt',
+               'pracExamEndDt', flat-&gt;'pracExamEndDt', 'pracPassDt', flat-&gt;'pracPassDt'))
+        ELSE flat END AS normalized
+    FROM input i JOIN ingestion.run u USING (run_id)
+    WHERE u.state = 'LOADING'
+), keyed AS (
+    SELECT s.*,
+      CASE source_id
+        WHEN 'alio_organization' THEN normalized-&gt;&gt;'code'
+        WHEN 'ncs_competency' THEN normalized-&gt;&gt;'code'
+        WHEN 'job_alio' THEN (normalized-&gt;&gt;'posting_id') || ':' || (normalized-&gt;&gt;'representation')
+        WHEN 'ncs_qualification' THEN (normalized-&gt;&gt;'competency_code') || ':'
+            || (normalized-&gt;&gt;'qualification_code') || ':' || (normalized-&gt;&gt;'standard_version')
+        WHEN 'qnet_schedule' THEN (normalized-&gt;&gt;'qualification_code') || ':'
+            || (normalized-&gt;&gt;'year') || ':' || (normalized-&gt;&gt;'category_code') || ':'
+            || (normalized-&gt;&gt;'round')
+        -- New, versioned migration identity: NOT the Python JSON serialization/hash.
+        WHEN 'ncs_career_path' THEN 'hop-career-v1:' || encode(
+            sha256(convert_to(normalized::text, 'UTF8')), 'hex') END AS source_record_id
+    FROM shaped s
+)
+INSERT INTO ingestion.record
+    (run_id, document_id, locator, source_record_id, source_payload,
+     normalized, field_lineage, quality_flags)
+SELECT run_id, document_id, locator, source_record_id, source_payload,
+       normalized, field_lineage, quality_flags FROM keyed
+ON CONFLICT (run_id, document_id, locator) DO UPDATE SET
+    source_record_id = EXCLUDED.source_record_id, source_payload = EXCLUDED.source_payload,
+    normalized = EXCLUDED.normalized, field_lineage = EXCLUDED.field_lineage,
+    quality_flags = EXCLUDED.quality_flags;</sql>
+    <execute_each_row>Y</execute_each_row>
+    <single_statement>Y</single_statement>
+    <replace_variables>N</replace_variables>
+    <quoteString>N</quoteString>
+    <set_params>Y</set_params>
+    <arguments>
+      <argument>
+        <name>run_id</name>
+      </argument>
+      <argument>
+        <name>document_id</name>
+      </argument>
+      <argument>
+        <name>locator</name>
+      </argument>
+      <argument>
+        <name>source_payload_json</name>
+      </argument>
+      <argument>
+        <name>normalized_block_json</name>
+      </argument>
+      <argument>
+        <name>field_lineage_json</name>
+      </argument>
+      <argument>
+        <name>quality_flags_json</name>
+      </argument>
+    </arguments>
+    <connection>jobtology-postgres</connection>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>100</xloc>
+      <yloc>270</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Confirm record write</name>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <sql>SELECT EXISTS(SELECT 1 FROM ingestion.record r JOIN ingestion.run u USING(run_id) WHERE r.run_id=? AND r.document_id=? AND r.locator=? AND r.normalized=?::jsonb AND u.state='LOADING') AS record_written</sql>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <parameter>
+      <field>
+        <name>run_id</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>document_id</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>locator</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>normalized_json</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <replace_vars>N</replace_vars>
+    <connection>jobtology-postgres</connection>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>330</xloc>
+      <yloc>270</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>Record written</name>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>record_written</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Boolean</type>
+          <text>Y</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <send_true_to>Record complete</send_true_to>
+    <send_false_to>Record write failed</send_false_to>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>270</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Dummy</type>
+    <name>Record complete</name>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>790</xloc>
+      <yloc>270</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>ExecSql</type>
+    <name>Retain rejected row</name>
+    <sql>INSERT INTO ingestion.rejected_row(run_id,document_id,locator,error_code,source_payload) VALUES (?,?,?,?,?::jsonb)</sql>
+    <execute_each_row>Y</execute_each_row>
+    <single_statement>Y</single_statement>
+    <replace_variables>N</replace_variables>
+    <quoteString>N</quoteString>
+    <set_params>Y</set_params>
+    <arguments>
+      <argument>
+        <name>run_id</name>
+      </argument>
+      <argument>
+        <name>document_id</name>
+      </argument>
+      <argument>
+        <name>locator</name>
+      </argument>
+      <argument>
+        <name>record_error</name>
+      </argument>
+      <argument>
+        <name>source_payload_json</name>
+      </argument>
+    </arguments>
+    <connection>jobtology-postgres</connection>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>1020</xloc>
+      <yloc>270</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Abort</type>
+    <name>Record write failed</name>
+    <row_threshold>0</row_threshold>
+    <message>Career row did not persist in a LOADING run.</message>
+    <always_log_rows>N</always_log_rows>
+    <abort_option>ABORT_WITH_ERROR</abort_option>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>100</xloc>
+      <yloc>440</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

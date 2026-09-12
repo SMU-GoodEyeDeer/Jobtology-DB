@@ -1,0 +1,263 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>first_pages</name>
+    <description>Plan remaining pages from the first declared total; fetch one child at a time. SMOKE stops after page one.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>1000</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Run to continue</from>
+      <to>Plan remaining requests</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Plan remaining requests</from>
+      <to>Run child pipeline</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Run child pipeline</from>
+      <to>Child error count</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Child error count</from>
+      <to>Child completed</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Child completed</from>
+      <to>Child success</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Child error count</from>
+      <to>Child failed</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Child completed</from>
+      <to>Child failed</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Run to continue</name>
+    <fields>
+      <field>
+        <name>run_id</name>
+        <variable>${QUALIFICATION_RUN_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>mode</name>
+        <variable>${MODE}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>100</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Plan remaining requests</name>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <sql>WITH input AS (SELECT ?::text AS run_id,?::text AS mode) SELECT p.partition_id,1::bigint AS page_no,0::bigint AS confirmation_no FROM ingestion.partition p JOIN input i USING(run_id) ORDER BY p.partition_id LIMIT (SELECT CASE WHEN mode='SMOKE' THEN 1 ELSE 2147483647 END FROM input)</sql>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <parameter>
+      <field>
+        <name>run_id</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>mode</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <replace_vars>N</replace_vars>
+    <connection>jobtology-postgres</connection>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>330</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>PipelineExecutor</type>
+    <name>Run child pipeline</name>
+    <filenameInField>N</filenameInField>
+    <group_size>1</group_size>
+    <group_field />
+    <group_time />
+    <parameters>
+      <variable_mapping>
+        <variable>PAGE_NO</variable>
+        <field>page_no</field>
+        <input />
+      </variable_mapping>
+      <variable_mapping>
+        <variable>CONFIRMATION_NO</variable>
+        <field>confirmation_no</field>
+        <input />
+      </variable_mapping>
+      <variable_mapping>
+        <variable>PARTITION_ID</variable>
+        <field>partition_id</field>
+        <input />
+      </variable_mapping>
+    </parameters>
+    <inherit_all_vars>Y</inherit_all_vars>
+    <execution_time_field>ExecutionTime</execution_time_field>
+    <execution_result_field>ExecutionResult</execution_result_field>
+    <execution_errors_field>ExecutionNrErrors</execution_errors_field>
+    <execution_lines_read_field>ExecutionLinesRead</execution_lines_read_field>
+    <execution_lines_written_field>ExecutionLinesWritten</execution_lines_written_field>
+    <execution_lines_input_field>ExecutionLinesInput</execution_lines_input_field>
+    <execution_lines_output_field>ExecutionLinesOutput</execution_lines_output_field>
+    <execution_lines_rejected_field>ExecutionLinesRejected</execution_lines_rejected_field>
+    <execution_lines_updated_field>ExecutionLinesUpdated</execution_lines_updated_field>
+    <execution_lines_deleted_field>ExecutionLinesDeleted</execution_lines_deleted_field>
+    <execution_files_retrieved_field>ExecutionFilesRetrieved</execution_files_retrieved_field>
+    <execution_exit_status_field>ExecutionExitStatus</execution_exit_status_field>
+    <execution_log_text_field />
+    <execution_log_channelid_field>ExecutionLogChannelId</execution_log_channelid_field>
+    <result_files_file_name_field>FileName</result_files_file_name_field>
+    <filename>${PROJECT_HOME}/ingestions/ncs_qualification/fetch_page.hpl</filename>
+    <run_configuration>reference-local</run_configuration>
+    <execution_result_target_transform>Child error count</execution_result_target_transform>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>Child error count</name>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>ExecutionNrErrors</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Integer</type>
+          <text>0</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <send_true_to>Child completed</send_true_to>
+    <send_false_to>Child failed</send_false_to>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>790</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>Child completed</name>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>ExecutionResult</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Boolean</type>
+          <text>Y</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <send_true_to>Child success</send_true_to>
+    <send_false_to>Child failed</send_false_to>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>1020</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Dummy</type>
+    <name>Child success</name>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>100</xloc>
+      <yloc>270</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Abort</type>
+    <name>Child failed</name>
+    <row_threshold>0</row_threshold>
+    <message>Qualification child pipeline failed; this run cannot be accepted.</message>
+    <always_log_rows>N</always_log_rows>
+    <abort_option>ABORT_WITH_ERROR</abort_option>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>330</xloc>
+      <yloc>270</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

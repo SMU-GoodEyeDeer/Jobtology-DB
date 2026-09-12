@@ -1,0 +1,602 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>request</name>
+    <description>Load one protected key, reserve one request, send HTTPS JSON, and persist validated output.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters>
+      <parameter>
+        <name>ATTEMPT_ID</name>
+        <default_value />
+        <description>ATTEMPT_ID</description>
+      </parameter>
+    </parameters>
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Read protected key</from>
+      <to>Require exactly one key row</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Require exactly one key row</from>
+      <to>One key row</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>One key row</from>
+      <to>Nonempty key</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Request identity</from>
+      <to>Reserve request</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Reserve request</from>
+      <to>Read reserved request</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Nonempty key</from>
+      <to>Request identity</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Nonempty key</from>
+      <to>Invalid key file</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Read reserved request</from>
+      <to>Authorization header</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Authorization header</from>
+      <to>Request spacing</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Request spacing</from>
+      <to>Call model</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Call model</from>
+      <to>Remove authorization</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Remove authorization</from>
+      <to>Save response and validate</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Remove transport error details</from>
+      <to>Record uncertain transport result</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Call model</from>
+      <to>Remove transport error details</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Invalid key file</from>
+      <to>Stop invalid key</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>One key row</from>
+      <to>Invalid key file</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>CsvInput</type>
+    <name>Read protected key</name>
+    <filename>${API_KEY_FILE}</filename>
+    <include_filename>N</include_filename>
+    <header>Y</header>
+    <separator>,</separator>
+    <enclosure>"</enclosure>
+    <buffer_size>50000</buffer_size>
+    <lazy_conversion>N</lazy_conversion>
+    <add_filename_result>N</add_filename_result>
+    <parallel>N</parallel>
+    <encoding>UTF-8</encoding>
+    <newline_possible>N</newline_possible>
+    <ignoreFields>N</ignoreFields>
+    <fields>
+      <field>
+        <name>api_key</name>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>both</trim_type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>GroupBy</type>
+    <name>Require exactly one key row</name>
+    <all_rows>N</all_rows>
+    <give_back_row>Y</give_back_row>
+    <ignore_aggregate>N</ignore_aggregate>
+    <add_linenr>N</add_linenr>
+    <group />
+    <fields>
+      <field>
+        <aggregate>key_count</aggregate>
+        <subject>api_key</subject>
+        <type>COUNT_ANY</type>
+      </field>
+      <field>
+        <aggregate>api_key</aggregate>
+        <subject>api_key</subject>
+        <type>FIRST</type>
+      </field>
+      <field>
+        <aggregate>nonempty_keys</aggregate>
+        <subject>api_key</subject>
+        <type>COUNT_ALL</type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>One key row</name>
+    <send_true_to>Nonempty key</send_true_to>
+    <send_false_to>Invalid key file</send_false_to>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>key_count</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Integer</type>
+          <text>1</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>Nonempty key</name>
+    <send_true_to>Request identity</send_true_to>
+    <send_false_to>Invalid key file</send_false_to>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>nonempty_keys</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Integer</type>
+          <text>1</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>800</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>GetVariable</type>
+    <name>Request identity</name>
+    <fields>
+      <field>
+        <name>attempt_id</name>
+        <variable>${ATTEMPT_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>bearer_prefix</name>
+        <variable>Bearer </variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>1040</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>ExecSql</type>
+    <name>Reserve request</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT enrichment.reserve_request(?)</sql>
+    <execute_each_row>Y</execute_each_row>
+    <single_statement>Y</single_statement>
+    <set_params>Y</set_params>
+    <replace_variables>N</replace_variables>
+    <quoteString>N</quoteString>
+    <arguments>
+      <argument>
+        <name>attempt_id</name>
+      </argument>
+    </arguments>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>240</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Read reserved request</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT a.request_body::text AS request_json,b.settings-&gt;&gt;'endpoint' AS request_url FROM enrichment.attempt a JOIN enrichment.batch b USING(batch_id) WHERE a.attempt_id=? AND a.state='RESERVED'</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>attempt_id</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>240</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>ConcatFields</type>
+    <name>Authorization header</name>
+    <separator />
+    <enclosure />
+    <force_enclosure>N</force_enclosure>
+    <skip_value_empty>N</skip_value_empty>
+    <ConcatFields>
+      <targetFieldName>authorization</targetFieldName>
+      <targetFieldLength>-1</targetFieldLength>
+      <removeSelectedFields>Y</removeSelectedFields>
+    </ConcatFields>
+    <fields>
+      <field>
+        <name>bearer_prefix</name>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>api_key</name>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>240</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Delay</type>
+    <name>Request spacing</name>
+    <timeout>${REQUEST_DELAY_MS}</timeout>
+    <scaletime>milliseconds</scaletime>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>800</xloc>
+      <yloc>240</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Rest</type>
+    <name>Call model</name>
+    <applicationType>JSON</applicationType>
+    <connection_name />
+    <urlInField>Y</urlInField>
+    <urlField>request_url</urlField>
+    <httpLogin />
+    <httpPassword />
+    <non_preemptive_basic_auth>N</non_preemptive_basic_auth>
+    <method>POST</method>
+    <dynamicMethod>N</dynamicMethod>
+    <bodyField>request_json</bodyField>
+    <connectionTimeout>10000</connectionTimeout>
+    <readTimeout>${READ_TIMEOUT_MS}</readTimeout>
+    <ignoreSsl>N</ignoreSsl>
+    <retryTimes>0</retryTimes>
+    <paginationEnabled>N</paginationEnabled>
+    <streamingEnabled>N</streamingEnabled>
+    <headers>
+      <header>
+        <field>authorization</field>
+        <name>Authorization</name>
+      </header>
+    </headers>
+    <parameters />
+    <matrixParameters />
+    <result>
+      <name>response_body</name>
+      <code>http_status</code>
+      <response_time>latency_ms</response_time>
+      <binary>N</binary>
+    </result>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>1040</xloc>
+      <yloc>240</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>SelectValues</type>
+    <name>Remove authorization</name>
+    <fields>
+      <select_unspecified>Y</select_unspecified>
+      <remove>
+        <name>authorization</name>
+      </remove>
+      <remove>
+        <name>key_count</name>
+      </remove>
+      <remove>
+        <name>nonempty_keys</name>
+      </remove>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>400</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>ExecSql</type>
+    <name>Save response and validate</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT enrichment.save_response(?,?::integer,?,?::bigint)</sql>
+    <execute_each_row>Y</execute_each_row>
+    <single_statement>Y</single_statement>
+    <set_params>Y</set_params>
+    <replace_variables>N</replace_variables>
+    <quoteString>N</quoteString>
+    <arguments>
+      <argument>
+        <name>attempt_id</name>
+      </argument>
+      <argument>
+        <name>http_status</name>
+      </argument>
+      <argument>
+        <name>response_body</name>
+      </argument>
+      <argument>
+        <name>latency_ms</name>
+      </argument>
+    </arguments>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>400</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>SelectValues</type>
+    <name>Remove transport error details</name>
+    <fields>
+      <select_unspecified>Y</select_unspecified>
+      <remove>
+        <name>authorization</name>
+      </remove>
+      <remove>
+        <name>key_count</name>
+      </remove>
+      <remove>
+        <name>nonempty_keys</name>
+      </remove>
+      <remove>
+        <name>rest_error_count</name>
+      </remove>
+      <remove>
+        <name>rest_error_description</name>
+      </remove>
+      <remove>
+        <name>rest_error_fields</name>
+      </remove>
+      <remove>
+        <name>rest_error_code</name>
+      </remove>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>400</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>ExecSql</type>
+    <name>Record uncertain transport result</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT enrichment.save_response(?,0,NULL,NULL)</sql>
+    <execute_each_row>Y</execute_each_row>
+    <single_statement>Y</single_statement>
+    <set_params>Y</set_params>
+    <replace_variables>N</replace_variables>
+    <quoteString>N</quoteString>
+    <arguments>
+      <argument>
+        <name>attempt_id</name>
+      </argument>
+    </arguments>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>800</xloc>
+      <yloc>400</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>SelectValues</type>
+    <name>Invalid key file</name>
+    <fields>
+      <select_unspecified>Y</select_unspecified>
+      <remove>
+        <name>api_key</name>
+      </remove>
+      <remove>
+        <name>key_count</name>
+      </remove>
+      <remove>
+        <name>nonempty_keys</name>
+      </remove>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>1040</xloc>
+      <yloc>400</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Abort</type>
+    <name>Stop invalid key</name>
+    <message>API_KEY_FILE must contain exactly one nonempty key row.</message>
+    <always_log_rows>N</always_log_rows>
+    <abort_option>ABORT_WITH_ERROR</abort_option>
+    <row_threshold>0</row_threshold>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>560</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling>
+    <error>
+      <source_transform>Call model</source_transform>
+      <target_transform>Remove transport error details</target_transform>
+      <is_enabled>Y</is_enabled>
+      <nr_valuename>rest_error_count</nr_valuename>
+      <descriptions_valuename>rest_error_description</descriptions_valuename>
+      <fields_valuename>rest_error_fields</fields_valuename>
+      <codes_valuename>rest_error_code</codes_valuename>
+      <max_errors>0</max_errors>
+      <max_pct_errors>0</max_pct_errors>
+      <min_pct_rows>0</min_pct_rows>
+    </error>
+  </transform_error_handling>
+  <attributes />
+</pipeline>

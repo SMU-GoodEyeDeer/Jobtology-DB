@@ -1,0 +1,226 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>load_records</name>
+    <description>Merge all selected structured source records into this graph batch.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>1000</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Snapshot</from>
+      <to>Read PostgreSQL records</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Read PostgreSQL records</from>
+      <to>Merge graph record</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Merge graph record</from>
+      <to>Check result</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Check result</from>
+      <to>Complete</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Check result</from>
+      <to>Check failed</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Snapshot</name>
+    <fields>
+      <field>
+        <name>run_id</name>
+        <variable>${RUN_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>100</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Read PostgreSQL records</name>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <sql>SELECT id,source_id,source_record_id,kind,name,facts_json FROM ingestion.graph_record WHERE run_id=? ORDER BY id</sql>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <parameter>
+      <field>
+        <name>run_id</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <replace_vars>N</replace_vars>
+    <connection>jobtology-postgres</connection>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>330</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Neo4jCypherOutput</type>
+    <name>Merge graph record</name>
+    <connection>${NEO4J_CONNECTION}</connection>
+    <cypher>MATCH (b:ingestionBatch {id:$run_id}) WHERE b.state='LOADING'
+MERGE (r:ingestionRecord {id:$id})
+ON CREATE SET r.source_id=$source_id,r.source_record_id=$source_record_id,r.kind=$kind,r.name=$name,r.facts_json=$facts_json
+MERGE (b)-[:HAS_RECORD]-&gt;(r)
+RETURN count(r)=1 AS record_matches</cypher>
+    <batch_size>1</batch_size>
+    <read_only>N</read_only>
+    <retry>N</retry>
+    <nr_retries_on_error>0</nr_retries_on_error>
+    <cypher_from_field>N</cypher_from_field>
+    <unwind>N</unwind>
+    <returning_graph>N</returning_graph>
+    <mappings>
+      <mapping>
+        <parameter>run_id</parameter>
+        <field>run_id</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>id</parameter>
+        <field>id</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>source_id</parameter>
+        <field>source_id</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>source_record_id</parameter>
+        <field>source_record_id</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>kind</parameter>
+        <field>kind</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>name</parameter>
+        <field>name</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>facts_json</parameter>
+        <field>facts_json</field>
+        <type>String</type>
+      </mapping>
+    </mappings>
+    <returns>
+      <return>
+        <name>record_matches</name>
+        <type>Boolean</type>
+        <source_type>Boolean</source_type>
+      </return>
+    </returns>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>Check result</name>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>record_matches</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Boolean</type>
+          <text>Y</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <send_true_to>Complete</send_true_to>
+    <send_false_to>Check failed</send_false_to>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>790</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Dummy</type>
+    <name>Complete</name>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>1020</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Abort</type>
+    <name>Check failed</name>
+    <row_threshold>0</row_threshold>
+    <message>A graph record is missing, duplicated or has conflicting properties.</message>
+    <always_log_rows>N</always_log_rows>
+    <abort_option>ABORT_WITH_ERROR</abort_option>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>100</xloc>
+      <yloc>270</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

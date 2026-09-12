@@ -1,0 +1,329 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>verify_totals</name>
+    <description>Reject extra records or references, including explicit zero-record snapshots.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>1000</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Snapshot</from>
+      <to>Expected graph totals</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Expected graph totals</from>
+      <to>Read graph totals</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Read graph totals</from>
+      <to>Check all totals</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Check all totals</from>
+      <to>Graph totals</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Graph totals</from>
+      <to>Check result</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Check result</from>
+      <to>Complete</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Check result</from>
+      <to>Check failed</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Snapshot</name>
+    <fields>
+      <field>
+        <name>run_id</name>
+        <variable>${RUN_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>100</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Expected graph totals</name>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <sql>WITH input AS (SELECT ?::text AS run_id)
+SELECT to_char(u.created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS source_created_at,
+to_char(u.created_at AT TIME ZONE 'Asia/Seoul','YYYY-MM-DD') AS batch_date,
+to_char(u.created_at AT TIME ZONE 'Asia/Seoul','YYYY-MM-DD HH24:MI') || ' KST · ' || u.source_id AS batch_name,
+u.source_id,coalesce(u.state='READY' AND u.mode&lt;&gt;'SMOKE',false) AS snapshot_ready,
+(SELECT count(*) FROM ingestion.graph_record r WHERE r.run_id=i.run_id) AS expected_records,
+(SELECT count(*) FROM ingestion.graph_reference r WHERE r.run_id=i.run_id) AS expected_references,
+(SELECT count(*) FROM ingestion.validation_issue v WHERE v.run_id=i.run_id) AS validation_issues
+FROM input i LEFT JOIN ingestion.run u USING(run_id)</sql>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <parameter>
+      <field>
+        <name>run_id</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <replace_vars>N</replace_vars>
+    <connection>jobtology-postgres</connection>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>330</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Neo4jCypherOutput</type>
+    <name>Read graph totals</name>
+    <connection>${NEO4J_CONNECTION}</connection>
+    <cypher>OPTIONAL MATCH (b:ingestionBatch {id:$run_id})
+OPTIONAL MATCH (b)-[:HAS_RECORD]-&gt;(r)
+WITH b,count(r) AS actual_records
+OPTIONAL MATCH (b)-[:HAS_RECORD]-&gt;()-[ref:REFERS_TO]-&gt;()
+WITH b,actual_records,count(ref) AS actual_references
+RETURN actual_records,actual_references,
+coalesce(b.source_id=$source_id AND b.serving_scope='STAGING' AND b.state IN ['LOADING','READY']
+AND b.source_created_at=$source_created_at AND b.batch_date=$batch_date AND b.name=$batch_name
+AND actual_records=$expected_records AND actual_references=$expected_references,false) AS totals_match</cypher>
+    <batch_size>1</batch_size>
+    <read_only>Y</read_only>
+    <retry>N</retry>
+    <nr_retries_on_error>0</nr_retries_on_error>
+    <cypher_from_field>N</cypher_from_field>
+    <unwind>N</unwind>
+    <returning_graph>N</returning_graph>
+    <mappings>
+      <mapping>
+        <parameter>run_id</parameter>
+        <field>run_id</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>source_id</parameter>
+        <field>source_id</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>source_created_at</parameter>
+        <field>source_created_at</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>batch_date</parameter>
+        <field>batch_date</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>batch_name</parameter>
+        <field>batch_name</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>expected_records</parameter>
+        <field>expected_records</field>
+        <type>Integer</type>
+      </mapping>
+      <mapping>
+        <parameter>expected_references</parameter>
+        <field>expected_references</field>
+        <type>Integer</type>
+      </mapping>
+    </mappings>
+    <returns>
+      <return>
+        <name>actual_records</name>
+        <type>Integer</type>
+        <source_type>Integer</source_type>
+      </return>
+      <return>
+        <name>actual_references</name>
+        <type>Integer</type>
+        <source_type>Integer</source_type>
+      </return>
+      <return>
+        <name>totals_match</name>
+        <type>Boolean</type>
+        <source_type>Boolean</source_type>
+      </return>
+    </returns>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Check all totals</name>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <sql>SELECT ?::boolean AND ?::boolean AND ?::bigint=0 AS graph_valid</sql>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <parameter>
+      <field>
+        <name>totals_match</name>
+        <type>Boolean</type>
+      </field>
+      <field>
+        <name>snapshot_ready</name>
+        <type>Boolean</type>
+      </field>
+      <field>
+        <name>validation_issues</name>
+        <type>Integer</type>
+      </field>
+    </parameter>
+    <replace_vars>N</replace_vars>
+    <connection>jobtology-postgres</connection>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>790</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>WriteToLog</type>
+    <name>Graph totals</name>
+    <displayHeader>Y</displayHeader>
+    <limitRows>N</limitRows>
+    <limitRowsNumber>0</limitRowsNumber>
+    <logmessage>Verified graph membership counts</logmessage>
+    <loglevel>Basic</loglevel>
+    <fields>
+      <field>
+        <name>run_id</name>
+      </field>
+      <field>
+        <name>expected_records</name>
+      </field>
+      <field>
+        <name>actual_records</name>
+      </field>
+      <field>
+        <name>expected_references</name>
+      </field>
+      <field>
+        <name>actual_references</name>
+      </field>
+    </fields>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>1020</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>Check result</name>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>graph_valid</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Boolean</type>
+          <text>Y</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <send_true_to>Complete</send_true_to>
+    <send_false_to>Check failed</send_false_to>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>100</xloc>
+      <yloc>270</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Dummy</type>
+    <name>Complete</name>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>330</xloc>
+      <yloc>270</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Abort</type>
+    <name>Check failed</name>
+    <row_threshold>0</row_threshold>
+    <message>Graph membership differs from PostgreSQL, or the source is no longer accepted.</message>
+    <always_log_rows>N</always_log_rows>
+    <abort_option>ABORT_WITH_ERROR</abort_option>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>270</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

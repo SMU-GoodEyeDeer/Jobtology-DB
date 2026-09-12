@@ -1,0 +1,225 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>load_references</name>
+    <description>Merge identity references scoped to records in this graph batch.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>1000</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Snapshot</from>
+      <to>Read PostgreSQL references</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Read PostgreSQL references</from>
+      <to>Merge graph reference</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Merge graph reference</from>
+      <to>Check result</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Check result</from>
+      <to>Complete</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Check result</from>
+      <to>Check failed</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Snapshot</name>
+    <fields>
+      <field>
+        <name>run_id</name>
+        <variable>${RUN_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>100</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Read PostgreSQL references</name>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <sql>SELECT record_id,identity_id,kind,code,field FROM ingestion.graph_reference WHERE run_id=? ORDER BY record_id,field,identity_id</sql>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <parameter>
+      <field>
+        <name>run_id</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <replace_vars>N</replace_vars>
+    <connection>jobtology-postgres</connection>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>330</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Neo4jCypherOutput</type>
+    <name>Merge graph reference</name>
+    <connection>${NEO4J_CONNECTION}</connection>
+    <cypher>MATCH (b:ingestionBatch {id:$run_id})-[:HAS_RECORD]-&gt;(r:ingestionRecord {id:$record_id}) WHERE b.state='LOADING'
+MERGE (i:entity {id:$identity_id}) ON CREATE SET i.kind=$kind,i.code=$code
+FOREACH (_ IN CASE WHEN i.kind='Organization' THEN [1] ELSE [] END | SET i:organization)
+FOREACH (_ IN CASE WHEN i.kind='JobPosting' THEN [1] ELSE [] END | SET i:jobPosting)
+FOREACH (_ IN CASE WHEN i.kind='Occupation' THEN [1] ELSE [] END | SET i:occupation)
+FOREACH (_ IN CASE WHEN i.kind='Competency' THEN [1] ELSE [] END | SET i:ncsCompetency)
+FOREACH (_ IN CASE WHEN i.kind='Qualification' THEN [1] ELSE [] END | SET i:qualification)
+MERGE (r)-[:REFERS_TO {field:$field}]-&gt;(i)
+RETURN count(i)=1 AS reference_matches</cypher>
+    <batch_size>1</batch_size>
+    <read_only>N</read_only>
+    <retry>N</retry>
+    <nr_retries_on_error>0</nr_retries_on_error>
+    <cypher_from_field>N</cypher_from_field>
+    <unwind>N</unwind>
+    <returning_graph>N</returning_graph>
+    <mappings>
+      <mapping>
+        <parameter>run_id</parameter>
+        <field>run_id</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>record_id</parameter>
+        <field>record_id</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>identity_id</parameter>
+        <field>identity_id</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>kind</parameter>
+        <field>kind</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>code</parameter>
+        <field>code</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>field</parameter>
+        <field>field</field>
+        <type>String</type>
+      </mapping>
+    </mappings>
+    <returns>
+      <return>
+        <name>reference_matches</name>
+        <type>Boolean</type>
+        <source_type>Boolean</source_type>
+      </return>
+    </returns>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>Check result</name>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>reference_matches</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Boolean</type>
+          <text>Y</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <send_true_to>Complete</send_true_to>
+    <send_false_to>Check failed</send_false_to>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>790</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Dummy</type>
+    <name>Complete</name>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>1020</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Abort</type>
+    <name>Check failed</name>
+    <row_threshold>0</row_threshold>
+    <message>A graph reference is missing, duplicated or has conflicting identity properties.</message>
+    <always_log_rows>N</always_log_rows>
+    <abort_option>ABORT_WITH_ERROR</abort_option>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>100</xloc>
+      <yloc>270</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

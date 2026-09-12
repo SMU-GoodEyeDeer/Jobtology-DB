@@ -1,0 +1,99 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>mark_failed</name>
+    <description>Mark an interrupted LOADING NCS run FAILED; preserve raw responses and partial rows for diagnosis.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>1000</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Failed run</from>
+      <to>Mark interrupted run failed</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Mark interrupted run failed</from>
+      <to>Failure recorded</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Failed run</name>
+    <fields>
+      <field>
+        <name>run_id</name>
+        <variable>${CAREER_RUN_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>100</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>ExecSql</type>
+    <name>Mark interrupted run failed</name>
+    <sql>UPDATE ingestion.run SET state=CASE WHEN EXISTS(SELECT 1 FROM ingestion.rejected_row r WHERE r.run_id=ingestion.run.run_id) THEN 'REVIEW_REQUIRED' ELSE 'FAILED' END,completed_at=CURRENT_TIMESTAMP WHERE run_id=? AND source_id='ncs_career_path' AND state='LOADING'</sql>
+    <execute_each_row>Y</execute_each_row>
+    <single_statement>Y</single_statement>
+    <replace_variables>N</replace_variables>
+    <quoteString>N</quoteString>
+    <set_params>Y</set_params>
+    <arguments>
+      <argument>
+        <name>run_id</name>
+      </argument>
+    </arguments>
+    <connection>jobtology-postgres</connection>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>330</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>WriteToLog</type>
+    <name>Failure recorded</name>
+    <displayHeader>Y</displayHeader>
+    <limitRows>N</limitRows>
+    <limitRowsNumber>0</limitRowsNumber>
+    <logmessage>NCS execution failed; saved responses and partial records retained</logmessage>
+    <loglevel>Basic</loglevel>
+    <fields>
+      <field>
+        <name>run_id</name>
+      </field>
+    </fields>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

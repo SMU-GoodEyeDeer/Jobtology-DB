@@ -1,0 +1,11 @@
+{
+  "name": "llm-local",
+  "description": "Native LLM workflows. Basic logging; no row sampling or execution-data capture.",
+  "engineRunConfiguration": {
+    "Local": {
+      "safe_mode": false
+    }
+  },
+  "executionInfoLocationName": "",
+  "defaultSelection": false
+}

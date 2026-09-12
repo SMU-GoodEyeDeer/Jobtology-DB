@@ -1,0 +1,343 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<workflow>
+  <name>Qnet Schedule</name>
+  <description>Fetch, archive, normalize and validate the full versioned NCS competency dataset in the ingestion schema.</description>
+  <extended_description>Run MODE=SMOKE first, then MODE=FULL. Use Basic logging. Every execution creates a new run; failures preserve partial data.</extended_description>
+  <workflow_version>1</workflow_version>
+  <workflow_status>0</workflow_status>
+  <parameters>
+    <parameter>
+      <name>MODE</name>
+      <default_value>FULL</default_value>
+      <description>FULL loads all declared pages; SMOKE loads page one and never becomes READY.</description>
+    </parameter>
+    <parameter>
+      <name>RAW_ROOT</name>
+      <default_value>${PROJECT_HOME}/data/qnet_schedule-raw</default_value>
+      <description>Persistent response archive directory.</description>
+    </parameter>
+    <parameter>
+      <name>API_KEY_FILE</name>
+      <default_value>${HOP_CONFIG_FOLDER}/secrets/data-go-kr.csv</default_value>
+      <description>Runtime-only CSV with service_key header and exactly one decoded key.</description>
+    </parameter>
+    <parameter>
+      <name>MAX_PAGES</name>
+      <default_value>1000</default_value>
+      <description>Maximum actual requests, including the second empty confirmation. SMOKE requests one page.</description>
+    </parameter>
+    <parameter>
+      <name>INPUT_RUN_ID</name>
+      <default_value />
+      <description>Optional accepted dependency; blank pins latest at start.</description>
+    </parameter>
+    <parameter>
+      <name>YEAR_FROM</name>
+      <default_value />
+      <description>Default current Asia/Seoul year.</description>
+    </parameter>
+    <parameter>
+      <name>YEAR_TO</name>
+      <default_value />
+      <description>Default next Asia/Seoul year; must be YEAR_FROM+1.</description>
+    </parameter>
+  </parameters>
+  <actions>
+    <action>
+      <attributes />
+      <repeat>N</repeat>
+      <schedulerType>0</schedulerType>
+      <intervalSeconds>0</intervalSeconds>
+      <intervalMinutes>60</intervalMinutes>
+      <DayOfMonth>1</DayOfMonth>
+      <weekDay>1</weekDay>
+      <minutes>0</minutes>
+      <hour>12</hour>
+      <doNotWaitOnFirstExecution>N</doNotWaitOnFirstExecution>
+      <description />
+      <attributes />
+      <name>Start</name>
+      <type>SPECIAL</type>
+      <xloc>100</xloc>
+      <yloc>100</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <start>Y</start>
+    </action>
+    <action>
+      <attributes />
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <create_parent_folder>N</create_parent_folder>
+      <set_logfile>N</set_logfile>
+      <set_append_logfile>N</set_append_logfile>
+      <add_date>N</add_date>
+      <add_time>N</add_time>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+      <attributes />
+      <name>Create run</name>
+      <type>PIPELINE</type>
+      <xloc>100</xloc>
+      <yloc>250</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <filename>${PROJECT_HOME}/ingestions/qnet_schedule/start_run.hpl</filename>
+      <run_configuration>reference-local</run_configuration>
+    </action>
+    <action>
+      <attributes />
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <create_parent_folder>N</create_parent_folder>
+      <set_logfile>N</set_logfile>
+      <set_append_logfile>N</set_append_logfile>
+      <add_date>N</add_date>
+      <add_time>N</add_time>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+      <attributes />
+      <name>Fetch first page</name>
+      <type>PIPELINE</type>
+      <xloc>340</xloc>
+      <yloc>250</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <filename>${PROJECT_HOME}/ingestions/qnet_schedule/first_pages.hpl</filename>
+      <run_configuration>reference-local</run_configuration>
+    </action>
+    <action>
+      <attributes />
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <create_parent_folder>N</create_parent_folder>
+      <set_logfile>N</set_logfile>
+      <set_append_logfile>N</set_append_logfile>
+      <add_date>N</add_date>
+      <add_time>N</add_time>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+      <attributes />
+      <name>Fetch remaining pages</name>
+      <type>PIPELINE</type>
+      <xloc>580</xloc>
+      <yloc>250</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <filename>${PROJECT_HOME}/ingestions/qnet_schedule/remaining_pages.hpl</filename>
+      <run_configuration>reference-local</run_configuration>
+    </action>
+    <action>
+      <attributes />
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <create_parent_folder>N</create_parent_folder>
+      <set_logfile>N</set_logfile>
+      <set_append_logfile>N</set_append_logfile>
+      <add_date>N</add_date>
+      <add_time>N</add_time>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+      <attributes />
+      <name>Verify archived files</name>
+      <type>PIPELINE</type>
+      <xloc>820</xloc>
+      <yloc>250</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <filename>${PROJECT_HOME}/ingestions/qnet_schedule/verify_files.hpl</filename>
+      <run_configuration>reference-local</run_configuration>
+    </action>
+    <action>
+      <attributes />
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <create_parent_folder>N</create_parent_folder>
+      <set_logfile>N</set_logfile>
+      <set_append_logfile>N</set_append_logfile>
+      <add_date>N</add_date>
+      <add_time>N</add_time>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+      <attributes />
+      <name>Validate and finish</name>
+      <type>PIPELINE</type>
+      <xloc>1060</xloc>
+      <yloc>250</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <filename>${PROJECT_HOME}/ingestions/qnet_schedule/finalize.hpl</filename>
+      <run_configuration>reference-local</run_configuration>
+    </action>
+    <action>
+      <attributes />
+      <name>Success</name>
+      <description />
+      <attributes />
+      <type>SUCCESS</type>
+      <xloc>1060</xloc>
+      <yloc>100</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+    </action>
+    <action>
+      <attributes />
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <create_parent_folder>N</create_parent_folder>
+      <set_logfile>N</set_logfile>
+      <set_append_logfile>N</set_append_logfile>
+      <add_date>N</add_date>
+      <add_time>N</add_time>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+      <attributes />
+      <name>Record failure</name>
+      <type>PIPELINE</type>
+      <xloc>580</xloc>
+      <yloc>470</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <filename>${PROJECT_HOME}/ingestions/qnet_schedule/mark_failed.hpl</filename>
+      <run_configuration>reference-local</run_configuration>
+    </action>
+    <action>
+      <attributes />
+      <loglevel>Error</loglevel>
+      <name>Abort</name>
+      <description />
+      <attributes />
+      <type>ABORT</type>
+      <xloc>820</xloc>
+      <yloc>470</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <message>Q-Net failed; inspect the run and archived responses before starting a fresh run.</message>
+    </action>
+  </actions>
+  <hops>
+    <hop>
+      <from>Start</from>
+      <to>Create run</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>Y</unconditional>
+    </hop>
+    <hop>
+      <from>Create run</from>
+      <to>Record failure</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Create run</from>
+      <to>Fetch first page</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Fetch first page</from>
+      <to>Record failure</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Fetch first page</from>
+      <to>Fetch remaining pages</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Fetch remaining pages</from>
+      <to>Record failure</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Fetch remaining pages</from>
+      <to>Verify archived files</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Verify archived files</from>
+      <to>Record failure</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Verify archived files</from>
+      <to>Validate and finish</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Validate and finish</from>
+      <to>Record failure</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Validate and finish</from>
+      <to>Success</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Record failure</from>
+      <to>Abort</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Record failure</from>
+      <to>Abort</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+  </hops>
+  <notepads />
+  <attributes />
+</workflow>

@@ -1,0 +1,11 @@
+{
+  "name": "graph-local",
+  "description": "Local graph workflow execution. Child pipelines use graph-local.",
+  "engineRunConfiguration": {
+    "Local": {
+      "safe_mode": false
+    }
+  },
+  "executionInfoLocationName": "",
+  "defaultSelection": false
+}

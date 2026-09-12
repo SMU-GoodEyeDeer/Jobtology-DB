@@ -1,0 +1,601 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>upgrade_labels</name>
+    <description>Relabel the former HopMigration nodes in place, retaining node IDs and all relationships. Retire only matching legacy constraints.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>1000</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Snapshot</from>
+      <to>Inspect legacy kinds</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Inspect legacy kinds</from>
+      <to>Known identity kinds</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Known identity kinds</from>
+      <to>Unknown kind</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Known identity kinds</from>
+      <to>Rename batch nodes</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Rename batch nodes</from>
+      <to>Rename record nodes</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Rename record nodes</from>
+      <to>Rename identity nodes</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Rename identity nodes</from>
+      <to>Inspect old batch</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Inspect old batch</from>
+      <to>Old batch constraint exists</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Old batch constraint exists</from>
+      <to>Drop old batch constraint</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Old batch constraint exists</from>
+      <to>Inspect old record</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Drop old batch constraint</from>
+      <to>Inspect old record</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Inspect old record</from>
+      <to>Old record constraint exists</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Old record constraint exists</from>
+      <to>Drop old record constraint</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Old record constraint exists</from>
+      <to>Inspect old identity</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Drop old record constraint</from>
+      <to>Inspect old identity</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Inspect old identity</from>
+      <to>Old identity constraint exists</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Old identity constraint exists</from>
+      <to>Drop old identity constraint</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Old identity constraint exists</from>
+      <to>Upgrade complete</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Drop old identity constraint</from>
+      <to>Upgrade complete</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Snapshot</name>
+    <fields>
+      <field>
+        <name>run_id</name>
+        <variable>${RUN_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>100</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Neo4jCypherOutput</type>
+    <name>Inspect legacy kinds</name>
+    <connection>${NEO4J_CONNECTION}</connection>
+    <cypher>MATCH (n) WHERE 'HopMigrationIdentity' IN labels(n)
+RETURN count(CASE WHEN NOT coalesce(properties(n)['kind'] IN ['Organization','JobPosting','Occupation','Competency','Qualification'],false) THEN 1 END)=0 AS kinds_valid</cypher>
+    <batch_size>1</batch_size>
+    <read_only>Y</read_only>
+    <retry>N</retry>
+    <nr_retries_on_error>0</nr_retries_on_error>
+    <cypher_from_field>N</cypher_from_field>
+    <unwind>N</unwind>
+    <returning_graph>N</returning_graph>
+    <mappings />
+    <returns>
+      <return>
+        <name>kinds_valid</name>
+        <type>Boolean</type>
+        <source_type>Boolean</source_type>
+      </return>
+    </returns>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>330</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>Known identity kinds</name>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>kinds_valid</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Boolean</type>
+          <text>Y</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <send_true_to>Rename batch nodes</send_true_to>
+    <send_false_to>Unknown kind</send_false_to>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Abort</type>
+    <name>Unknown kind</name>
+    <row_threshold>0</row_threshold>
+    <message>Legacy identity has an unsupported kind; no legacy labels were changed.</message>
+    <always_log_rows>N</always_log_rows>
+    <abort_option>ABORT_WITH_ERROR</abort_option>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>790</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Neo4jCypherOutput</type>
+    <name>Rename batch nodes</name>
+    <connection>${NEO4J_CONNECTION}</connection>
+    <cypher>MATCH (i) WHERE 'HopMigrationBatch' IN labels(i) SET i:ingestionBatch REMOVE i:HopMigrationBatch
+RETURN count(i) AS renamed_batch_nodes</cypher>
+    <batch_size>1</batch_size>
+    <read_only>N</read_only>
+    <retry>N</retry>
+    <nr_retries_on_error>0</nr_retries_on_error>
+    <cypher_from_field>N</cypher_from_field>
+    <unwind>N</unwind>
+    <returning_graph>N</returning_graph>
+    <mappings />
+    <returns>
+      <return>
+        <name>renamed_batch_nodes</name>
+        <type>Integer</type>
+        <source_type>Integer</source_type>
+      </return>
+    </returns>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>1020</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Neo4jCypherOutput</type>
+    <name>Rename record nodes</name>
+    <connection>${NEO4J_CONNECTION}</connection>
+    <cypher>MATCH (i) WHERE 'HopMigrationRecord' IN labels(i) SET i:ingestionRecord REMOVE i:HopMigrationRecord
+RETURN count(i) AS renamed_record_nodes</cypher>
+    <batch_size>1</batch_size>
+    <read_only>N</read_only>
+    <retry>N</retry>
+    <nr_retries_on_error>0</nr_retries_on_error>
+    <cypher_from_field>N</cypher_from_field>
+    <unwind>N</unwind>
+    <returning_graph>N</returning_graph>
+    <mappings />
+    <returns>
+      <return>
+        <name>renamed_record_nodes</name>
+        <type>Integer</type>
+        <source_type>Integer</source_type>
+      </return>
+    </returns>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>100</xloc>
+      <yloc>270</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Neo4jCypherOutput</type>
+    <name>Rename identity nodes</name>
+    <connection>${NEO4J_CONNECTION}</connection>
+    <cypher>MATCH (i) WHERE 'HopMigrationIdentity' IN labels(i) SET i:entity REMOVE i:HopMigrationIdentity
+FOREACH (_ IN CASE WHEN i.kind='Organization' THEN [1] ELSE [] END | SET i:organization)
+FOREACH (_ IN CASE WHEN i.kind='JobPosting' THEN [1] ELSE [] END | SET i:jobPosting)
+FOREACH (_ IN CASE WHEN i.kind='Occupation' THEN [1] ELSE [] END | SET i:occupation)
+FOREACH (_ IN CASE WHEN i.kind='Competency' THEN [1] ELSE [] END | SET i:ncsCompetency)
+FOREACH (_ IN CASE WHEN i.kind='Qualification' THEN [1] ELSE [] END | SET i:qualification)
+RETURN count(i) AS renamed_identity_nodes</cypher>
+    <batch_size>1</batch_size>
+    <read_only>N</read_only>
+    <retry>N</retry>
+    <nr_retries_on_error>0</nr_retries_on_error>
+    <cypher_from_field>N</cypher_from_field>
+    <unwind>N</unwind>
+    <returning_graph>N</returning_graph>
+    <mappings />
+    <returns>
+      <return>
+        <name>renamed_identity_nodes</name>
+        <type>Integer</type>
+        <source_type>Integer</source_type>
+      </return>
+    </returns>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>330</xloc>
+      <yloc>270</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Neo4jCypherOutput</type>
+    <name>Inspect old batch</name>
+    <connection>${NEO4J_CONNECTION}</connection>
+    <cypher>SHOW CONSTRAINTS YIELD name,entityType,type,labelsOrTypes,properties
+RETURN count(CASE WHEN name='ingestion_batch_id' AND entityType='NODE'
+AND type IN ['UNIQUENESS','NODE_PROPERTY_UNIQUENESS'] AND labelsOrTypes=['HopMigrationBatch'] AND properties=['id'] THEN 1 END) AS old_batch_constraint</cypher>
+    <batch_size>1</batch_size>
+    <read_only>Y</read_only>
+    <retry>N</retry>
+    <nr_retries_on_error>0</nr_retries_on_error>
+    <cypher_from_field>N</cypher_from_field>
+    <unwind>N</unwind>
+    <returning_graph>N</returning_graph>
+    <mappings />
+    <returns>
+      <return>
+        <name>old_batch_constraint</name>
+        <type>Integer</type>
+        <source_type>Integer</source_type>
+      </return>
+    </returns>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>270</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>Old batch constraint exists</name>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>old_batch_constraint</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Integer</type>
+          <text>1</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <send_true_to>Drop old batch constraint</send_true_to>
+    <send_false_to>Inspect old record</send_false_to>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>790</xloc>
+      <yloc>270</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Neo4jCypherOutput</type>
+    <name>Drop old batch constraint</name>
+    <connection>${NEO4J_CONNECTION}</connection>
+    <cypher>DROP CONSTRAINT ingestion_batch_id</cypher>
+    <batch_size>1</batch_size>
+    <read_only>N</read_only>
+    <retry>N</retry>
+    <nr_retries_on_error>0</nr_retries_on_error>
+    <cypher_from_field>N</cypher_from_field>
+    <unwind>N</unwind>
+    <returning_graph>N</returning_graph>
+    <mappings />
+    <returns />
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>1020</xloc>
+      <yloc>270</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Neo4jCypherOutput</type>
+    <name>Inspect old record</name>
+    <connection>${NEO4J_CONNECTION}</connection>
+    <cypher>SHOW CONSTRAINTS YIELD name,entityType,type,labelsOrTypes,properties
+RETURN count(CASE WHEN name='ingestion_record_id' AND entityType='NODE'
+AND type IN ['UNIQUENESS','NODE_PROPERTY_UNIQUENESS'] AND labelsOrTypes=['HopMigrationRecord'] AND properties=['id'] THEN 1 END) AS old_record_constraint</cypher>
+    <batch_size>1</batch_size>
+    <read_only>Y</read_only>
+    <retry>N</retry>
+    <nr_retries_on_error>0</nr_retries_on_error>
+    <cypher_from_field>N</cypher_from_field>
+    <unwind>N</unwind>
+    <returning_graph>N</returning_graph>
+    <mappings />
+    <returns>
+      <return>
+        <name>old_record_constraint</name>
+        <type>Integer</type>
+        <source_type>Integer</source_type>
+      </return>
+    </returns>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>100</xloc>
+      <yloc>440</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>Old record constraint exists</name>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>old_record_constraint</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Integer</type>
+          <text>1</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <send_true_to>Drop old record constraint</send_true_to>
+    <send_false_to>Inspect old identity</send_false_to>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>330</xloc>
+      <yloc>440</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Neo4jCypherOutput</type>
+    <name>Drop old record constraint</name>
+    <connection>${NEO4J_CONNECTION}</connection>
+    <cypher>DROP CONSTRAINT ingestion_record_id</cypher>
+    <batch_size>1</batch_size>
+    <read_only>N</read_only>
+    <retry>N</retry>
+    <nr_retries_on_error>0</nr_retries_on_error>
+    <cypher_from_field>N</cypher_from_field>
+    <unwind>N</unwind>
+    <returning_graph>N</returning_graph>
+    <mappings />
+    <returns />
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>440</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Neo4jCypherOutput</type>
+    <name>Inspect old identity</name>
+    <connection>${NEO4J_CONNECTION}</connection>
+    <cypher>SHOW CONSTRAINTS YIELD name,entityType,type,labelsOrTypes,properties
+RETURN count(CASE WHEN name='ingestion_identity_id' AND entityType='NODE'
+AND type IN ['UNIQUENESS','NODE_PROPERTY_UNIQUENESS'] AND labelsOrTypes=['HopMigrationIdentity'] AND properties=['id'] THEN 1 END) AS old_identity_constraint</cypher>
+    <batch_size>1</batch_size>
+    <read_only>Y</read_only>
+    <retry>N</retry>
+    <nr_retries_on_error>0</nr_retries_on_error>
+    <cypher_from_field>N</cypher_from_field>
+    <unwind>N</unwind>
+    <returning_graph>N</returning_graph>
+    <mappings />
+    <returns>
+      <return>
+        <name>old_identity_constraint</name>
+        <type>Integer</type>
+        <source_type>Integer</source_type>
+      </return>
+    </returns>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>790</xloc>
+      <yloc>440</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>Old identity constraint exists</name>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>old_identity_constraint</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Integer</type>
+          <text>1</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <send_true_to>Drop old identity constraint</send_true_to>
+    <send_false_to>Upgrade complete</send_false_to>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>1020</xloc>
+      <yloc>440</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Neo4jCypherOutput</type>
+    <name>Drop old identity constraint</name>
+    <connection>${NEO4J_CONNECTION}</connection>
+    <cypher>DROP CONSTRAINT ingestion_identity_id</cypher>
+    <batch_size>1</batch_size>
+    <read_only>N</read_only>
+    <retry>N</retry>
+    <nr_retries_on_error>0</nr_retries_on_error>
+    <cypher_from_field>N</cypher_from_field>
+    <unwind>N</unwind>
+    <returning_graph>N</returning_graph>
+    <mappings />
+    <returns />
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>100</xloc>
+      <yloc>610</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Dummy</type>
+    <name>Upgrade complete</name>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>330</xloc>
+      <yloc>610</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

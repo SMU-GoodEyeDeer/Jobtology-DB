@@ -1,0 +1,227 @@
+{
+  "type": "object",
+  "properties": {
+    "positions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          },
+          "evidence": {
+            "type": "object",
+            "properties": {
+              "field": {
+                "type": "string",
+                "enum": [
+                  "title",
+                  "organization_name",
+                  "education",
+                  "recruitment_type",
+                  "employment_type",
+                  "regions",
+                  "ncs_category_codes",
+                  "ncs_category_names",
+                  "eligibility_text",
+                  "preference_text",
+                  "selection_text",
+                  "disqualification_text",
+                  "duties_text",
+                  "description_text"
+                ]
+              },
+              "quote": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 8000
+              }
+            },
+            "required": [
+              "field",
+              "quote"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "name",
+          "evidence"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 40
+    },
+    "duties": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "position": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 1000
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8000
+          },
+          "evidence": {
+            "type": "object",
+            "properties": {
+              "field": {
+                "type": "string",
+                "enum": [
+                  "title",
+                  "organization_name",
+                  "education",
+                  "recruitment_type",
+                  "employment_type",
+                  "regions",
+                  "ncs_category_codes",
+                  "ncs_category_names",
+                  "eligibility_text",
+                  "preference_text",
+                  "selection_text",
+                  "disqualification_text",
+                  "duties_text",
+                  "description_text"
+                ]
+              },
+              "quote": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 8000
+              }
+            },
+            "required": [
+              "field",
+              "quote"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "position",
+          "text",
+          "evidence"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 60
+    },
+    "requirements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "position": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 1000
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "education",
+              "experience",
+              "qualification",
+              "skill",
+              "other"
+            ]
+          },
+          "importance": {
+            "type": "string",
+            "enum": [
+              "required",
+              "preferred",
+              "unspecified"
+            ]
+          },
+          "logic": {
+            "type": "string",
+            "enum": [
+              "single",
+              "all_of",
+              "any_of",
+              "unspecified"
+            ]
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8000
+          },
+          "evidence": {
+            "type": "object",
+            "properties": {
+              "field": {
+                "type": "string",
+                "enum": [
+                  "title",
+                  "organization_name",
+                  "education",
+                  "recruitment_type",
+                  "employment_type",
+                  "regions",
+                  "ncs_category_codes",
+                  "ncs_category_names",
+                  "eligibility_text",
+                  "preference_text",
+                  "selection_text",
+                  "disqualification_text",
+                  "duties_text",
+                  "description_text"
+                ]
+              },
+              "quote": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 8000
+              }
+            },
+            "required": [
+              "field",
+              "quote"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "position",
+          "category",
+          "importance",
+          "logic",
+          "text",
+          "evidence"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 100
+    },
+    "duties_status": {
+      "type": "string",
+      "enum": [
+        "explicit",
+        "not_stated",
+        "attachment_required"
+      ]
+    }
+  },
+  "required": [
+    "positions",
+    "duties",
+    "requirements",
+    "duties_status"
+  ],
+  "additionalProperties": false
+}

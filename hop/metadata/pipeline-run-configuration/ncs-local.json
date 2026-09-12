@@ -1,0 +1,18 @@
+{
+  "name": "ncs-local",
+  "description": "Local NCS competency execution without row sampling or execution-data capture. Use Basic logging.",
+  "engineRunConfiguration": {
+    "Local": {
+      "safe_mode": false,
+      "show_feedback": false,
+      "rowset_size": "1000",
+      "feedback_size": "50000",
+      "sample_size": "0",
+      "gather_metrics": true
+    }
+  },
+  "configurationVariables": [],
+  "executionInfoLocationName": "",
+  "dataProfile": "",
+  "defaultSelection": false
+}

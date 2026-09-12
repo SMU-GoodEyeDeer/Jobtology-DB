@@ -1,0 +1,771 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>fetch_file</name>
+    <description>Download the pinned public career-path CSV, archive bytes, and check encoding, CSV grammar, headers and row widths.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>1000</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>File context</from>
+      <to>Build archive location</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Build archive location</from>
+      <to>Reserve provider request</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Fetch public career CSV</from>
+      <to>Archive response bytes</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Archive response bytes</from>
+      <to>Release response bytes</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Release response bytes</from>
+      <to>Hash saved response</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Hash saved response</from>
+      <to>Measure saved response</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Measure saved response</from>
+      <to>Register response</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Finish request accounting</from>
+      <to>HTTP success</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Read saved bytes</from>
+      <to>Inspect CSV bytes</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Inspect CSV bytes</from>
+      <to>Release inspected bytes</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Release inspected bytes</from>
+      <to>Valid CSV file</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Remember encoding</from>
+      <to>Save file metadata</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>HTTP success</from>
+      <to>Read saved bytes</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>HTTP success</from>
+      <to>HTTP failure</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Valid CSV file</from>
+      <to>Remember encoding</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Valid CSV file</from>
+      <to>CSV invalid</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Reserve provider request</from>
+      <to>Request allowed</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Request allowed</from>
+      <to>Fetch public career CSV</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Request allowed</from>
+      <to>Remove denied request key</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Remove denied request key</from>
+      <to>Request denied</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Register response</from>
+      <to>Finish request accounting</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>File context</name>
+    <fields>
+      <field>
+        <name>run_id</name>
+        <variable>${CAREER_RUN_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>raw_root</name>
+        <variable>${RAW_ROOT}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>max_requests</name>
+        <variable>${MAX_PAGES}</variable>
+        <type>Integer</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>partition_id</name>
+        <variable>file</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>page_no</name>
+        <variable>1</variable>
+        <type>Integer</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>confirmation_no</name>
+        <variable>0</variable>
+        <type>Integer</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>100</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Build archive location</name>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <sql>SELECT ?::text||'/'||?::text||'/file/source.csv' AS raw_filename,?::text||'/file/source.csv' AS raw_path,CURRENT_TIMESTAMP AS retrieved_at</sql>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <parameter>
+      <field>
+        <name>raw_root</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>run_id</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>run_id</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <replace_vars>N</replace_vars>
+    <connection>jobtology-postgres</connection>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>330</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Rest</type>
+    <name>Fetch public career CSV</name>
+    <applicationType>TEXT PLAIN</applicationType>
+    <urlInField>N</urlInField>
+    <non_preemptive_basic_auth>N</non_preemptive_basic_auth>
+    <method>GET</method>
+    <dynamicMethod>N</dynamicMethod>
+    <connectionTimeout>10000</connectionTimeout>
+    <readTimeout>60000</readTimeout>
+    <ignoreSsl>N</ignoreSsl>
+    <headers />
+    <parameters />
+    <matrixParameters />
+    <result>
+      <binary>Y</binary>
+      <name>response_bytes</name>
+      <code>http_status</code>
+    </result>
+    <retryTimes>0</retryTimes>
+    <retryDelayMs>200</retryDelayMs>
+    <retryStatusCodes>
+      <retryStatusCode>503</retryStatusCode>
+      <retryStatusCode>504</retryStatusCode>
+      <retryStatusCode>429</retryStatusCode>
+      <retryStatusCode>500</retryStatusCode>
+      <retryStatusCode>502</retryStatusCode>
+    </retryStatusCodes>
+    <retryMethods>
+      <retryMethod>GET</retryMethod>
+      <retryMethod>DELETE</retryMethod>
+      <retryMethod>PUT</retryMethod>
+    </retryMethods>
+    <paginationEnabled>N</paginationEnabled>
+    <maxPagesLoops>256</maxPagesLoops>
+    <streamingEnabled>N</streamingEnabled>
+    <streamingFormat>NDJSON</streamingFormat>
+    <url>https://www.data.go.kr/cmm/cmm/fileDownload.do?atchFileId=FILE_000000002844861&amp;fileDetailSn=1&amp;insertDataPrcus=N</url>
+    <connection_name />
+    <httpLogin />
+    <httpPassword />
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>BinaryFileOutput</type>
+    <name>Archive response bytes</name>
+    <createparentfolder>Y</createparentfolder>
+    <overwritefile>N</overwritefile>
+    <addresultfilenames>N</addresultfilenames>
+    <binaryfield>response_bytes</binaryfield>
+    <filenamefield>raw_filename</filenamefield>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>790</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>SelectValues</type>
+    <name>Release response bytes</name>
+    <fields>
+      <select_unspecified>Y</select_unspecified>
+      <remove>
+        <name>response_bytes</name>
+      </remove>
+    </fields>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>1020</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Calculator</type>
+    <name>Hash saved response</name>
+    <failIfNoFile>Y</failIfNoFile>
+    <calculation>
+      <field_name>raw_sha256</field_name>
+      <calc_type>SHA256</calc_type>
+      <field_a>raw_filename</field_a>
+      <value_type>String</value_type>
+      <value_length>-1</value_length>
+      <value_precision>-1</value_precision>
+      <remove>N</remove>
+    </calculation>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>100</xloc>
+      <yloc>270</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>GetFileNames</type>
+    <name>Measure saved response</name>
+    <filter>
+      <filterfiletype>all_files</filterfiletype>
+    </filter>
+    <rownum>N</rownum>
+    <rownum_field />
+    <filename_Field>raw_filename</filename_Field>
+    <wildcard_Field />
+    <exclude_wildcard_Field />
+    <filefield>Y</filefield>
+    <dynamic_include_subfolders>N</dynamic_include_subfolders>
+    <isaddresult>N</isaddresult>
+    <limit>0</limit>
+    <doNotFailIfNoFile>N</doNotFailIfNoFile>
+    <raiseAnExceptionIfNoFile>Y</raiseAnExceptionIfNoFile>
+    <file>
+      <name>${PROJECT_HOME}</name>
+      <filemask />
+      <exclude_filemask />
+      <file_required>N</file_required>
+      <include_subfolders>N</include_subfolders>
+    </file>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>330</xloc>
+      <yloc>270</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>ExecSql</type>
+    <name>Register response</name>
+    <sql>INSERT INTO ingestion.document
+ (run_id,document_id,partition_id,page_no,confirmation_no,attempt_no,raw_path,raw_sha256,byte_length,encoding,http_status,retrieved_at)
+ VALUES (?,'file:1:0:1','file',1,0,1,?,lower(?),?,'pending',?,?)</sql>
+    <execute_each_row>Y</execute_each_row>
+    <single_statement>Y</single_statement>
+    <replace_variables>N</replace_variables>
+    <quoteString>N</quoteString>
+    <set_params>Y</set_params>
+    <arguments>
+      <argument>
+        <name>run_id</name>
+      </argument>
+      <argument>
+        <name>raw_path</name>
+      </argument>
+      <argument>
+        <name>raw_sha256</name>
+      </argument>
+      <argument>
+        <name>size</name>
+      </argument>
+      <argument>
+        <name>http_status</name>
+      </argument>
+      <argument>
+        <name>retrieved_at</name>
+      </argument>
+    </arguments>
+    <connection>jobtology-postgres</connection>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>270</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>HTTP success</name>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>http_status</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Integer</type>
+          <text>200</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <send_true_to>Read saved bytes</send_true_to>
+    <send_false_to>HTTP failure</send_false_to>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>790</xloc>
+      <yloc>270</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Calculator</type>
+    <name>Read saved bytes</name>
+    <failIfNoFile>Y</failIfNoFile>
+    <calculation>
+      <field_name>saved_bytes</field_name>
+      <calc_type>LOAD_FILE_CONTENT_BINARY</calc_type>
+      <field_a>raw_filename</field_a>
+      <value_type>Binary</value_type>
+      <value_length>-1</value_length>
+      <value_precision>-1</value_precision>
+      <remove>N</remove>
+    </calculation>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>1020</xloc>
+      <yloc>270</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Inspect CSV bytes</name>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <sql>SELECT * FROM ingestion.inspect_career_file(?::bytea)</sql>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <parameter>
+      <field>
+        <name>saved_bytes</name>
+        <type>Binary</type>
+      </field>
+    </parameter>
+    <replace_vars>N</replace_vars>
+    <connection>jobtology-postgres</connection>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>100</xloc>
+      <yloc>440</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>SelectValues</type>
+    <name>Release inspected bytes</name>
+    <fields>
+      <select_unspecified>Y</select_unspecified>
+      <remove>
+        <name>saved_bytes</name>
+      </remove>
+    </fields>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>330</xloc>
+      <yloc>440</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>Valid CSV file</name>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>file_valid</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Boolean</type>
+          <text>Y</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <send_true_to>Remember encoding</send_true_to>
+    <send_false_to>CSV invalid</send_false_to>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>440</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>SetVariable</type>
+    <name>Remember encoding</name>
+    <fields>
+      <field>
+        <field_name>csv_encoding</field_name>
+        <variable_name>CSV_ENCODING</variable_name>
+        <variable_type>PARENT_WORKFLOW</variable_type>
+        <default_value />
+      </field>
+    </fields>
+    <use_formatting>Y</use_formatting>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>790</xloc>
+      <yloc>440</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>ExecSql</type>
+    <name>Save file metadata</name>
+    <sql>WITH doc AS (UPDATE ingestion.document SET encoding=?,item_count=?,declared_total=?,effective_page=1,effective_page_size=1,selected=true
+ WHERE run_id=? AND document_id='file:1:0:1' RETURNING run_id,item_count)
+ UPDATE ingestion.partition p SET expected_total=d.item_count FROM doc d WHERE p.run_id=d.run_id AND p.partition_id='file'</sql>
+    <execute_each_row>Y</execute_each_row>
+    <single_statement>Y</single_statement>
+    <replace_variables>N</replace_variables>
+    <quoteString>N</quoteString>
+    <set_params>Y</set_params>
+    <arguments>
+      <argument>
+        <name>source_encoding</name>
+      </argument>
+      <argument>
+        <name>expected_rows</name>
+      </argument>
+      <argument>
+        <name>expected_rows</name>
+      </argument>
+      <argument>
+        <name>run_id</name>
+      </argument>
+    </arguments>
+    <connection>jobtology-postgres</connection>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>1020</xloc>
+      <yloc>440</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Abort</type>
+    <name>HTTP failure</name>
+    <row_threshold>0</row_threshold>
+    <message>Career file download returned a non-200 status; response retained.</message>
+    <always_log_rows>N</always_log_rows>
+    <abort_option>ABORT_WITH_ERROR</abort_option>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>100</xloc>
+      <yloc>610</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Abort</type>
+    <name>CSV invalid</name>
+    <row_threshold>0</row_threshold>
+    <message>Career file failed its encoding, grammar, header, or width checks; original response retained.</message>
+    <always_log_rows>N</always_log_rows>
+    <abort_option>ABORT_WITH_ERROR</abort_option>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>330</xloc>
+      <yloc>610</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+  <transform>
+    <type>DBJoin</type>
+    <name>Reserve provider request</name>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <sql>SELECT * FROM ingestion.reserve_request(?,?,?::integer,?::integer,?::integer)</sql>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <parameter>
+      <field>
+        <name>run_id</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>partition_id</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>page_no</name>
+        <type>Integer</type>
+      </field>
+      <field>
+        <name>confirmation_no</name>
+        <type>Integer</type>
+      </field>
+      <field>
+        <name>max_requests</name>
+        <type>Integer</type>
+      </field>
+    </parameter>
+    <replace_vars>N</replace_vars>
+    <connection>jobtology-postgres</connection>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>100</xloc>
+      <yloc>1200</yloc>
+    </GUI>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>Request allowed</name>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>request_allowed</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Boolean</type>
+          <text>Y</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <send_true_to>Fetch public career CSV</send_true_to>
+    <send_false_to>Remove denied request key</send_false_to>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>350</xloc>
+      <yloc>1200</yloc>
+    </GUI>
+  </transform>
+  <transform>
+    <type>SelectValues</type>
+    <name>Remove denied request key</name>
+    <fields>
+      <select_unspecified>Y</select_unspecified>
+      <remove>
+        <name>service_key</name>
+      </remove>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>600</xloc>
+      <yloc>1200</yloc>
+    </GUI>
+  </transform>
+  <transform>
+    <type>Abort</type>
+    <name>Request denied</name>
+    <row_threshold>0</row_threshold>
+    <message>Request quota exhausted, duplicate reservation, or run no longer LOADING. No HTTP request was sent.</message>
+    <always_log_rows>N</always_log_rows>
+    <abort_option>ABORT_WITH_ERROR</abort_option>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>850</xloc>
+      <yloc>1200</yloc>
+    </GUI>
+  </transform>
+  <transform>
+    <type>ExecSql</type>
+    <name>Finish request accounting</name>
+    <sql>UPDATE ingestion.request_attempt SET outcome='RESPONSE_ARCHIVED',completed_at=clock_timestamp() WHERE run_id=? AND partition_id=? AND page_no=? AND confirmation_no=?</sql>
+    <execute_each_row>Y</execute_each_row>
+    <single_statement>Y</single_statement>
+    <replace_variables>N</replace_variables>
+    <quoteString>N</quoteString>
+    <set_params>Y</set_params>
+    <arguments>
+      <argument>
+        <name>run_id</name>
+      </argument>
+      <argument>
+        <name>partition_id</name>
+      </argument>
+      <argument>
+        <name>page_no</name>
+      </argument>
+      <argument>
+        <name>confirmation_no</name>
+      </argument>
+    </arguments>
+    <connection>jobtology-postgres</connection>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>1100</xloc>
+      <yloc>1200</yloc>
+    </GUI>
+  </transform>
+</pipeline>

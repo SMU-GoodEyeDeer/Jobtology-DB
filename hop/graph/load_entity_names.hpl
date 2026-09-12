@@ -1,0 +1,254 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>load_entity_names</name>
+    <description>Resolve readable identity names from accepted source facts; snapshot facts remain immutable.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>1000</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Snapshot</from>
+      <to>Read entity names</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Read entity names</from>
+      <to>Set entity names</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Set entity names</from>
+      <to>Check result</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Check result</from>
+      <to>Complete</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Check result</from>
+      <to>Check failed</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Snapshot</name>
+    <fields>
+      <field>
+        <name>run_id</name>
+        <variable>${RUN_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>100</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Read entity names</name>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <sql>WITH source_rows AS MATERIALIZED (
+ SELECT 'hop:' || r.run_id || ':' || r.record_id::text AS graph_id,r.run_id,r.record_id,r.source_id,r.normalized,u.created_at
+ FROM ingestion.ready_record r JOIN ingestion.run u USING(run_id)
+ WHERE u.mode&lt;&gt;'SMOKE' AND NOT EXISTS (SELECT 1 FROM ingestion.validation_issue v WHERE v.run_id=u.run_id)
+), refs AS MATERIALIZED (
+ SELECT * FROM ingestion.graph_reference
+), wanted AS MATERIALIZED (
+ SELECT DISTINCT identity_id FROM refs WHERE run_id=?
+), candidates AS (
+ SELECT q.identity_id,q.kind,q.code,q.record_id AS name_source_record_id,r.run_id AS name_source_run_id,
+ r.created_at,r.record_id,r.normalized-&gt;&gt;'representation' AS representation,
+ CASE q.kind
+ WHEN 'Organization' THEN CASE WHEN r.source_id='alio_organization' THEN r.normalized-&gt;&gt;'name' ELSE r.normalized-&gt;&gt;'organization_name' END
+ WHEN 'JobPosting' THEN r.normalized-&gt;&gt;'title'
+ WHEN 'Occupation' THEN r.normalized-&gt;&gt;'occupation_name'
+ WHEN 'Competency' THEN CASE WHEN r.source_id='ncs_competency' THEN r.normalized-&gt;&gt;'name' ELSE r.normalized-&gt;&gt;'competency_name' END
+ WHEN 'Qualification' THEN r.normalized-&gt;&gt;'qualification_name' END AS proposed_name,
+ CASE WHEN r.source_id IN ('alio_organization','ncs_competency','ncs_qualification') THEN 0 ELSE 1 END AS source_priority
+ FROM refs q JOIN wanted w USING(identity_id)
+ JOIN source_rows r ON r.graph_id=q.record_id
+), ranked AS (
+ SELECT *,row_number() OVER (PARTITION BY identity_id ORDER BY
+ (nullif(btrim(proposed_name),'') IS NULL),source_priority,created_at DESC,name_source_run_id DESC,
+ CASE WHEN representation='detail' THEN 0 ELSE 1 END,record_id DESC,name_source_record_id DESC) AS choice
+ FROM candidates
+)
+SELECT identity_id,kind,code,
+coalesce(nullif(btrim(proposed_name),''),kind || ' ' || code) AS entity_name,
+CASE WHEN kind='JobPosting' THEN coalesce(nullif(btrim(proposed_name),''),kind || ' ' || code) END AS entity_title,
+name_source_run_id,name_source_record_id
+FROM ranked WHERE choice=1 ORDER BY identity_id</sql>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <parameter>
+      <field>
+        <name>run_id</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <replace_vars>N</replace_vars>
+    <connection>jobtology-postgres</connection>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>330</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Neo4jCypherOutput</type>
+    <name>Set entity names</name>
+    <connection>${NEO4J_CONNECTION}</connection>
+    <cypher>MATCH (i:entity {id:$identity_id}) WHERE i.kind=$kind AND i.code=$code AND ((i.kind='Organization' AND 'organization' IN labels(i)) OR (i.kind='JobPosting' AND 'jobPosting' IN labels(i)) OR (i.kind='Occupation' AND 'occupation' IN labels(i)) OR (i.kind='Competency' AND 'ncsCompetency' IN labels(i)) OR (i.kind='Qualification' AND 'qualification' IN labels(i)))
+SET i.name=$entity_name,i.title=$entity_title,i.name_source_run_id=$name_source_run_id,i.name_source_record_id=$name_source_record_id
+RETURN count(i)=1 AS entity_matches</cypher>
+    <batch_size>1</batch_size>
+    <read_only>N</read_only>
+    <retry>N</retry>
+    <nr_retries_on_error>0</nr_retries_on_error>
+    <cypher_from_field>N</cypher_from_field>
+    <unwind>N</unwind>
+    <returning_graph>N</returning_graph>
+    <mappings>
+      <mapping>
+        <parameter>identity_id</parameter>
+        <field>identity_id</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>kind</parameter>
+        <field>kind</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>code</parameter>
+        <field>code</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>entity_name</parameter>
+        <field>entity_name</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>entity_title</parameter>
+        <field>entity_title</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>name_source_run_id</parameter>
+        <field>name_source_run_id</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>name_source_record_id</parameter>
+        <field>name_source_record_id</field>
+        <type>String</type>
+      </mapping>
+    </mappings>
+    <returns>
+      <return>
+        <name>entity_matches</name>
+        <type>Boolean</type>
+        <source_type>Boolean</source_type>
+      </return>
+    </returns>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>Check result</name>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>entity_matches</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Boolean</type>
+          <text>Y</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <send_true_to>Complete</send_true_to>
+    <send_false_to>Check failed</send_false_to>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>790</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Dummy</type>
+    <name>Complete</name>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>1020</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Abort</type>
+    <name>Check failed</name>
+    <row_threshold>0</row_threshold>
+    <message>An entity has a missing or conflicting kind, label, code, display name or name provenance.</message>
+    <always_log_rows>N</always_log_rows>
+    <abort_option>ABORT_WITH_ERROR</abort_option>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>100</xloc>
+      <yloc>270</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

@@ -1,0 +1,597 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<workflow>
+  <name>Load one PostgreSQL snapshot into Neo4j</name>
+  <description>Load one PostgreSQL snapshot into Neo4j</description>
+  <workflow_version>1</workflow_version>
+  <workflow_status>0</workflow_status>
+  <parameters>
+    <parameter>
+      <name>RUN_ID</name>
+      <default_value />
+      <description>RUN_ID</description>
+    </parameter>
+    <parameter>
+      <name>NEO4J_CONNECTION</name>
+      <default_value>jobtology-neo4j</default_value>
+      <description>NEO4J_CONNECTION</description>
+    </parameter>
+  </parameters>
+  <actions>
+    <action>
+      <attributes />
+      <repeat>N</repeat>
+      <schedulerType>0</schedulerType>
+      <intervalSeconds>0</intervalSeconds>
+      <intervalMinutes>60</intervalMinutes>
+      <DayOfMonth>1</DayOfMonth>
+      <weekDay>1</weekDay>
+      <minutes>0</minutes>
+      <hour>12</hour>
+      <doNotWaitOnFirstExecution>N</doNotWaitOnFirstExecution>
+      <description />
+      <attributes />
+      <name>Start</name>
+      <type>SPECIAL</type>
+      <xloc>100</xloc>
+      <yloc>80</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <start>Y</start>
+    </action>
+    <action>
+      <attributes />
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <create_parent_folder>N</create_parent_folder>
+      <set_logfile>N</set_logfile>
+      <set_append_logfile>N</set_append_logfile>
+      <add_date>N</add_date>
+      <add_time>N</add_time>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+      <attributes />
+      <name>Validate PostgreSQL snapshot</name>
+      <type>PIPELINE</type>
+      <xloc>100</xloc>
+      <yloc>230</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <filename>${PROJECT_HOME}/graph/check_snapshot.hpl</filename>
+      <run_configuration>graph-local</run_configuration>
+    </action>
+    <action>
+      <attributes />
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <create_parent_folder>N</create_parent_folder>
+      <set_logfile>N</set_logfile>
+      <set_append_logfile>N</set_append_logfile>
+      <add_date>N</add_date>
+      <add_time>N</add_time>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+      <attributes />
+      <name>Ensure graph constraints</name>
+      <type>PIPELINE</type>
+      <xloc>390</xloc>
+      <yloc>230</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <filename>${PROJECT_HOME}/graph/constraints.hpl</filename>
+      <run_configuration>graph-local</run_configuration>
+    </action>
+    <action>
+      <attributes />
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <create_parent_folder>N</create_parent_folder>
+      <set_logfile>N</set_logfile>
+      <set_append_logfile>N</set_append_logfile>
+      <add_date>N</add_date>
+      <add_time>N</add_time>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+      <attributes />
+      <name>Upgrade legacy labels</name>
+      <type>PIPELINE</type>
+      <xloc>680</xloc>
+      <yloc>230</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <filename>${PROJECT_HOME}/graph/upgrade_labels.hpl</filename>
+      <run_configuration>graph-local</run_configuration>
+    </action>
+    <action>
+      <attributes />
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <create_parent_folder>N</create_parent_folder>
+      <set_logfile>N</set_logfile>
+      <set_append_logfile>N</set_append_logfile>
+      <add_date>N</add_date>
+      <add_time>N</add_time>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+      <attributes />
+      <name>Begin graph batch</name>
+      <type>PIPELINE</type>
+      <xloc>970</xloc>
+      <yloc>230</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <filename>${PROJECT_HOME}/graph/begin_batch.hpl</filename>
+      <run_configuration>graph-local</run_configuration>
+    </action>
+    <action>
+      <attributes />
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <create_parent_folder>N</create_parent_folder>
+      <set_logfile>N</set_logfile>
+      <set_append_logfile>N</set_append_logfile>
+      <add_date>N</add_date>
+      <add_time>N</add_time>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+      <attributes />
+      <name>Load source records</name>
+      <type>PIPELINE</type>
+      <xloc>100</xloc>
+      <yloc>400</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <filename>${PROJECT_HOME}/graph/load_records.hpl</filename>
+      <run_configuration>graph-local</run_configuration>
+    </action>
+    <action>
+      <attributes />
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <create_parent_folder>N</create_parent_folder>
+      <set_logfile>N</set_logfile>
+      <set_append_logfile>N</set_append_logfile>
+      <add_date>N</add_date>
+      <add_time>N</add_time>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+      <attributes />
+      <name>Load identity references</name>
+      <type>PIPELINE</type>
+      <xloc>390</xloc>
+      <yloc>400</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <filename>${PROJECT_HOME}/graph/load_references.hpl</filename>
+      <run_configuration>graph-local</run_configuration>
+    </action>
+    <action>
+      <attributes />
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <create_parent_folder>N</create_parent_folder>
+      <set_logfile>N</set_logfile>
+      <set_append_logfile>N</set_append_logfile>
+      <add_date>N</add_date>
+      <add_time>N</add_time>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+      <attributes />
+      <name>Set readable entity names</name>
+      <type>PIPELINE</type>
+      <xloc>680</xloc>
+      <yloc>400</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <filename>${PROJECT_HOME}/graph/load_entity_names.hpl</filename>
+      <run_configuration>graph-local</run_configuration>
+    </action>
+    <action>
+      <attributes />
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <create_parent_folder>N</create_parent_folder>
+      <set_logfile>N</set_logfile>
+      <set_append_logfile>N</set_append_logfile>
+      <add_date>N</add_date>
+      <add_time>N</add_time>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+      <attributes />
+      <name>Verify record properties</name>
+      <type>PIPELINE</type>
+      <xloc>970</xloc>
+      <yloc>400</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <filename>${PROJECT_HOME}/graph/verify_records.hpl</filename>
+      <run_configuration>graph-local</run_configuration>
+    </action>
+    <action>
+      <attributes />
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <create_parent_folder>N</create_parent_folder>
+      <set_logfile>N</set_logfile>
+      <set_append_logfile>N</set_append_logfile>
+      <add_date>N</add_date>
+      <add_time>N</add_time>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+      <attributes />
+      <name>Verify identity references</name>
+      <type>PIPELINE</type>
+      <xloc>100</xloc>
+      <yloc>570</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <filename>${PROJECT_HOME}/graph/verify_references.hpl</filename>
+      <run_configuration>graph-local</run_configuration>
+    </action>
+    <action>
+      <attributes />
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <create_parent_folder>N</create_parent_folder>
+      <set_logfile>N</set_logfile>
+      <set_append_logfile>N</set_append_logfile>
+      <add_date>N</add_date>
+      <add_time>N</add_time>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+      <attributes />
+      <name>Verify entity names</name>
+      <type>PIPELINE</type>
+      <xloc>390</xloc>
+      <yloc>570</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <filename>${PROJECT_HOME}/graph/verify_entity_names.hpl</filename>
+      <run_configuration>graph-local</run_configuration>
+    </action>
+    <action>
+      <attributes />
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <create_parent_folder>N</create_parent_folder>
+      <set_logfile>N</set_logfile>
+      <set_append_logfile>N</set_append_logfile>
+      <add_date>N</add_date>
+      <add_time>N</add_time>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+      <attributes />
+      <name>Verify graph membership</name>
+      <type>PIPELINE</type>
+      <xloc>680</xloc>
+      <yloc>570</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <filename>${PROJECT_HOME}/graph/verify_totals.hpl</filename>
+      <run_configuration>graph-local</run_configuration>
+    </action>
+    <action>
+      <attributes />
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <create_parent_folder>N</create_parent_folder>
+      <set_logfile>N</set_logfile>
+      <set_append_logfile>N</set_append_logfile>
+      <add_date>N</add_date>
+      <add_time>N</add_time>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+      <attributes />
+      <name>Accept graph snapshot</name>
+      <type>PIPELINE</type>
+      <xloc>970</xloc>
+      <yloc>570</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <filename>${PROJECT_HOME}/graph/finish_batch.hpl</filename>
+      <run_configuration>graph-local</run_configuration>
+    </action>
+    <action>
+      <attributes />
+      <name>Success</name>
+      <description />
+      <attributes />
+      <type>SUCCESS</type>
+      <xloc>100</xloc>
+      <yloc>740</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+    </action>
+    <action>
+      <attributes />
+      <loglevel>Error</loglevel>
+      <name>Abort</name>
+      <description />
+      <attributes />
+      <type>ABORT</type>
+      <xloc>680</xloc>
+      <yloc>740</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <message>Graph load failed. Inspect the graph batch; PostgreSQL snapshots are unchanged.</message>
+    </action>
+    <action>
+      <attributes />
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <create_parent_folder>N</create_parent_folder>
+      <set_logfile>N</set_logfile>
+      <set_append_logfile>N</set_append_logfile>
+      <add_date>N</add_date>
+      <add_time>N</add_time>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+      <attributes />
+      <name>Record graph failure</name>
+      <type>PIPELINE</type>
+      <xloc>390</xloc>
+      <yloc>740</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <filename>${PROJECT_HOME}/graph/mark_failed.hpl</filename>
+      <run_configuration>graph-local</run_configuration>
+    </action>
+  </actions>
+  <hops>
+    <hop>
+      <from>Start</from>
+      <to>Validate PostgreSQL snapshot</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>Y</unconditional>
+    </hop>
+    <hop>
+      <from>Validate PostgreSQL snapshot</from>
+      <to>Abort</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Validate PostgreSQL snapshot</from>
+      <to>Ensure graph constraints</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Ensure graph constraints</from>
+      <to>Record graph failure</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Ensure graph constraints</from>
+      <to>Upgrade legacy labels</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Upgrade legacy labels</from>
+      <to>Record graph failure</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Upgrade legacy labels</from>
+      <to>Begin graph batch</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Begin graph batch</from>
+      <to>Record graph failure</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Begin graph batch</from>
+      <to>Load source records</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Load source records</from>
+      <to>Record graph failure</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Load source records</from>
+      <to>Load identity references</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Load identity references</from>
+      <to>Record graph failure</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Load identity references</from>
+      <to>Set readable entity names</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Set readable entity names</from>
+      <to>Record graph failure</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Set readable entity names</from>
+      <to>Verify record properties</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Verify record properties</from>
+      <to>Record graph failure</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Verify record properties</from>
+      <to>Verify identity references</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Verify identity references</from>
+      <to>Record graph failure</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Verify identity references</from>
+      <to>Verify entity names</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Verify entity names</from>
+      <to>Record graph failure</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Verify entity names</from>
+      <to>Verify graph membership</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Verify graph membership</from>
+      <to>Record graph failure</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Verify graph membership</from>
+      <to>Accept graph snapshot</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Accept graph snapshot</from>
+      <to>Record graph failure</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Accept graph snapshot</from>
+      <to>Success</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Record graph failure</from>
+      <to>Abort</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Record graph failure</from>
+      <to>Abort</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+  </hops>
+  <notepads />
+  <attributes />
+</workflow>

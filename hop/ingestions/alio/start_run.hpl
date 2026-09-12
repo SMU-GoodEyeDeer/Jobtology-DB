@@ -1,0 +1,241 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>start_run</name>
+    <description>Create a new isolated ALIO run and its institutions partition. Sets ALIO_RUN_ID only on the parent workflow.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>1000</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Run options</from>
+      <to>Generate run ID</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Generate run ID</from>
+      <to>Valid options</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Remember run ID</from>
+      <to>Create run and partition</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Create run and partition</from>
+      <to>Run started</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Valid options</from>
+      <to>Remember run ID</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Valid options</from>
+      <to>Invalid options</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Run options</name>
+    <fields>
+      <field>
+        <name>mode</name>
+        <variable>${MODE}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>raw_root</name>
+        <variable>${RAW_ROOT}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>100</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Generate run ID</name>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <sql>SELECT gen_random_uuid()::text AS run_id, (? IN ('FULL','SMOKE') AND nullif(?, '') IS NOT NULL) AS options_ok</sql>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <parameter>
+      <field>
+        <name>mode</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>raw_root</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <replace_vars>N</replace_vars>
+    <connection>jobtology-postgres</connection>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>330</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>Valid options</name>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>options_ok</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Boolean</type>
+          <text>Y</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <send_true_to>Remember run ID</send_true_to>
+    <send_false_to>Invalid options</send_false_to>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>SetVariable</type>
+    <name>Remember run ID</name>
+    <fields>
+      <field>
+        <field_name>run_id</field_name>
+        <variable_name>ALIO_RUN_ID</variable_name>
+        <variable_type>PARENT_WORKFLOW</variable_type>
+        <default_value />
+      </field>
+    </fields>
+    <use_formatting>Y</use_formatting>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>790</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>ExecSql</type>
+    <name>Create run and partition</name>
+    <sql>WITH new_run AS (
+ INSERT INTO ingestion.run(run_id,source_id,mode,parser_version,policy_revision)
+ VALUES (?, 'alio_organization', ?, 'hop-alio-v1', '2026-09-05.1') RETURNING run_id
+) INSERT INTO ingestion.partition(run_id,partition_id,kind,request_context,page_size)
+ SELECT run_id,'institutions','PAGED','{"resultType":"json"}'::jsonb,100 FROM new_run;</sql>
+    <execute_each_row>Y</execute_each_row>
+    <single_statement>Y</single_statement>
+    <replace_variables>N</replace_variables>
+    <quoteString>N</quoteString>
+    <set_params>Y</set_params>
+    <arguments>
+      <argument>
+        <name>run_id</name>
+      </argument>
+      <argument>
+        <name>mode</name>
+      </argument>
+    </arguments>
+    <connection>jobtology-postgres</connection>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>1020</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>WriteToLog</type>
+    <name>Run started</name>
+    <displayHeader>Y</displayHeader>
+    <limitRows>N</limitRows>
+    <limitRowsNumber>0</limitRowsNumber>
+    <logmessage>ALIO run created</logmessage>
+    <loglevel>Basic</loglevel>
+    <fields>
+      <field>
+        <name>run_id</name>
+      </field>
+      <field>
+        <name>mode</name>
+      </field>
+    </fields>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>100</xloc>
+      <yloc>270</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Abort</type>
+    <name>Invalid options</name>
+    <row_threshold>0</row_threshold>
+    <message>MODE must be FULL or SMOKE and RAW_ROOT must be set.</message>
+    <always_log_rows>N</always_log_rows>
+    <abort_option>ABORT_WITH_ERROR</abort_option>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>330</xloc>
+      <yloc>270</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

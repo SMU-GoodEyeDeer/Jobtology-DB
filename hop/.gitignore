@@ -1,0 +1,4 @@
+# Private connection metadata belongs only in the installed Hop project.
+/metadata/rdbms/
+/metadata/neo4j-connection/
+/secrets/

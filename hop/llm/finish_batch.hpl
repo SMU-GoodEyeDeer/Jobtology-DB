@@ -1,0 +1,153 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>finish_batch</name>
+    <description>Finalize batch without changing source ingestion records.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Batch</from>
+      <to>Finish batch</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Finish batch</from>
+      <to>Read batch report</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Read batch report</from>
+      <to>Batch report</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Batch</name>
+    <fields>
+      <field>
+        <name>batch_id</name>
+        <variable>${LLM_BATCH_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>ExecSql</type>
+    <name>Finish batch</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT enrichment.finish_batch(?,false)</sql>
+    <execute_each_row>Y</execute_each_row>
+    <single_statement>Y</single_statement>
+    <set_params>Y</set_params>
+    <replace_variables>N</replace_variables>
+    <quoteString>N</quoteString>
+    <arguments>
+      <argument>
+        <name>batch_id</name>
+      </argument>
+    </arguments>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Read batch report</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT state,postings,validated,rejected,requests,reported_cost_usd,unknown_cost_requests,labeled_postings FROM enrichment.batch_report WHERE batch_id=?</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>batch_id</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>WriteToLog</type>
+    <name>Batch report</name>
+    <loglevel>Basic</loglevel>
+    <displayHeader>Y</displayHeader>
+    <logmessage>LLM result; COMPLETE means structural/evidence checks passed, not a measured quality score.</logmessage>
+    <fields>
+      <field>
+        <name>batch_id</name>
+      </field>
+      <field>
+        <name>state</name>
+      </field>
+      <field>
+        <name>postings</name>
+      </field>
+      <field>
+        <name>validated</name>
+      </field>
+      <field>
+        <name>rejected</name>
+      </field>
+      <field>
+        <name>requests</name>
+      </field>
+      <field>
+        <name>reported_cost_usd</name>
+      </field>
+      <field>
+        <name>unknown_cost_requests</name>
+      </field>
+      <field>
+        <name>labeled_postings</name>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>800</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

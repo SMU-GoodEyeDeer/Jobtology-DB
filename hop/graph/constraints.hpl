@@ -1,0 +1,547 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>constraints</name>
+    <description>Inspect uniqueness constraints and create only missing ones; avoid harmless Neo4j information notifications that Hop 2.19 treats as errors.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>1000</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Snapshot</from>
+      <to>Inspect batch</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Inspect batch</from>
+      <to>batch uniqueness exists</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>batch uniqueness exists</from>
+      <to>batch name available</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>batch name available</from>
+      <to>Create batch constraint</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>batch name available</from>
+      <to>Constraint conflict</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Create batch constraint</from>
+      <to>Inspect record</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>batch uniqueness exists</from>
+      <to>Inspect record</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Inspect record</from>
+      <to>record uniqueness exists</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>record uniqueness exists</from>
+      <to>record name available</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>record name available</from>
+      <to>Create record constraint</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>record name available</from>
+      <to>Constraint conflict</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Create record constraint</from>
+      <to>Inspect identity</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>record uniqueness exists</from>
+      <to>Inspect identity</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Inspect identity</from>
+      <to>identity uniqueness exists</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>identity uniqueness exists</from>
+      <to>identity name available</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>identity name available</from>
+      <to>Create identity constraint</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>identity name available</from>
+      <to>Constraint conflict</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Create identity constraint</from>
+      <to>Constraints complete</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>identity uniqueness exists</from>
+      <to>Constraints complete</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Snapshot</name>
+    <fields>
+      <field>
+        <name>run_id</name>
+        <variable>${RUN_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>100</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Neo4jCypherOutput</type>
+    <name>Inspect batch</name>
+    <connection>${NEO4J_CONNECTION}</connection>
+    <cypher>SHOW CONSTRAINTS YIELD name,entityType,type,labelsOrTypes,properties
+RETURN count(CASE WHEN entityType='NODE' AND type IN ['UNIQUENESS','NODE_KEY','NODE_PROPERTY_UNIQUENESS'] AND labelsOrTypes=['ingestionBatch'] AND properties=['id'] THEN 1 END) AS batch_correct,
+count(CASE WHEN name='ingestion_v2_batch_id' THEN 1 END) AS batch_name_in_use</cypher>
+    <batch_size>1</batch_size>
+    <read_only>Y</read_only>
+    <retry>N</retry>
+    <nr_retries_on_error>0</nr_retries_on_error>
+    <cypher_from_field>N</cypher_from_field>
+    <unwind>N</unwind>
+    <returning_graph>N</returning_graph>
+    <mappings />
+    <returns>
+      <return>
+        <name>batch_correct</name>
+        <type>Integer</type>
+        <source_type>Integer</source_type>
+      </return>
+      <return>
+        <name>batch_name_in_use</name>
+        <type>Integer</type>
+        <source_type>Integer</source_type>
+      </return>
+    </returns>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>330</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>batch uniqueness exists</name>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>batch_correct</leftvalue>
+        <function>&gt;</function>
+        <value>
+          <name>constant</name>
+          <type>Integer</type>
+          <text>0</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <send_true_to>Inspect record</send_true_to>
+    <send_false_to>batch name available</send_false_to>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>batch name available</name>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>batch_name_in_use</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Integer</type>
+          <text>0</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <send_true_to>Create batch constraint</send_true_to>
+    <send_false_to>Constraint conflict</send_false_to>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>790</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Neo4jCypherOutput</type>
+    <name>Create batch constraint</name>
+    <connection>${NEO4J_CONNECTION}</connection>
+    <cypher>CREATE CONSTRAINT ingestion_v2_batch_id FOR (n:ingestionBatch) REQUIRE n.id IS UNIQUE</cypher>
+    <batch_size>1</batch_size>
+    <read_only>N</read_only>
+    <retry>N</retry>
+    <nr_retries_on_error>0</nr_retries_on_error>
+    <cypher_from_field>N</cypher_from_field>
+    <unwind>N</unwind>
+    <returning_graph>N</returning_graph>
+    <mappings />
+    <returns />
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>1020</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Neo4jCypherOutput</type>
+    <name>Inspect record</name>
+    <connection>${NEO4J_CONNECTION}</connection>
+    <cypher>SHOW CONSTRAINTS YIELD name,entityType,type,labelsOrTypes,properties
+RETURN count(CASE WHEN entityType='NODE' AND type IN ['UNIQUENESS','NODE_KEY','NODE_PROPERTY_UNIQUENESS'] AND labelsOrTypes=['ingestionRecord'] AND properties=['id'] THEN 1 END) AS record_correct,
+count(CASE WHEN name='ingestion_v2_record_id' THEN 1 END) AS record_name_in_use</cypher>
+    <batch_size>1</batch_size>
+    <read_only>Y</read_only>
+    <retry>N</retry>
+    <nr_retries_on_error>0</nr_retries_on_error>
+    <cypher_from_field>N</cypher_from_field>
+    <unwind>N</unwind>
+    <returning_graph>N</returning_graph>
+    <mappings />
+    <returns>
+      <return>
+        <name>record_correct</name>
+        <type>Integer</type>
+        <source_type>Integer</source_type>
+      </return>
+      <return>
+        <name>record_name_in_use</name>
+        <type>Integer</type>
+        <source_type>Integer</source_type>
+      </return>
+    </returns>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>100</xloc>
+      <yloc>270</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>record uniqueness exists</name>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>record_correct</leftvalue>
+        <function>&gt;</function>
+        <value>
+          <name>constant</name>
+          <type>Integer</type>
+          <text>0</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <send_true_to>Inspect identity</send_true_to>
+    <send_false_to>record name available</send_false_to>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>330</xloc>
+      <yloc>270</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>record name available</name>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>record_name_in_use</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Integer</type>
+          <text>0</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <send_true_to>Create record constraint</send_true_to>
+    <send_false_to>Constraint conflict</send_false_to>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>270</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Neo4jCypherOutput</type>
+    <name>Create record constraint</name>
+    <connection>${NEO4J_CONNECTION}</connection>
+    <cypher>CREATE CONSTRAINT ingestion_v2_record_id FOR (n:ingestionRecord) REQUIRE n.id IS UNIQUE</cypher>
+    <batch_size>1</batch_size>
+    <read_only>N</read_only>
+    <retry>N</retry>
+    <nr_retries_on_error>0</nr_retries_on_error>
+    <cypher_from_field>N</cypher_from_field>
+    <unwind>N</unwind>
+    <returning_graph>N</returning_graph>
+    <mappings />
+    <returns />
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>790</xloc>
+      <yloc>270</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Neo4jCypherOutput</type>
+    <name>Inspect identity</name>
+    <connection>${NEO4J_CONNECTION}</connection>
+    <cypher>SHOW CONSTRAINTS YIELD name,entityType,type,labelsOrTypes,properties
+RETURN count(CASE WHEN entityType='NODE' AND type IN ['UNIQUENESS','NODE_KEY','NODE_PROPERTY_UNIQUENESS'] AND labelsOrTypes=['entity'] AND properties=['id'] THEN 1 END) AS identity_correct,
+count(CASE WHEN name='ingestion_v2_identity_id' THEN 1 END) AS identity_name_in_use</cypher>
+    <batch_size>1</batch_size>
+    <read_only>Y</read_only>
+    <retry>N</retry>
+    <nr_retries_on_error>0</nr_retries_on_error>
+    <cypher_from_field>N</cypher_from_field>
+    <unwind>N</unwind>
+    <returning_graph>N</returning_graph>
+    <mappings />
+    <returns>
+      <return>
+        <name>identity_correct</name>
+        <type>Integer</type>
+        <source_type>Integer</source_type>
+      </return>
+      <return>
+        <name>identity_name_in_use</name>
+        <type>Integer</type>
+        <source_type>Integer</source_type>
+      </return>
+    </returns>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>1020</xloc>
+      <yloc>270</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>identity uniqueness exists</name>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>identity_correct</leftvalue>
+        <function>&gt;</function>
+        <value>
+          <name>constant</name>
+          <type>Integer</type>
+          <text>0</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <send_true_to>Constraints complete</send_true_to>
+    <send_false_to>identity name available</send_false_to>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>100</xloc>
+      <yloc>440</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>identity name available</name>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>identity_name_in_use</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Integer</type>
+          <text>0</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <send_true_to>Create identity constraint</send_true_to>
+    <send_false_to>Constraint conflict</send_false_to>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>330</xloc>
+      <yloc>440</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Neo4jCypherOutput</type>
+    <name>Create identity constraint</name>
+    <connection>${NEO4J_CONNECTION}</connection>
+    <cypher>CREATE CONSTRAINT ingestion_v2_identity_id FOR (n:entity) REQUIRE n.id IS UNIQUE</cypher>
+    <batch_size>1</batch_size>
+    <read_only>N</read_only>
+    <retry>N</retry>
+    <nr_retries_on_error>0</nr_retries_on_error>
+    <cypher_from_field>N</cypher_from_field>
+    <unwind>N</unwind>
+    <returning_graph>N</returning_graph>
+    <mappings />
+    <returns />
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>440</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Dummy</type>
+    <name>Constraints complete</name>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>790</xloc>
+      <yloc>440</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Abort</type>
+    <name>Constraint conflict</name>
+    <row_threshold>0</row_threshold>
+    <message>A migration constraint name is already used for a different schema.</message>
+    <always_log_rows>N</always_log_rows>
+    <abort_option>ABORT_WITH_ERROR</abort_option>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>1020</xloc>
+      <yloc>440</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

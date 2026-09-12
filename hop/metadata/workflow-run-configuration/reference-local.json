@@ -1,0 +1,11 @@
+{
+  "name": "reference-local",
+  "description": "Local Reference source workflow execution. Child pipelines use reference-local.",
+  "engineRunConfiguration": {
+    "Local": {
+      "safe_mode": false
+    }
+  },
+  "executionInfoLocationName": "",
+  "defaultSelection": false
+}

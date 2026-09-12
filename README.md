@@ -12,8 +12,27 @@ instructions, limitations, and local processing results.
 For Apache Hop, use the [real-data migration guide](docs/hop-real-data-guide.md) to fetch the six
 current sources, map their actual fields, load a separate PostgreSQL schema, and project to Neo4j.
 It includes SQL assets and comparison steps before replacing the current pipeline. The
+[ALIO organization workflow](hop/ingestions/alio/README.md) and
+[JOB-ALIO posting workflow](hop/ingestions/job_alio/README.md) use native Hop transforms,
+persistent response archives, PostgreSQL loading and validation. JOB-ALIO fetches both the
+active list and every posting detail, with an explicit employer snapshot reference. The
+[NCS competency workflow](hop/ingestions/ncs_competency/README.md) loads the full versioned
+competency dataset, preserving classification names, definitions and unknown-level flags.
+Native workflows also load [NCS qualification mappings](hop/ingestions/ncs_qualification/README.md),
+[Q-Net exam schedules](hop/ingestions/qnet_schedule/README.md), and the
+[career-path CSV](hop/ingestions/ncs_career_path/README.md). The
+[refresh guide](hop/operations/README.md) covers daily jobs/Q-Net updates, weekly/monthly
+reference updates, durable quota accounting and graph recovery without another download. The
+[Neo4j workflows](hop/graph/README.md) project accepted snapshots into a separately labeled staging
+graph with readable organization, posting, occupation and competency nodes, retaining snapshot
+history and verifying its record properties and identity references. A saved
+[Browser style](hop/graph/browser-style.grass) displays names/titles and batch dates. The
 [beginner's Hop guide](docs/hop-migration-guide.md) covers installation, the Docker learning kit,
 visual pipeline exercises, and editor troubleshooting.
+
+The [Korean LLM workflow guide](hop/llm/README.md) covers configurable OpenRouter extraction,
+NCS categorization, frozen evaluation batches, gold labels, cost accounting and reviewed
+Neo4j publication. Model calls are off by default; source refresh does not trigger paid LLM work.
 
 The [canonical schema guide](docs/canonical-schemas.md) covers the source-independent NCS, posting,
 organization, Person-projection and grounding contracts, PostgreSQL migration and Neo4j constraint

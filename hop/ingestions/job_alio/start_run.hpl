@@ -1,0 +1,327 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>start_run</name>
+    <description>Create a JOB-ALIO snapshot and pin exactly one accepted ALIO employer snapshot.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>1000</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Run options</from>
+      <to>Resolve employer snapshot</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Resolve employer snapshot</from>
+      <to>Valid options</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Valid options</from>
+      <to>Employer snapshot found</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Remember run ID</from>
+      <to>Create run and dependency</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Create run and dependency</from>
+      <to>Run started</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Employer snapshot found</from>
+      <to>Remember run ID</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Valid options</from>
+      <to>Invalid options</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Employer snapshot found</from>
+      <to>Invalid options</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Run options</name>
+    <fields>
+      <field>
+        <name>mode</name>
+        <variable>${MODE}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>raw_root</name>
+        <variable>${RAW_ROOT}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>upstream_choice</name>
+        <variable>${UPSTREAM_RUN_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>max_pages</name>
+        <variable>${MAX_PAGES}</variable>
+        <type>Integer</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>max_requests</name>
+        <variable>${MAX_REQUESTS}</variable>
+        <type>Integer</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>100</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Resolve employer snapshot</name>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <sql>WITH options AS (
+SELECT ?::text AS mode, ?::text AS raw_root, ?::text AS choice, ?::integer AS max_pages, ?::integer AS max_requests)
+SELECT gen_random_uuid()::text AS run_id,
+(SELECT u.run_id FROM ingestion.run u WHERE u.source_id='alio_organization' AND u.state='READY'
+ AND u.mode&lt;&gt;'SMOKE' AND (o.choice='LATEST' OR u.run_id=o.choice)
+ ORDER BY u.created_at DESC,u.run_id DESC LIMIT 1) AS upstream_run_id,
+(mode IN ('FULL','SMOKE') AND nullif(raw_root,'') IS NOT NULL AND max_pages&gt;=1 AND max_requests&gt;=1) AS options_ok
+FROM options o</sql>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <parameter>
+      <field>
+        <name>mode</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>raw_root</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>upstream_choice</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>max_pages</name>
+        <type>Integer</type>
+      </field>
+      <field>
+        <name>max_requests</name>
+        <type>Integer</type>
+      </field>
+    </parameter>
+    <replace_vars>N</replace_vars>
+    <connection>jobtology-postgres</connection>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>330</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>Valid options</name>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>options_ok</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Boolean</type>
+          <text>Y</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <send_true_to>Employer snapshot found</send_true_to>
+    <send_false_to>Invalid options</send_false_to>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>Employer snapshot found</name>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>upstream_run_id</leftvalue>
+        <function>IS NULL</function>
+      </condition>
+    </compare>
+    <send_true_to>Invalid options</send_true_to>
+    <send_false_to>Remember run ID</send_false_to>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>790</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>SetVariable</type>
+    <name>Remember run ID</name>
+    <fields>
+      <field>
+        <field_name>run_id</field_name>
+        <variable_name>JOB_ALIO_RUN_ID</variable_name>
+        <variable_type>PARENT_WORKFLOW</variable_type>
+        <default_value />
+      </field>
+    </fields>
+    <use_formatting>Y</use_formatting>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>1020</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>ExecSql</type>
+    <name>Create run and dependency</name>
+    <sql>WITH new_run AS (
+ INSERT INTO ingestion.run(run_id,source_id,mode,parser_version,policy_revision)
+ VALUES (?, 'job_alio', ?, 'hop-job-alio-v1', '2026-09-05.1') RETURNING run_id
+), dependency AS (
+ INSERT INTO ingestion.dependency(run_id,input_source_id,input_run_id)
+ SELECT run_id,'alio_organization',? FROM new_run RETURNING run_id
+) INSERT INTO ingestion.partition(run_id,partition_id,kind,request_context,page_size)
+ SELECT run_id,'index','PAGED','{"resultType":"json","ongoingYn":"Y"}'::jsonb,100 FROM dependency;</sql>
+    <execute_each_row>Y</execute_each_row>
+    <single_statement>Y</single_statement>
+    <replace_variables>N</replace_variables>
+    <quoteString>N</quoteString>
+    <set_params>Y</set_params>
+    <arguments>
+      <argument>
+        <name>run_id</name>
+      </argument>
+      <argument>
+        <name>mode</name>
+      </argument>
+      <argument>
+        <name>upstream_run_id</name>
+      </argument>
+    </arguments>
+    <connection>jobtology-postgres</connection>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>100</xloc>
+      <yloc>270</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>WriteToLog</type>
+    <name>Run started</name>
+    <displayHeader>Y</displayHeader>
+    <limitRows>N</limitRows>
+    <limitRowsNumber>0</limitRowsNumber>
+    <logmessage>JOB-ALIO run created; employer snapshot pinned</logmessage>
+    <loglevel>Basic</loglevel>
+    <fields>
+      <field>
+        <name>run_id</name>
+      </field>
+      <field>
+        <name>mode</name>
+      </field>
+      <field>
+        <name>upstream_run_id</name>
+      </field>
+    </fields>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>330</xloc>
+      <yloc>270</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Abort</type>
+    <name>Invalid options</name>
+    <row_threshold>0</row_threshold>
+    <message>Require FULL/SMOKE, a raw directory, positive request limits and a READY ALIO upstream snapshot.</message>
+    <always_log_rows>N</always_log_rows>
+    <abort_option>ABORT_WITH_ERROR</abort_option>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>270</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>
