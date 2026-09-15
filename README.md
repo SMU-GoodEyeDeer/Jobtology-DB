@@ -9,6 +9,9 @@ corpus publication remain subsequent work; graph staging is not a recommendation
 See [the processing/operations guide](docs/processing-pipeline.md) for implementation, deployment
 instructions, limitations, and local processing results.
 
+The [ontology completion ledger](docs/hop-migration/ontology-completion.md) tracks the full Hop
+transformation, independent reviews and remaining serving-publication work.
+
 For Apache Hop, use the [real-data migration guide](docs/hop-real-data-guide.md) to fetch the six
 current sources, map their actual fields, load a separate PostgreSQL schema, and project to Neo4j.
 It includes SQL assets and comparison steps before replacing the current pipeline. The
@@ -163,3 +166,5 @@ The architecture and finalized ontology decisions are in
 [docs/implementation-plan.md](docs/implementation-plan.md). Implemented source-contract changes are
 recorded in [ADR 0001](docs/decisions/0001-official-source-contracts.md). The latest fetched-source
 counts and current storage shape are in [the collection status report](docs/collection-status.md).
+
+Manual Hop snapshot cleanup: [retention guide](hop/retention/README.md). Server access, persistent mounts and agent editing steps: [Hop server runbook](docs/hop-migration/server-runbook.md).

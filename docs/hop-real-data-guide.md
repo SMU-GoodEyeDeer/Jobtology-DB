@@ -1,5 +1,15 @@
 # Hop migration: fetch and load the real Jobtology data
 
+> **Paused on 2026-09-14 at the user’s request.** Actual source/document loading is
+> complete; the full LLM/link publication phase is unfinished. See the
+> [verified state and resume handoff](hop-migration/linked-ingestion.md).
+
+**Attachment work resumed on 2026-09-14.** For the practical next stage—parse
+posting documents, extract duties, link them to NCS and publish reviewed links—use
+[the current linking guide](hop-migration/linked-ingestion.md). It reuses the
+existing `document-processor` library. The broader ontology/product modules below
+are optional later work, not prerequisites for completing this ETL.
+
 Start with **ALIO organizations**, then **JOB-ALIO postings**, then the **NCS → qualification →
 Q-Net** chain. Load the career-path CSV independently. This guide assumes you can already create
 Hop pipelines, configure transforms and save workflows; the [beginner guide](hop-migration-guide.md)
@@ -20,13 +30,20 @@ The original `ingestions/<source>/full.hwf` entry points perform PostgreSQL inge
 The [deployment verification report](hop-migration/live-status.md) lists the six accepted
 live snapshots and the independent PostgreSQL/Neo4j checks.
 
-The workflows use
-native Hop transforms/actions and PostgreSQL/Cypher statements; no Python/script transform is
-required at runtime. The initial output is validated source data and a draft graph. Existing
+Source fetching, LLM requests and database writes use native Hop transforms/actions
+and PostgreSQL/Cypher statements. Attachment parsing calls the private service that
+runs the existing `document-processor` Python library; it is a separate dependency,
+not a Python/script transform inside Hop. The initial output is validated source data and a draft graph. Existing
 `control`, `raw_manifest`, `staging`, `canonical`, and `grounding` tables keep their current roles.
 
 Jump to:
 
+- [Parse documents and complete posting → NCS linking](hop-migration/linked-ingestion.md)
+
+- [Load and review the four product occupation definitions](../hop/editorial/README.md)
+- [Track posting history, expiry, absence and source freshness](../hop/ontology/observations.md)
+- [Normalize reviewed requirements into typed conditions](../hop/ontology/requirements.md)
+- [Export a sealed ontology release as JSON-LD and validate it](../ontology/README.md)
 - [Create the destination](#1-create-the-destination-once)
 - [Build the common fetch/load pipeline](#2-build-one-reusable-page-fetch-and-load-pattern)
 - [ALIO organizations](#31-alio-organizations-your-first-complete-load)
@@ -39,6 +56,7 @@ Jump to:
 - [Finish and inspect PostgreSQL loads](#4-finish-and-inspect-a-postgresql-load)
 - [Load Neo4j](#5-load-neo4j-from-the-accepted-postgresql-run)
 - [LLM extraction, NCS matching and evaluation batches](../hop/llm/README.md)
+- [Read a selected ontology release](../hop/ontology/queries.md)
 - [Replay and compare existing saved data](#6-compare-with-the-current-pipeline-using-the-same-inputs)
 
 ## What you are loading
@@ -957,10 +975,14 @@ plan an evaluation without API calls, choose model settings, and add reviewed la
 comparing quality. Results live in the additive `enrichment` schema with evidence and model
 metadata. A separate workflow publishes reviewed ENRICH results to Neo4j; evaluation results
 cannot be published. Model requests are off by default and are not part of the source scheduler.
+The default `ko-v3` contract uses passage IDs, literal text fragments and nested condition
+expressions. The [DeepSeek/Luna comparison](hop-migration/llm-model-comparison-2026-09-12.md)
+documents the revised checks and a reproducible 22-posting regression sample. Its partial
+source assertions are assistant-authored, not human gold; keep acceptance set to `REVIEW`.
 
 There is no existing backend to cut over. Application query design can use the accepted source
-and enrichment views when the backend is built. Automatic retention and attachment-text
-extraction remain separate work.
+and enrichment views when the backend is built. Automatic retention, remaining attachment coverage and reviewed ontology
+publication still require work.
 
 This experiment retains source facts and per-run history but does not yet replace the current
 canonical assembly, evidence-span store or content-addressed revision IDs. Their application
@@ -1040,5 +1062,102 @@ The original corpus was read-only during comparison;
 synthetic tests used disposable databases, and real Hop source runs wrote to `ingestion`.
 The graph uses `ingestionBatch`, `ingestionRecord` and named business entities in STAGING scope.
 Those source-graph checks preceded the separate [LLM workflow implementation](../hop/llm/README.md).
-No paid model calls were made during LLM implementation; model quality awaits funded evaluations.
+The initial implementation used mock responses. Paid DeepSeek evaluations began on
+2026-09-12; see the [LLM verification record](hop-migration/llm-status.md) for results
+and remaining model-quality limitations.
 The current Python ETL deployment was not changed.
+
+## Manual snapshot retention
+
+Use [retention/preview.hwf and execute.hwf](../hop/retention/README.md) to select the oldest N eligible snapshots or snapshots older than N days. The preview protects current and referenced snapshots; execution archives last-known records before pruning raw files and historical PostgreSQL/Neo4j snapshots. No retention schedule is installed. See the [server runbook](hop-migration/server-runbook.md) for host/container paths and future-agent editing instructions.
+
+## Ontology completion after source loading
+
+See [the active ontology implementation and verification ledger](hop-migration/ontology-completion.md)
+for the current full-corpus LLM pass, independent extraction/link review, attachment work and
+remaining canonical publication requirements. Source ingestion READY and LLM validation do not
+alone mean the serving ontology is complete.
+
+After the user explicitly resumes attachment work, select those exact inputs with
+[`ontology/bind_document_inputs.hwf`](../hop/ontology/bind_document_inputs.hwf)
+before freezing the release's reviews. The
+[ontology guide](../hop/ontology/README.md) explains the required complete input
+set and how accepted claims retain their source response, document, page or
+HWPX table-cell evidence. Binding inputs does not accept an extraction or activate
+a release.
+
+The [native ontology assembly guide](../hop/ontology/README.md) now documents
+`ontology/install.hwf`, `prepare_release.hwf`, `assemble_reviewed.hwf`, and
+`load_release.hwf`, plus
+release and claim inspection pipelines. These assemble pinned source records and
+independently reviewed claims in PostgreSQL. The new native Neo4j candidate loader
+is installed and has passed the full saved-data fixture. It seals review selection
+and verifies all graph properties and memberships, while the release remains
+PREPARING. Serving activation and the remaining ontology contracts are still
+under implementation; finish intended reviews before sealing a production release.
+
+For subsequent condition normalization, follow
+[the typed requirement guide](../hop/ontology/requirements.md). The deployed native
+import/review/freeze/read workflows preserve the original Korean evidence and
+condition tree. Follow the [typed graph/export guide](../hop/ontology/requirement-graph.md)
+to project a frozen cut into Neo4j and JSON-LD v3. Confidence calibration and
+production normalization remain unfinished; installation does not create reviews
+or publish a release.
+
+For assigning a primary product occupation from reviewed duties, follow the
+[product occupation review guide](../hop/editorial/occupations.md). Its native
+import/review/freeze/read workflows have passed local tests but are not deployed.
+They preserve a decision for each posting, including out-of-scope and unresolved
+outcomes. The [occupation graph/JSON-LD v5 adapter](../hop/editorial/occupation-graph.md)
+also passed local native tests. Deployment, production assignments and calibrated
+confidence remain unfinished.
+
+To inspect those frozen assignments alongside normalized requirements, use the
+[derived-claim read guide](../hop/editorial/derived-queries.md). Its v3 entity
+reader keeps original source fields separate from reviewed interpretations and
+links each accepted claim to exact evidence and target revisions. The four
+native readers passed local tests; deployment is pending.
+
+For later cohort preparation, the [reviewed duplicate-group guide](../hop/cohorts/README.md)
+provides native import, independent review, freeze and inspection workflows.
+These preserve every source posting. The
+[country/experience profile guide](../hop/cohorts/profiles.md) describes the next
+native stage: exact source citations, reviewed experience bounds and separate
+claim scope for mixed postings. These stages are local and not deployed;
+production assessments, full cohort filters, representative selection,
+statistics and graph integration remain unfinished. Do not add duplicate or
+profile freezes to the graph-loading sequence until that integration is available.
+
+### Recruitment notices and job-description attachments
+
+**Deferred until explicit user resumption.** The instructions below describe the
+installed workflows for later use. Do not launch another attachment preview,
+download/parse run, input rebuild or attachment-aware model batch while the hold
+applies. Saved documents and results remain available for read-only inspection;
+see the [hold status and restart handoff](hop-migration/attachment-status.md).
+
+Native attachment fetching/parsing now has a separate
+[operator guide](../hop/attachments/README.md) and
+[deployment/full-pass ledger](hop-migration/ontology-completion.md#native-attachment-ingestion--2026-09-12).
+Use `attachments/process_snapshot.hwf` with an exact JOB-ALIO run, explicit initial
+posting IDs and `EXECUTE_DOWNLOADS=N` to plan. The dedicated native CLI needs the
+JDK XML transformer setting documented there; the Hop Web JVM has not been restarted
+to apply it. The existing source refresh does not automatically run this workflow.
+Attachment text is stored with document hashes and page/section provenance.
+Use `attachments/prepare_inputs.hwf` to freeze versioned input bundles and optionally
+create a new EVAL dataset. Run `llm/evaluate.hwf` with that dataset, or `llm/enrich.hwf`
+with the reported `INPUT_BUNDLE_IDS`, the same job snapshot, `ko-v6` and `REVIEW`.
+Start with `EXECUTE_REQUESTS=N`. See the operator guide for retry precedence,
+cache hashes and exact section ranges. Document-format coverage, semantic review
+and production claim publication remain unfinished and deferred under the hold.
+
+
+HWPX paragraphs and tables now have a separate native reconstruction workflow:
+`attachments/structure_hwpx.hwf`, followed by
+`attachments/prepare_structured_inputs.hwf`. The latter adds `HWPX_BATCH_IDS` to
+the input-selection parameters and creates v2 bundles while retaining v1 history.
+See [the HWPX operator instructions](../hop/attachments/README.md#reconstruct-hwpx-paragraphs-and-tables)
+for exact parameters, outcome meanings and model layout coordinates, and the
+[deployment/readback ledger](hop-migration/ontology-completion.md#native-hwpx-structure-and-full-v2-inputs--2026-09-12)
+for current coverage. Neither preparation nor a successful parser run accepts
+model claims or activates the ontology release.

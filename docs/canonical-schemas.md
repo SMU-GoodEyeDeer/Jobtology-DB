@@ -47,7 +47,16 @@ These selected internal contracts align with [JobPosting](https://schema.org/Job
 [Person](https://schema.org/Person), rather than copying every Schema.org property. Posting title,
 dates, employer and occupation correspond to `title`, `datePosted`, `validThrough`,
 `hiringOrganization` and `relevantOccupation`. Evidence/review/revision concepts are local extensions.
-JSON-LD export and SHACL publication validation remain future work in the broader implementation plan.
+The Hop release layer now has a [versioned JSON-LD export and SHACL package](../ontology/README.md).
+It preserves sealed release inventories and distinguishes structural validation
+from publication requirements. Hop now binds canonical posting observations and
+historical source revisions, with Neo4j and JSON-LD v2 readback; see the
+[observation contract](../hop/ontology/observations.md). The
+[typed requirement ledger](../hop/ontology/requirements.md) now provides native
+PostgreSQL normalization proposals, JCS requirement keys, target-revision checks,
+separate reviews and frozen atom outcomes. The [typed projection](../hop/ontology/requirement-graph.md)
+preserves them in Neo4j and JSON-LD v3. Calibrated confidence, production
+normalization, guarded-rule binding and aggregate records remain pending.
 
 An `NCSClass.taxonomy_version` must come from a source/editorial registry version, never a fabricated
 competency-unit version. An unversioned career-path CSV unit cannot construct a versioned competency
