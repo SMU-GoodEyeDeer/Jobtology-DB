@@ -1,0 +1,173 @@
+{
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 8000,
+      "enum": [
+        "hop-product-occupation-proposal-v1"
+      ]
+    },
+    "release_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 8000
+    },
+    "posting_entity_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 8000
+    },
+    "parent_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "maxLength": 8000
+    },
+    "source_binding_hash": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 8000
+    },
+    "catalogue_snapshot_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 8000
+    },
+    "actor": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 8000
+    },
+    "actor_kind": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 8000,
+      "enum": [
+        "human",
+        "assistant"
+      ]
+    },
+    "method": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 8000,
+      "enum": [
+        "MANUAL",
+        "MODEL_INFERRED"
+      ]
+    },
+    "model_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "maxLength": 8000
+    },
+    "prompt_version": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "maxLength": 8000
+    },
+    "resolver_version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 8000
+    },
+    "reason": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 8000
+    },
+    "disposition": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 8000,
+      "enum": [
+        "MATCH",
+        "OUT_OF_SCOPE",
+        "UNRESOLVED"
+      ]
+    },
+    "occupation_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "maxLength": 8000
+    },
+    "unresolved_reason": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "maxLength": 8000,
+      "enum": [
+        "EXTRACTION_NOT_ACCEPTED",
+        "NO_REVIEWED_DUTIES",
+        "MIXED_ROLES",
+        "AMBIGUOUS_DUTIES",
+        "INSUFFICIENT_EVIDENCE",
+        null
+      ]
+    },
+    "considered_duty_ids": {
+      "type": "array",
+      "maxItems": 1000,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 1000
+      }
+    },
+    "considered_position_ids": {
+      "type": "array",
+      "maxItems": 1000,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 1000
+      }
+    },
+    "evidence_ids": {
+      "type": "array",
+      "maxItems": 1000,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 1000
+      }
+    }
+  },
+  "required": [
+    "schema_version",
+    "release_id",
+    "posting_entity_id",
+    "parent_id",
+    "source_binding_hash",
+    "catalogue_snapshot_id",
+    "actor",
+    "actor_kind",
+    "method",
+    "model_id",
+    "prompt_version",
+    "resolver_version",
+    "reason",
+    "disposition",
+    "occupation_id",
+    "unresolved_reason",
+    "considered_duty_ids",
+    "considered_position_ids",
+    "evidence_ids"
+  ],
+  "additionalProperties": false
+}
