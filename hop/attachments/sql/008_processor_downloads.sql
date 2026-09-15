@@ -1,0 +1,74 @@
+BEGIN;
+SELECT retention.gate();
+INSERT INTO attachment.policy SELECT 'job-alio-documents-v3',v,attachment.hash(v::text) FROM (SELECT '{"policy_id": "job-alio-documents-v3", "revision": "2026-09-14.2", "source_id": "job_alio", "purpose": "Retain official recruitment documents and extract source-grounded ontology facts for review.", "catalogue_url": "https://www.data.go.kr/data/15125273/openapi.do", "catalogue_scope": "The catalogue''s no-restriction label describes the API dataset. It is not treated as a separate blanket licence for every attached work.", "download_roles": ["A", "C"], "other_roles": {"B": "APPLICATION_FORM", "other": "ROLE_REVIEW", "named_notice_or_jd": "Include non-B files named 직무기술/직무설명/직무수행/공고문 or Job Description; preserve the provider role in metadata."}, "formats": ["pdf", "hwp", "hwpx", "doc", "docx", "zip"], "metadata_url_prefix": "https://opendata.alio.go.kr/recruit/downloadAtchFile?recrutAtchFileNo=", "download_url_prefix": "https://www.alio.go.kr/download/download.json?fileNo=", "resolver": "Preserve the numeric attachment ID. The official JOB-ALIO posting page links the same ID and filename to the ALIO download endpoint; the OpenData URL currently redirects to its homepage.", "resolver_evidence_url": "https://job.alio.go.kr/recruitview.do?idx=304817", "resolver_observed_on": "2026-09-12", "public_document_redistribution": false, "automatic_claim_acceptance": false, "automatic_model_calls": false, "max_received_bytes": 67108864, "max_parsed_characters": 2000000, "parser_version": "document-processor-v1", "provenance": "Preserve source snapshot, posting, original metadata, requested URL, response hash, parser metadata, and page/body/archive-section locators. Parsing success is not semantic approval."}'::jsonb v) q ON CONFLICT DO NOTHING;
+CREATE OR REPLACE FUNCTION attachment.prepare_downloads(id text,run text,ids_text text,base text,cap integer) RETURNS text LANGUAGE plpgsql AS $$
+DECLARE ids text[]; b attachment.batch; r record; f record; ext text; disposition text; file_id text; doc text; BEGIN
+ PERFORM retention.gate();
+ IF id IS NULL OR id='' THEN id:=gen_random_uuid()::text; END IF;
+ IF id !~ '^[A-Za-z0-9_-]{1,100}$' THEN RAISE EXCEPTION 'INVALID_ATTACHMENT_BATCH_ID'; END IF;
+ IF base IS NULL OR base !~ '^/' OR base ~ '(^|/)[.][.]?(/|$)|//|[\\]' OR base ~ '[[:cntrl:]]' OR right(base,1)='/' THEN RAISE EXCEPTION 'INVALID_ATTACHMENT_ROOT'; END IF;
+ IF cap IS NULL OR cap NOT BETWEEN 1 AND 10000 THEN RAISE EXCEPTION 'INVALID_ATTACHMENT_CAP'; END IF;
+ SELECT coalesce(array_agg(DISTINCT v ORDER BY v),'{}') INTO ids FROM unnest(string_to_array(coalesce(ids_text,''),'|')) v WHERE v<>'';
+ IF EXISTS(SELECT 1 FROM unnest(ids) v WHERE v !~ '^[0-9]+$') THEN RAISE EXCEPTION 'INVALID_POSTING_IDS'; END IF;
+ IF NOT EXISTS(SELECT 1 FROM ingestion.run WHERE run_id=prepare_downloads.run AND source_id='job_alio' AND state='READY' AND mode<>'SMOKE') THEN RAISE EXCEPTION 'READY_JOB_SNAPSHOT_REQUIRED'; END IF;
+ SELECT * INTO b FROM attachment.batch WHERE batch_id=id;
+ IF FOUND THEN
+  IF (b.job_run_id,b.posting_ids,b.raw_root,b.max_files) IS DISTINCT FROM (run,ids,base,cap) THEN RAISE EXCEPTION 'ATTACHMENT_SELECTION_IS_IMMUTABLE'; END IF;
+  PERFORM attachment.check_source(id); RETURN id;
+ END IF;
+ IF EXISTS(SELECT 1 FROM ingestion.ready_record WHERE run_id=prepare_downloads.run AND source_record_id LIKE '%:detail'
+  AND (cardinality(ids)=0 OR split_part(source_record_id,':',1)=ANY(ids)) GROUP BY source_record_id HAVING count(*)<>1)
+ THEN RAISE EXCEPTION 'AMBIGUOUS_SOURCE_POSTING'; END IF;
+ IF cardinality(ids)>0 AND EXISTS(SELECT 1 FROM unnest(ids) v WHERE NOT EXISTS(SELECT 1 FROM ingestion.ready_record
+  WHERE run_id=prepare_downloads.run AND source_record_id=v||':detail')) THEN RAISE EXCEPTION 'POSTING_NOT_IN_SNAPSHOT'; END IF;
+ INSERT INTO attachment.batch VALUES(id,run,ids,attachment.source_hash(run,ids),base,'job-alio-documents-v3',cap,clock_timestamp());
+ FOR r IN SELECT * FROM ingestion.ready_record WHERE run_id=prepare_downloads.run AND source_record_id LIKE '%:detail'
+ AND (cardinality(ids)=0 OR split_part(source_record_id,':',1)=ANY(ids)) ORDER BY source_record_id LOOP
+  IF jsonb_typeof(r.source_payload->'files') IS DISTINCT FROM 'array' THEN RAISE EXCEPTION 'ATTACHMENT_METADATA_ARRAY_REQUIRED'; END IF;
+  INSERT INTO attachment.posting VALUES(id,split_part(r.source_record_id,':',1),r.document_id,r.locator,attachment.hash(r.source_payload::text),r.source_payload->'files');
+  FOR f IN SELECT value,ordinality FROM jsonb_array_elements(r.source_payload->'files') WITH ORDINALITY LOOP
+   file_id:=f.value->>'recrutAtchFileNo'; ext:=lower(substring(f.value->>'atchFileNm' FROM '[.]([^.]+)$'));
+   disposition:=CASE WHEN f.value->>'atchFileType'='B' THEN 'APPLICATION_FORM'
+    WHEN coalesce(f.value->>'atchFileType','') NOT IN ('A','C') AND coalesce(f.value->>'atchFileNm','') !~* '(직무(기술|설명|수행)|공고문|job[ _-]*description)' THEN 'ROLE_REVIEW'
+    WHEN file_id IS NULL OR file_id !~ '^[0-9]+$' OR (f.value->>'url') IS DISTINCT FROM
+     ('https://opendata.alio.go.kr/recruit/downloadAtchFile?recrutAtchFileNo='||file_id) THEN 'INVALID_URL'
+    WHEN ext IS NULL OR ext NOT IN ('pdf','hwp','hwpx','doc','docx','zip') THEN 'UNSUPPORTED_FORMAT' ELSE 'PLANNED' END;
+   doc:=attachment.hash(jsonb_build_array(id,r.source_record_id,f.ordinality,f.value)::text);
+   INSERT INTO attachment.document VALUES(doc,id,split_part(r.source_record_id,':',1),f.ordinality,f.value,f.value->>'url',
+    CASE WHEN disposition='PLANNED' THEN 'https://www.alio.go.kr/download/download.json?fileNo='||file_id END,ext,disposition);
+  END LOOP;
+ END LOOP;
+ IF NOT EXISTS(SELECT 1 FROM attachment.posting WHERE batch_id=id) THEN RAISE EXCEPTION 'NO_ATTACHMENT_POSTINGS'; END IF;
+ IF (SELECT count(*) FROM attachment.document dd WHERE dd.batch_id=id AND dd.disposition='PLANNED')>cap THEN RAISE EXCEPTION 'ATTACHMENT_CAP_EXCEEDED'; END IF;
+ RETURN id;
+END $$;
+
+-- Reused attempts reference one immutable archive instead of copying its bytes.
+ALTER TABLE attachment.attempt DROP CONSTRAINT IF EXISTS attempt_raw_path_key;
+ALTER TABLE attachment.attempt DROP CONSTRAINT IF EXISTS attempt_state_check;
+ALTER TABLE attachment.attempt ADD CONSTRAINT attempt_state_check CHECK(state IN
+ ('RESERVED','ARCHIVED','ARCHIVED_ONLY','PARSED','HTTP_ERROR','UNEXPECTED_CONTENT','EMPTY_DOCUMENT','TOO_LARGE','PARSE_ERROR','NEEDS_REVIEW','NO_TEXT','TRANSPORT_ERROR'));
+CREATE TABLE IF NOT EXISTS attachment.archive_reuse (
+ attempt_id text PRIMARY KEY REFERENCES attachment.attempt,
+ previous_attempt_id text NOT NULL REFERENCES attachment.attempt,
+ reused_at timestamptz NOT NULL DEFAULT clock_timestamp()
+);
+CREATE OR REPLACE FUNCTION attachment.finish_download(id text,child_ok boolean,errors bigint) RETURNS void LANGUAGE plpgsql AS $$ BEGIN
+ UPDATE attachment.attempt SET state='ARCHIVED_ONLY',issue=NULL,finished_at=clock_timestamp()
+ WHERE attempt_id=id AND state='ARCHIVED' AND child_ok IS TRUE AND errors=0;
+ UPDATE attachment.attempt SET state='TRANSPORT_ERROR',issue='DOWNLOAD_CHILD_FAILED',finished_at=clock_timestamp()
+ WHERE attempt_id=id AND state IN ('RESERVED','ARCHIVED');
+ IF NOT EXISTS(SELECT 1 FROM attachment.attempt WHERE attempt_id=id AND finished_at IS NOT NULL) THEN RAISE EXCEPTION 'DOWNLOAD_NOT_TERMINAL'; END IF;
+ PERFORM retention.leave_writer(id);
+END $$;
+CREATE OR REPLACE FUNCTION attachment.record_reuse(id text,previous text) RETURNS void LANGUAGE plpgsql AS $$ BEGIN
+ IF previous IS NULL THEN RETURN; END IF;
+ IF NOT EXISTS(SELECT 1 FROM attachment.attempt a JOIN attachment.attempt old ON old.attempt_id=previous
+ JOIN attachment.document d ON d.document_id=a.document_id JOIN attachment.document od ON od.document_id=old.document_id
+ WHERE a.attempt_id=id AND a.raw_hash=old.raw_hash AND a.byte_length=old.byte_length AND d.metadata=od.metadata AND a.state='ARCHIVED')
+ THEN RAISE EXCEPTION 'REUSED_ARCHIVE_MISMATCH'; END IF;
+ UPDATE attachment.attempt SET raw_path=(SELECT raw_path FROM attachment.attempt WHERE attempt_id=previous) WHERE attempt_id=id;
+ INSERT INTO attachment.archive_reuse VALUES(id,previous,clock_timestamp());
+END $$;
+
+COMMIT;

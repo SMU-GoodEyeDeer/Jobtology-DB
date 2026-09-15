@@ -1,0 +1,631 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>download_file</name>
+    <description>Download, archive and parse exactly one reserved attachment.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters>
+      <parameter>
+        <name>ATTEMPT_ID</name>
+        <default_value />
+        <description>ATTEMPT_ID</description>
+      </parameter>
+    </parameters>
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Reserved attempt</from>
+      <to>Reserved file</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Space document requests</from>
+      <to>Download official attachment</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Download official attachment</from>
+      <to>Validate received body</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Archive original response</from>
+      <to>Release received bytes</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Release received bytes</from>
+      <to>Verify saved bytes</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Verify saved bytes</from>
+      <to>Archive only identical bytes</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Archive only identical bytes</from>
+      <to>Archive hash matches</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Archive hash matches</from>
+      <to>Register response</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Archive hash matches</from>
+      <to>Archive mismatch</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Reserved file</from>
+      <to>Reuse decision</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Reuse decision</from>
+      <to>Archived bytes available</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Archived bytes available</from>
+      <to>Read archived original</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Archived bytes available</from>
+      <to>Space document requests</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Read archived original</from>
+      <to>Cached response provenance</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Cached response provenance</from>
+      <to>Validate received body</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Register response</from>
+      <to>Record archive reuse</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Validate received body</from>
+      <to>Existing archive needs no copy</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Existing archive needs no copy</from>
+      <to>Release received bytes</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Existing archive needs no copy</from>
+      <to>Archive original response</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Reserved attempt</name>
+    <fields>
+      <field>
+        <name>attempt_id</name>
+        <variable>${ATTEMPT_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Reserved file</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT coalesce(old.raw_path,a.raw_path) AS raw_filename,d.request_url,d.extension,old.raw_path AS reused_filename,old.attempt_id AS previous_attempt_id
+FROM attachment.attempt a JOIN attachment.document d USING(document_id)
+LEFT JOIN LATERAL (SELECT oa.* FROM attachment.attempt oa JOIN attachment.document od USING(document_id)
+ WHERE od.metadata=d.metadata AND od.request_url=d.request_url AND oa.attempt_id&lt;&gt;a.attempt_id
+ AND oa.http_status=200 AND oa.raw_hash IS NOT NULL AND oa.state IN ('ARCHIVED_ONLY','PARSED','PARSE_ERROR','NO_TEXT','NEEDS_REVIEW')
+ ORDER BY oa.finished_at DESC LIMIT 1) old ON true WHERE a.attempt_id=? AND a.state='RESERVED'</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>attempt_id</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Delay</type>
+    <name>Space document requests</name>
+    <timeout>200</timeout>
+    <scaletime>milliseconds</scaletime>
+    <scaletime_from_field>N</scaletime_from_field>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Rest</type>
+    <name>Download official attachment</name>
+    <applicationType>JSON</applicationType>
+    <connection_name />
+    <url />
+    <urlInField>Y</urlInField>
+    <httpLogin />
+    <httpPassword>Encrypted </httpPassword>
+    <non_preemptive_basic_auth>N</non_preemptive_basic_auth>
+    <method>GET</method>
+    <dynamicMethod>N</dynamicMethod>
+    <connectionTimeout>10000</connectionTimeout>
+    <readTimeout>60000</readTimeout>
+    <ignoreSsl>N</ignoreSsl>
+    <headers />
+    <parameters />
+    <matrixParameters />
+    <result>
+      <name>response_bytes</name>
+      <code>http_status</code>
+      <binary>Y</binary>
+      <response_header>response_headers</response_header>
+    </result>
+    <retryTimes>0</retryTimes>
+    <retryDelayMs>200</retryDelayMs>
+    <retryStatusCodes>
+      <retryStatusCode>503</retryStatusCode>
+      <retryStatusCode>504</retryStatusCode>
+      <retryStatusCode>429</retryStatusCode>
+      <retryStatusCode>500</retryStatusCode>
+      <retryStatusCode>502</retryStatusCode>
+    </retryStatusCodes>
+    <retryMethods>
+      <retryMethod>GET</retryMethod>
+      <retryMethod>DELETE</retryMethod>
+      <retryMethod>PUT</retryMethod>
+    </retryMethods>
+    <paginationEnabled>N</paginationEnabled>
+    <maxPagesLoops>256</maxPagesLoops>
+    <streamingEnabled>N</streamingEnabled>
+    <streamingFormat>NDJSON</streamingFormat>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>624</xloc>
+      <yloc>48</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <attributes />
+    <urlField>request_url</urlField>
+    <GUI>
+      <xloc>800</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Validate received body</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT encode(sha256(?::bytea),'hex') AS received_hash,octet_length(?::bytea)::bigint AS received_size,attachment.body_issue(?::integer,?::bytea,CASE ? WHEN 'doc' THEN 'hwp' WHEN 'docx' THEN 'hwpx' WHEN 'zip' THEN 'hwpx' ELSE ? END) AS body_issue</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>response_bytes</name>
+        <type>Binary</type>
+      </field>
+      <field>
+        <name>response_bytes</name>
+        <type>Binary</type>
+      </field>
+      <field>
+        <name>http_status</name>
+        <type>Integer</type>
+      </field>
+      <field>
+        <name>response_bytes</name>
+        <type>Binary</type>
+      </field>
+      <field>
+        <name>extension</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>extension</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>1040</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>BinaryFileOutput</type>
+    <name>Archive original response</name>
+    <binaryfield>response_bytes</binaryfield>
+    <filenamefield>raw_filename</filenamefield>
+    <createparentfolder>Y</createparentfolder>
+    <overwritefile>N</overwritefile>
+    <addresultfilenames>N</addresultfilenames>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>240</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>SelectValues</type>
+    <name>Release received bytes</name>
+    <fields>
+      <select_unspecified>Y</select_unspecified>
+      <remove>
+        <name>response_bytes</name>
+      </remove>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>240</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Calculator</type>
+    <name>Verify saved bytes</name>
+    <failIfNoFile>Y</failIfNoFile>
+    <calculation>
+      <field_name>saved_hash</field_name>
+      <calc_type>SHA256</calc_type>
+      <field_a>raw_filename</field_a>
+      <value_type>String</value_type>
+      <value_length>-1</value_length>
+      <value_precision>-1</value_precision>
+      <remove>N</remove>
+    </calculation>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>240</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Archive only identical bytes</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT CASE WHEN lower(?)=? THEN 'Y' ELSE 'N' END AS hash_matches</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>saved_hash</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>received_hash</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>800</xloc>
+      <yloc>240</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>Archive hash matches</name>
+    <send_true_to>Register response</send_true_to>
+    <send_false_to>Archive mismatch</send_false_to>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>hash_matches</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>String</type>
+          <text>Y</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>1040</xloc>
+      <yloc>240</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>ExecSql</type>
+    <name>Register response</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT attachment.archive(?,?::integer,?,?,?::bigint,?)</sql>
+    <execute_each_row>Y</execute_each_row>
+    <single_statement>Y</single_statement>
+    <set_params>Y</set_params>
+    <replace_variables>N</replace_variables>
+    <quoteString>N</quoteString>
+    <arguments>
+      <argument>
+        <name>attempt_id</name>
+      </argument>
+      <argument>
+        <name>http_status</name>
+      </argument>
+      <argument>
+        <name>response_headers</name>
+      </argument>
+      <argument>
+        <name>received_hash</name>
+      </argument>
+      <argument>
+        <name>received_size</name>
+      </argument>
+      <argument>
+        <name>body_issue</name>
+      </argument>
+    </arguments>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>400</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Abort</type>
+    <name>Archive mismatch</name>
+    <message>Received bytes do not match the saved attachment.</message>
+    <always_log_rows>N</always_log_rows>
+    <abort_option>ABORT_WITH_ERROR</abort_option>
+    <row_threshold>0</row_threshold>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>560</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+  <transform>
+    <type>DBJoin</type>
+    <name>Reuse decision</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT ? IS NOT NULL AS reuse_archive</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>reused_filename</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>650</yloc>
+    </GUI>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>Archived bytes available</name>
+    <send_true_to>Read archived original</send_true_to>
+    <send_false_to>Space document requests</send_false_to>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>reuse_archive</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Boolean</type>
+          <text>Y</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>650</yloc>
+    </GUI>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform>
+    <type>Calculator</type>
+    <name>Read archived original</name>
+    <failIfNoFile>Y</failIfNoFile>
+    <calculation>
+      <field_name>response_bytes</field_name>
+      <calc_type>LOAD_FILE_CONTENT_BINARY</calc_type>
+      <field_a>reused_filename</field_a>
+      <value_type>Binary</value_type>
+      <value_length>-1</value_length>
+      <value_precision>-1</value_precision>
+      <remove>N</remove>
+    </calculation>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>650</yloc>
+    </GUI>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Cached response provenance</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT 200::bigint AS http_status,jsonb_build_object('archive_reuse',?::text)::text AS response_headers</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>previous_attempt_id</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <GUI>
+      <xloc>800</xloc>
+      <yloc>650</yloc>
+    </GUI>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>Existing archive needs no copy</name>
+    <send_true_to>Release received bytes</send_true_to>
+    <send_false_to>Archive original response</send_false_to>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>reuse_archive</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Boolean</type>
+          <text>Y</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <GUI>
+      <xloc>1040</xloc>
+      <yloc>650</yloc>
+    </GUI>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform>
+    <type>ExecSql</type>
+    <name>Record archive reuse</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT attachment.record_reuse(?,?)</sql>
+    <execute_each_row>Y</execute_each_row>
+    <single_statement>Y</single_statement>
+    <set_params>Y</set_params>
+    <replace_variables>N</replace_variables>
+    <quoteString>N</quoteString>
+    <arguments>
+      <argument>
+        <name>attempt_id</name>
+      </argument>
+      <argument>
+        <name>previous_attempt_id</name>
+      </argument>
+    </arguments>
+    <GUI>
+      <xloc>1280</xloc>
+      <yloc>650</yloc>
+    </GUI>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+</pipeline>

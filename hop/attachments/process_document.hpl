@@ -1,0 +1,191 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>process_document</name>
+    <description>Read one archived file through the existing document-processor service.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters>
+      <parameter>
+        <name>PARSE_ID</name>
+        <default_value />
+        <description>PARSE_ID</description>
+      </parameter>
+    </parameters>
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Parse identity</from>
+      <to>Reserve parser request</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Reserve parser request</from>
+      <to>Call document processor</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Call document processor</from>
+      <to>Store Markdown and structural JSON</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Parse identity</name>
+    <fields>
+      <field>
+        <name>parse_id</name>
+        <variable>${PARSE_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>parser_endpoint</name>
+        <variable>${PARSER_ENDPOINT}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Reserve parser request</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT attachment.reserve_processor(?) AS request_json</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>parse_id</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Rest</type>
+    <name>Call document processor</name>
+    <applicationType>JSON</applicationType>
+    <connection_name />
+    <url />
+    <urlInField>Y</urlInField>
+    <httpLogin />
+    <httpPassword>Encrypted </httpPassword>
+    <non_preemptive_basic_auth>N</non_preemptive_basic_auth>
+    <method>POST</method>
+    <dynamicMethod>N</dynamicMethod>
+    <connectionTimeout>10000</connectionTimeout>
+    <readTimeout>210000</readTimeout>
+    <ignoreSsl>N</ignoreSsl>
+    <headers />
+    <parameters />
+    <matrixParameters />
+    <result>
+      <name>response_body</name>
+      <code>http_status</code>
+      <binary>N</binary>
+      <response_header>response_headers</response_header>
+    </result>
+    <retryTimes>0</retryTimes>
+    <retryDelayMs>200</retryDelayMs>
+    <retryStatusCodes>
+      <retryStatusCode>503</retryStatusCode>
+      <retryStatusCode>504</retryStatusCode>
+      <retryStatusCode>429</retryStatusCode>
+      <retryStatusCode>500</retryStatusCode>
+      <retryStatusCode>502</retryStatusCode>
+    </retryStatusCodes>
+    <retryMethods>
+      <retryMethod>GET</retryMethod>
+      <retryMethod>DELETE</retryMethod>
+      <retryMethod>PUT</retryMethod>
+    </retryMethods>
+    <paginationEnabled>N</paginationEnabled>
+    <maxPagesLoops>256</maxPagesLoops>
+    <streamingEnabled>N</streamingEnabled>
+    <streamingFormat>NDJSON</streamingFormat>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>624</xloc>
+      <yloc>48</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <attributes />
+    <urlField>parser_endpoint</urlField>
+    <bodyField>request_json</bodyField>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>ExecSql</type>
+    <name>Store Markdown and structural JSON</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT attachment.save_processor(?,?::integer,?)</sql>
+    <execute_each_row>Y</execute_each_row>
+    <single_statement>Y</single_statement>
+    <set_params>Y</set_params>
+    <replace_variables>N</replace_variables>
+    <quoteString>N</quoteString>
+    <arguments>
+      <argument>
+        <name>parse_id</name>
+      </argument>
+      <argument>
+        <name>http_status</name>
+      </argument>
+      <argument>
+        <name>response_body</name>
+      </argument>
+    </arguments>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>800</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

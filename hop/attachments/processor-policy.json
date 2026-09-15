@@ -1,0 +1,37 @@
+{
+  "policy_id": "job-alio-documents-v3",
+  "revision": "2026-09-14.2",
+  "source_id": "job_alio",
+  "purpose": "Retain official recruitment documents and extract source-grounded ontology facts for review.",
+  "catalogue_url": "https://www.data.go.kr/data/15125273/openapi.do",
+  "catalogue_scope": "The catalogue's no-restriction label describes the API dataset. It is not treated as a separate blanket licence for every attached work.",
+  "download_roles": [
+    "A",
+    "C"
+  ],
+  "other_roles": {
+    "B": "APPLICATION_FORM",
+    "other": "ROLE_REVIEW",
+    "named_notice_or_jd": "Include non-B files named 직무기술/직무설명/직무수행/공고문 or Job Description; preserve the provider role in metadata."
+  },
+  "formats": [
+    "pdf",
+    "hwp",
+    "hwpx",
+    "doc",
+    "docx",
+    "zip"
+  ],
+  "metadata_url_prefix": "https://opendata.alio.go.kr/recruit/downloadAtchFile?recrutAtchFileNo=",
+  "download_url_prefix": "https://www.alio.go.kr/download/download.json?fileNo=",
+  "resolver": "Preserve the numeric attachment ID. The official JOB-ALIO posting page links the same ID and filename to the ALIO download endpoint; the OpenData URL currently redirects to its homepage.",
+  "resolver_evidence_url": "https://job.alio.go.kr/recruitview.do?idx=304817",
+  "resolver_observed_on": "2026-09-12",
+  "public_document_redistribution": false,
+  "automatic_claim_acceptance": false,
+  "automatic_model_calls": false,
+  "max_received_bytes": 67108864,
+  "max_parsed_characters": 2000000,
+  "parser_version": "document-processor-v1",
+  "provenance": "Preserve source snapshot, posting, original metadata, requested URL, response hash, parser metadata, and page/body/archive-section locators. Parsing success is not semantic approval."
+}

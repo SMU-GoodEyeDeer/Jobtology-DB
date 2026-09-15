@@ -1,0 +1,198 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>prepare_processor</name>
+    <description>Pin existing archived bytes and the document-processor revision.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Parser options</from>
+      <to>Prepare immutable plan</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Prepare immutable plan</from>
+      <to>Remember processor batch</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Remember processor batch</from>
+      <to>Optional repair reuse</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Optional repair reuse</from>
+      <to>Reuse successful prior text</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Parser options</name>
+    <fields>
+      <field>
+        <name>batch_id</name>
+        <variable>${BATCH_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>attachment_batch_ids</name>
+        <variable>${ATTACHMENT_BATCH_IDS}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>parser_revision</name>
+        <variable>${PARSER_REVISION}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>max_documents</name>
+        <variable>${MAX_DOCUMENTS}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Prepare immutable plan</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT attachment.prepare_processor(?,?,?,?::integer) AS planned_batch_id</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>batch_id</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>attachment_batch_ids</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>parser_revision</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>max_documents</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>SetVariable</type>
+    <name>Remember processor batch</name>
+    <use_formatting>Y</use_formatting>
+    <fields>
+      <field>
+        <field_name>planned_batch_id</field_name>
+        <variable_name>PROCESSOR_BATCH_ID</variable_name>
+        <variable_type>PARENT_WORKFLOW</variable_type>
+        <default_value />
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>GetVariable</type>
+    <name>Optional repair reuse</name>
+    <fields>
+      <field>
+        <name>reuse_batch</name>
+        <variable>${REUSE_SUCCESS_FROM_BATCH}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>800</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>ExecSql</type>
+    <name>Reuse successful prior text</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT attachment.reuse_processor_successes(?,?)</sql>
+    <execute_each_row>Y</execute_each_row>
+    <single_statement>Y</single_statement>
+    <set_params>Y</set_params>
+    <replace_variables>N</replace_variables>
+    <quoteString>N</quoteString>
+    <arguments>
+      <argument>
+        <name>planned_batch_id</name>
+      </argument>
+      <argument>
+        <name>reuse_batch</name>
+      </argument>
+    </arguments>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>1040</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>
