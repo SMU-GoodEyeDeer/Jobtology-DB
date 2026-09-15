@@ -1,0 +1,724 @@
+{
+  "@context": {
+    "@version": 1.1,
+    "@protected": true,
+    "jt": {
+      "@id": "urn:jobtology:vocab:1:",
+      "@prefix": true
+    },
+    "jtf": {
+      "@id": "urn:jobtology:field:1:",
+      "@prefix": true
+    },
+    "schema": {
+      "@id": "https://schema.org/",
+      "@prefix": true
+    },
+    "rdf": {
+      "@id": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
+      "@prefix": true
+    },
+    "rdfs": {
+      "@id": "http://www.w3.org/2000/01/rdf-schema#",
+      "@prefix": true
+    },
+    "xsd": {
+      "@id": "http://www.w3.org/2001/XMLSchema#",
+      "@prefix": true
+    },
+    "skos": {
+      "@id": "http://www.w3.org/2004/02/skos/core#",
+      "@prefix": true
+    },
+    "sh": {
+      "@id": "http://www.w3.org/ns/shacl#",
+      "@prefix": true
+    },
+    "acceptancePolicy": {
+      "@id": "jt:acceptancePolicy"
+    },
+    "action": {
+      "@id": "jt:action"
+    },
+    "actor": {
+      "@id": "jt:actor"
+    },
+    "applicability": {
+      "@id": "jt:applicability"
+    },
+    "artifactId": {
+      "@id": "jt:artifactId"
+    },
+    "assertionId": {
+      "@id": "jt:assertionId"
+    },
+    "assertionKind": {
+      "@id": "jt:assertionKind"
+    },
+    "baseCode": {
+      "@id": "jt:baseCode"
+    },
+    "blockNo": {
+      "@id": "jt:blockNo"
+    },
+    "bundleId": {
+      "@id": "jt:bundleId"
+    },
+    "byteLength": {
+      "@id": "jt:byteLength"
+    },
+    "candidateId": {
+      "@id": "jt:candidateId"
+    },
+    "category": {
+      "@id": "jt:category"
+    },
+    "categoryCode": {
+      "@id": "jt:categoryCode"
+    },
+    "cellNo": {
+      "@id": "jt:cellNo"
+    },
+    "claimId": {
+      "@id": "jt:claimId"
+    },
+    "closingDate": {
+      "@id": "jt:closingDate"
+    },
+    "code": {
+      "@id": "jt:code"
+    },
+    "colNo": {
+      "@id": "jt:colNo"
+    },
+    "colSpan": {
+      "@id": "jt:colSpan"
+    },
+    "cols": {
+      "@id": "jt:cols"
+    },
+    "conditionKind": {
+      "@id": "jt:conditionKind"
+    },
+    "contextRole": {
+      "@id": "jt:contextRole"
+    },
+    "contract": {
+      "@id": "jt:contract"
+    },
+    "dataAsOf": {
+      "@id": "jt:dataAsOf"
+    },
+    "datePosted": {
+      "@id": "jt:datePosted"
+    },
+    "datePrecision": {
+      "@id": "jt:datePrecision"
+    },
+    "decisionId": {
+      "@id": "jt:decisionId"
+    },
+    "depth": {
+      "@id": "jt:depth"
+    },
+    "description": {
+      "@id": "jt:description"
+    },
+    "documentCount": {
+      "@id": "jt:documentCount"
+    },
+    "dutiesStatus": {
+      "@id": "jt:dutiesStatus"
+    },
+    "dutyClaimId": {
+      "@id": "jt:dutyClaimId"
+    },
+    "encoding": {
+      "@id": "jt:encoding"
+    },
+    "endOffset": {
+      "@id": "jt:endOffset"
+    },
+    "entityId": {
+      "@id": "jt:entityId"
+    },
+    "entryName": {
+      "@id": "jt:entryName"
+    },
+    "establishedDate": {
+      "@id": "jt:establishedDate"
+    },
+    "evidenceId": {
+      "@id": "jt:evidenceId"
+    },
+    "excerpt": {
+      "@id": "jt:excerpt"
+    },
+    "excerptSha256": {
+      "@id": "jt:excerptSha256"
+    },
+    "exportContractHash": {
+      "@id": "jt:exportContractHash"
+    },
+    "exportContractVersion": {
+      "@id": "jt:exportContractVersion"
+    },
+    "exportReadMode": {
+      "@id": "jt:exportReadMode"
+    },
+    "extractionHash": {
+      "@id": "jt:extractionHash"
+    },
+    "extractionRevisionId": {
+      "@id": "jt:extractionRevisionId"
+    },
+    "field": {
+      "@id": "jt:field"
+    },
+    "fields": {
+      "@id": "jt:fields"
+    },
+    "fileId": {
+      "@id": "jt:fileId"
+    },
+    "fileOrdinal": {
+      "@id": "jt:fileOrdinal"
+    },
+    "fullCode": {
+      "@id": "jt:fullCode"
+    },
+    "guardKind": {
+      "@id": "jt:guardKind"
+    },
+    "hasRelation": {
+      "@id": "jt:hasRelation",
+      "@type": "@id",
+      "@container": "@set"
+    },
+    "inputSha256": {
+      "@id": "jt:inputSha256"
+    },
+    "interpretationId": {
+      "@id": "jt:interpretationId"
+    },
+    "interpretationState": {
+      "@id": "jt:interpretationState"
+    },
+    "isHeader": {
+      "@id": "jt:isHeader"
+    },
+    "jobRunId": {
+      "@id": "jt:jobRunId"
+    },
+    "kind": {
+      "@id": "jt:kind"
+    },
+    "level": {
+      "@id": "jt:level"
+    },
+    "localId": {
+      "@id": "jt:localId"
+    },
+    "locator": {
+      "@id": "jt:locator"
+    },
+    "locatorVersion": {
+      "@id": "jt:locatorVersion"
+    },
+    "logic": {
+      "@id": "jt:logic"
+    },
+    "mappedPredicate": {
+      "@id": "jt:mappedPredicate",
+      "@type": "@id"
+    },
+    "mappingId": {
+      "@id": "jt:mappingId"
+    },
+    "methodologyVersion": {
+      "@id": "jt:methodologyVersion"
+    },
+    "name": {
+      "@id": "jt:name"
+    },
+    "nativeContentHash": {
+      "@id": "jt:nativeContentHash"
+    },
+    "nativeEdgeId": {
+      "@id": "jt:nativeEdgeId"
+    },
+    "nativeGraphManifest": {
+      "@id": "jt:nativeGraphManifest"
+    },
+    "nativeGraphManifestHash": {
+      "@id": "jt:nativeGraphManifestHash"
+    },
+    "nativeLabel": {
+      "@id": "jt:nativeLabel",
+      "@container": "@set"
+    },
+    "nativeLabelOrder": {
+      "@id": "jt:nativeLabelOrder"
+    },
+    "nativeNodeId": {
+      "@id": "jt:nativeNodeId"
+    },
+    "nativeObjectId": {
+      "@id": "jt:nativeObjectId"
+    },
+    "nativePredicate": {
+      "@id": "jt:nativePredicate"
+    },
+    "nativePropertyKey": {
+      "@id": "jt:nativePropertyKey"
+    },
+    "nativeSubjectId": {
+      "@id": "jt:nativeSubjectId"
+    },
+    "nodeIndex": {
+      "@id": "jt:nodeIndex"
+    },
+    "nodePath": {
+      "@id": "jt:nodePath"
+    },
+    "normalizationVersion": {
+      "@id": "jt:normalizationVersion"
+    },
+    "normalizedEnd": {
+      "@id": "jt:normalizedEnd"
+    },
+    "normalizedHash": {
+      "@id": "jt:normalizedHash"
+    },
+    "normalizedStart": {
+      "@id": "jt:normalizedStart"
+    },
+    "objectId": {
+      "@id": "jt:objectId"
+    },
+    "offsetUnit": {
+      "@id": "jt:offsetUnit"
+    },
+    "operator": {
+      "@id": "jt:operator"
+    },
+    "ordinal": {
+      "@id": "jt:ordinal"
+    },
+    "organizationId": {
+      "@id": "jt:organizationId"
+    },
+    "originalEnd": {
+      "@id": "jt:originalEnd"
+    },
+    "originalStart": {
+      "@id": "jt:originalStart"
+    },
+    "outcome": {
+      "@id": "jt:outcome"
+    },
+    "paragraphNo": {
+      "@id": "jt:paragraphNo"
+    },
+    "parentCellNo": {
+      "@id": "jt:parentCellNo"
+    },
+    "parentTableNo": {
+      "@id": "jt:parentTableNo"
+    },
+    "parsedHash": {
+      "@id": "jt:parsedHash"
+    },
+    "parserVersion": {
+      "@id": "jt:parserVersion"
+    },
+    "partIndex": {
+      "@id": "jt:partIndex"
+    },
+    "parts": {
+      "@id": "jt:parts"
+    },
+    "payloadHash": {
+      "@id": "jt:payloadHash"
+    },
+    "pipelineVersion": {
+      "@id": "jt:pipelineVersion"
+    },
+    "positionId": {
+      "@id": "jt:positionId"
+    },
+    "positionIds": {
+      "@id": "jt:positionIds"
+    },
+    "postingId": {
+      "@id": "jt:postingId"
+    },
+    "postingRevisionId": {
+      "@id": "jt:postingRevisionId"
+    },
+    "predicate": {
+      "@id": "jt:predicate"
+    },
+    "primaryOccupationId": {
+      "@id": "jt:primaryOccupationId"
+    },
+    "rawHash": {
+      "@id": "jt:rawHash"
+    },
+    "rawSha256": {
+      "@id": "jt:rawSha256"
+    },
+    "reason": {
+      "@id": "jt:reason"
+    },
+    "releaseId": {
+      "@id": "jt:releaseId"
+    },
+    "releaseState": {
+      "@id": "jt:releaseState"
+    },
+    "requirementIndex": {
+      "@id": "jt:requirementIndex"
+    },
+    "revisionId": {
+      "@id": "jt:revisionId"
+    },
+    "role": {
+      "@id": "jt:role"
+    },
+    "round": {
+      "@id": "jt:round"
+    },
+    "rowNo": {
+      "@id": "jt:rowNo"
+    },
+    "rowSpan": {
+      "@id": "jt:rowSpan"
+    },
+    "rows": {
+      "@id": "jt:rows"
+    },
+    "ruleId": {
+      "@id": "jt:ruleId"
+    },
+    "schemaHash": {
+      "@id": "jt:schemaHash"
+    },
+    "schemaVersion": {
+      "@id": "jt:schemaVersion"
+    },
+    "schemeId": {
+      "@id": "jt:schemeId"
+    },
+    "sectionIndex": {
+      "@id": "jt:sectionIndex"
+    },
+    "sectionNo": {
+      "@id": "jt:sectionNo"
+    },
+    "selectedReleaseId": {
+      "@id": "jt:selectedReleaseId"
+    },
+    "sha256": {
+      "@id": "jt:sha256"
+    },
+    "sourceContentHash": {
+      "@id": "jt:sourceContentHash"
+    },
+    "sourceField": {
+      "@id": "jt:sourceField"
+    },
+    "sourceHash": {
+      "@id": "jt:sourceHash"
+    },
+    "sourceId": {
+      "@id": "jt:sourceId"
+    },
+    "sourceRecordId": {
+      "@id": "jt:sourceRecordId"
+    },
+    "sourceStatus": {
+      "@id": "jt:sourceStatus"
+    },
+    "sourceUrl": {
+      "@id": "jt:sourceUrl"
+    },
+    "startOffset": {
+      "@id": "jt:startOffset"
+    },
+    "statementParts": {
+      "@id": "jt:statementParts"
+    },
+    "structureIssueCount": {
+      "@id": "jt:structureIssueCount"
+    },
+    "structureLayoutHash": {
+      "@id": "jt:structureLayoutHash"
+    },
+    "subjectId": {
+      "@id": "jt:subjectId"
+    },
+    "tableNo": {
+      "@id": "jt:tableNo"
+    },
+    "targetRevisionId": {
+      "@id": "jt:targetRevisionId"
+    },
+    "text": {
+      "@id": "jt:text"
+    },
+    "textHash": {
+      "@id": "jt:textHash"
+    },
+    "textParts": {
+      "@id": "jt:textParts"
+    },
+    "textSha256": {
+      "@id": "jt:textSha256"
+    },
+    "title": {
+      "@id": "jt:title"
+    },
+    "version": {
+      "@id": "jt:version"
+    },
+    "versionSelection": {
+      "@id": "jt:versionSelection"
+    },
+    "vocabularyVersion": {
+      "@id": "jt:vocabularyVersion"
+    },
+    "year": {
+      "@id": "jt:year"
+    },
+    "hasRevision": {
+      "@id": "jt:hasRevision",
+      "@type": "@id"
+    },
+    "derivedFrom": {
+      "@id": "jt:derivedFrom",
+      "@type": "@id"
+    },
+    "inSnapshot": {
+      "@id": "jt:inSnapshot",
+      "@type": "@id"
+    },
+    "fromSource": {
+      "@id": "jt:fromSource",
+      "@type": "@id"
+    },
+    "evidencedBy": {
+      "@id": "jt:evidencedBy",
+      "@type": "@id"
+    },
+    "subject": {
+      "@id": "jt:subject",
+      "@type": "@id"
+    },
+    "object": {
+      "@id": "jt:object",
+      "@type": "@id"
+    },
+    "postedBy": {
+      "@id": "jt:postedBy",
+      "@type": "@id"
+    },
+    "belongsToOccupation": {
+      "@id": "jt:belongsToOccupation",
+      "@type": "@id"
+    },
+    "versionOf": {
+      "@id": "jt:versionOf",
+      "@type": "@id"
+    },
+    "classifiedAs": {
+      "@id": "jt:classifiedAs",
+      "@type": "@id"
+    },
+    "broaderThan": {
+      "@id": "jt:broaderThan",
+      "@type": "@id"
+    },
+    "hasMember": {
+      "@id": "jt:hasMember",
+      "@type": "@id"
+    },
+    "curriculumReferences": {
+      "@id": "jt:curriculumReferences",
+      "@type": "@id"
+    },
+    "hasExamSession": {
+      "@id": "jt:hasExamSession",
+      "@type": "@id"
+    },
+    "hasCareerRank": {
+      "@id": "jt:hasCareerRank",
+      "@type": "@id"
+    },
+    "referencesUnitFamily": {
+      "@id": "jt:referencesUnitFamily",
+      "@type": "@id"
+    },
+    "hasPosition": {
+      "@id": "jt:hasPosition",
+      "@type": "@id"
+    },
+    "hasDuty": {
+      "@id": "jt:hasDuty",
+      "@type": "@id"
+    },
+    "hasRequirement": {
+      "@id": "jt:hasRequirement",
+      "@type": "@id"
+    },
+    "appliesTo": {
+      "@id": "jt:appliesTo",
+      "@type": "@id"
+    },
+    "hasExpression": {
+      "@id": "jt:hasExpression",
+      "@type": "@id"
+    },
+    "hasChild": {
+      "@id": "jt:hasChild",
+      "@type": "@id"
+    },
+    "hasRule": {
+      "@id": "jt:hasRule",
+      "@type": "@id"
+    },
+    "usesContract": {
+      "@id": "jt:usesContract",
+      "@type": "@id"
+    },
+    "reviewedBy": {
+      "@id": "jt:reviewedBy",
+      "@type": "@id"
+    },
+    "disables": {
+      "@id": "jt:disables",
+      "@type": "@id"
+    },
+    "limits": {
+      "@id": "jt:limits",
+      "@type": "@id"
+    },
+    "guardedBy": {
+      "@id": "jt:guardedBy",
+      "@type": "@id"
+    },
+    "forExtraction": {
+      "@id": "jt:forExtraction",
+      "@type": "@id"
+    },
+    "inArtifact": {
+      "@id": "jt:inArtifact",
+      "@type": "@id"
+    },
+    "usesInput": {
+      "@id": "jt:usesInput",
+      "@type": "@id"
+    },
+    "forPosting": {
+      "@id": "jt:forPosting",
+      "@type": "@id"
+    },
+    "inInput": {
+      "@id": "jt:inInput",
+      "@type": "@id"
+    },
+    "declaredIn": {
+      "@id": "jt:declaredIn",
+      "@type": "@id"
+    },
+    "hasObservation": {
+      "@id": "jt:hasObservation",
+      "@type": "@id"
+    },
+    "overlapsSection": {
+      "@id": "jt:overlapsSection",
+      "@type": "@id"
+    },
+    "inAttachment": {
+      "@id": "jt:inAttachment",
+      "@type": "@id"
+    },
+    "nestedInCell": {
+      "@id": "jt:nestedInCell",
+      "@type": "@id"
+    },
+    "hasCell": {
+      "@id": "jt:hasCell",
+      "@type": "@id"
+    },
+    "inCell": {
+      "@id": "jt:inCell",
+      "@type": "@id"
+    },
+    "mapsDuty": {
+      "@id": "jt:mapsDuty",
+      "@type": "@id"
+    },
+    "mapsTarget": {
+      "@id": "jt:mapsTarget",
+      "@type": "@id"
+    },
+    "selectsRevision": {
+      "@id": "jt:selectsRevision",
+      "@type": "@id"
+    },
+    "includes": {
+      "@id": "jt:includes",
+      "@type": "@id"
+    },
+    "observationStateId": {
+      "@id": "jt:observationStateId"
+    },
+    "selectedRevisionId": {
+      "@id": "jt:selectedRevisionId"
+    },
+    "entityType": {
+      "@id": "jt:entityType"
+    },
+    "connectorRunId": {
+      "@id": "jt:connectorRunId"
+    },
+    "contentRunId": {
+      "@id": "jt:contentRunId"
+    },
+    "consecutiveAbsenceCount": {
+      "@id": "jt:consecutiveAbsenceCount"
+    },
+    "servingState": {
+      "@id": "jt:servingState"
+    },
+    "stateReason": {
+      "@id": "jt:stateReason"
+    },
+    "nativeEvaluatedAt": {
+      "@id": "jt:nativeEvaluatedAt"
+    },
+    "nativeFirstSeenAt": {
+      "@id": "jt:nativeFirstSeenAt"
+    },
+    "nativeLastSeenAt": {
+      "@id": "jt:nativeLastSeenAt"
+    },
+    "forEntity": {
+      "@id": "jt:forEntity",
+      "@type": "@id"
+    },
+    "firstSeenAt": {
+      "@id": "jt:firstSeenAt",
+      "@type": "xsd:dateTime"
+    },
+    "lastSeenAt": {
+      "@id": "jt:lastSeenAt",
+      "@type": "xsd:dateTime"
+    },
+    "evaluatedAt": {
+      "@id": "jt:evaluatedAt",
+      "@type": "xsd:dateTime"
+    }
+  }
+}

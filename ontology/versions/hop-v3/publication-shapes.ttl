@@ -1,0 +1,74 @@
+@prefix jt: <urn:jobtology:vocab:1:> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix schema: <https://schema.org/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# Additive publication requirements from implementation-plan.md sections 9–11.
+# Passing shapes alone never replaces the database's remaining publication gates.
+jt:PublishedReleaseShape a sh:NodeShape ; sh:targetClass jt:CorpusRelease ;
+  sh:property [ sh:path jt:exportReadMode ; sh:hasValue "PUBLISHED" ] ;
+  sh:property [ sh:path jt:releaseState ; sh:minCount 1 ; sh:maxCount 1 ; sh:in ("ACTIVE" "SUPERSEDED") ] ;
+  sh:property [ sh:path jt:dataAsOf ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:dateTime ] ;
+  sh:property [ sh:path jt:includes ; sh:qualifiedValueShape [ sh:class jt:Source ] ; sh:qualifiedMinCount 6 ; sh:qualifiedMaxCount 6 ] .
+
+jt:PublishedPostingShape a sh:NodeShape ; sh:targetClass jt:JobPostingRevision ;
+  sh:property [ sh:path schema:title ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ; sh:minLength 1 ] ;
+  sh:property [ sh:path schema:url ; sh:minCount 1 ; sh:maxCount 1 ; sh:nodeKind sh:IRI ] ;
+  sh:property [ sh:path schema:datePosted ; sh:minCount 1 ; sh:maxCount 1 ; sh:or ([ sh:datatype xsd:date ] [ sh:datatype xsd:dateTime ]) ] ;
+  sh:property [ sh:path schema:validThrough ; sh:minCount 1 ; sh:maxCount 1 ; sh:or ([ sh:datatype xsd:date ] [ sh:datatype xsd:dateTime ]) ] ;
+  sh:property [ sh:path jt:sourceStatus ; sh:minCount 1 ; sh:maxCount 1 ; sh:in ("OPEN" "CLOSED" "UNKNOWN") ] ;
+  sh:property [ sh:path jt:postedBy ; sh:minCount 1 ; sh:maxCount 1 ; sh:class jt:Organization ] ;
+  sh:property [ sh:path jt:forOccupation ; sh:minCount 1 ; sh:maxCount 1 ; sh:class jt:Occupation ] ;
+  sh:property [ sh:path jt:descriptionTextSha256 ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ; sh:pattern "^[0-9a-f]{64}$" ] .
+
+jt:PublishedPostingObservationShape a sh:NodeShape ; sh:targetClass jt:JobPosting ;
+  sh:property [ sh:path [ sh:inversePath jt:forEntity ] ; sh:qualifiedValueShape [ sh:class jt:EntityObservationState ] ; sh:qualifiedMinCount 1 ; sh:qualifiedMaxCount 1 ] .
+
+jt:PublishedObservationShape a sh:NodeShape ; sh:targetClass jt:EntityObservationState ;
+  sh:property [ sh:path jt:forEntity ; sh:minCount 1 ; sh:maxCount 1 ; sh:class jt:Entity ] ;
+  sh:property [ sh:path jt:selectsRevision ; sh:minCount 1 ; sh:maxCount 1 ; sh:class jt:EntityRevision ] ;
+  sh:property [ sh:path jt:servingState ; sh:minCount 1 ; sh:maxCount 1 ; sh:in ("ACTIVE" "EXPIRED" "CLOSED" "NOT_SEEN") ] ;
+  sh:property [ sh:path jt:firstSeenAt ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:dateTime ] ;
+  sh:property [ sh:path jt:lastSeenAt ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:dateTime ] ;
+  sh:property [ sh:path jt:evaluatedAt ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:dateTime ] .
+
+jt:PublishedAssertionShape a sh:NodeShape ; sh:targetClass jt:Assertion ;
+  sh:property [ sh:path jt:confidence ; sh:minCount 1 ; sh:maxCount 1 ; sh:or ([ sh:datatype xsd:decimal ] [ sh:datatype xsd:double ] [ sh:datatype xsd:integer ]) ; sh:minInclusive 0.90 ; sh:maxInclusive 1.0 ] ;
+  sh:property [ sh:path jt:reviewStatus ; sh:minCount 1 ; sh:maxCount 1 ; sh:in ("AUTO_ACCEPTED" "HUMAN_ACCEPTED") ] ;
+  sh:property [ sh:path jt:assertionKind ; sh:minCount 1 ; sh:maxCount 1 ; sh:in ("SOURCE_EXPLICIT" "NORMALIZED" "MODEL_INFERRED") ] ;
+  sh:property [ sh:path jt:evidencedBy ; sh:minCount 1 ; sh:nodeKind sh:IRI ] .
+
+jt:PublishedRequirementShape a sh:NodeShape ; sh:targetClass jt:RequirementClaim ;
+  sh:property [ sh:path jt:requirementKind ; sh:minCount 1 ; sh:maxCount 1 ; sh:in ("SKILL" "CREDENTIAL" "EDUCATION" "EXPERIENCE" "LANGUAGE" "PROJECT" "LOCATION" "ELIGIBILITY" "AVAILABILITY") ] ;
+  sh:property [ sh:path jt:requirementScope ; sh:minCount 1 ; sh:maxCount 1 ; sh:in ("CAPABILITY" "POSTING_FILTER") ] ;
+  sh:property [ sh:path jt:necessity ; sh:minCount 1 ; sh:maxCount 1 ; sh:in ("REQUIRED" "PREFERRED" "OPTIONAL") ] ;
+  sh:property [ sh:path jt:requirementKey ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ; sh:pattern "^[0-9a-f]{64}$" ] ;
+  sh:xone (
+    [ sh:property [ sh:path jt:requirementKind ; sh:in ("SKILL" "CREDENTIAL" "LANGUAGE") ] ;
+      sh:property [ sh:path jt:targets ; sh:minCount 1 ; sh:maxCount 1 ; sh:or ([ sh:class jt:Skill ] [ sh:class jt:Credential ] [ sh:class jt:NCSCompetencyUnit ]) ] ;
+      sh:property [ sh:path jt:normalizedCondition ; sh:maxCount 0 ] ]
+    [ sh:property [ sh:path jt:requirementKind ; sh:in ("EDUCATION" "EXPERIENCE" "PROJECT" "LOCATION" "ELIGIBILITY" "AVAILABILITY") ] ;
+      sh:property [ sh:path jt:normalizedCondition ; sh:minCount 1 ; sh:maxCount 1 ; sh:class jt:TypedCondition ] ;
+      sh:property [ sh:path jt:targets ; sh:maxCount 0 ] ]
+  ) ;
+  sh:sparql [ sh:message "Posting filters must not be counted as capability coverage." ;
+    sh:select """PREFIX jt: <urn:jobtology:vocab:1:>
+      SELECT $this WHERE { $this jt:requirementKind ?kind ; jt:requirementScope ?scope .
+        FILTER ((?kind IN ("LOCATION","ELIGIBILITY","AVAILABILITY") && ?scope != "POSTING_FILTER") ||
+          (?kind NOT IN ("LOCATION","ELIGIBILITY","AVAILABILITY") && ?scope != "CAPABILITY")) }""" ] ;
+  sh:sparql [ sh:message "Credential/language requirements must target the matching concept type." ;
+    sh:select """PREFIX jt: <urn:jobtology:vocab:1:>
+      SELECT $this WHERE { $this jt:requirementKind ?kind ; jt:targets ?target .
+        FILTER ((?kind="SKILL" && NOT EXISTS { ?target a jt:Skill } && NOT EXISTS { ?target a jt:NCSCompetencyUnit }) ||
+          (?kind="CREDENTIAL" && NOT EXISTS { ?target a jt:Credential }) ||
+          (?kind="LANGUAGE" && NOT EXISTS { ?target a jt:Skill ; jt:hasRevision ?v . $this jt:usesTargetBinding ?b . ?b jt:role "target" ; jt:targetSubkind "LANGUAGE" ; jt:selectsRevision ?v })) }""" ] .
+
+# Detailed condition vocabularies, canonical requirement-key reconstruction,
+# cohort methodology, denominators/support traces and source freshness still
+# require their database implementations and validation. Their absence must not
+# be waived by a passing report from this file.
+
+
+jt:PublishedRequirementSelectionShape a sh:NodeShape ; sh:targetClass jt:RequirementReviewSelection ;
+ sh:property [ sh:path jt:outcome ; sh:hasValue "REVIEWED" ] .
