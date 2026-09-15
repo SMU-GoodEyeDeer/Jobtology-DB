@@ -1,0 +1,141 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>import_duplicate</name>
+    <description>Import a source-bound duplicate proposal without accepting it.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters>
+      <parameter>
+        <name>PROPOSAL_FILE</name>
+        <default_value>${PROJECT_HOME}/duplicate-proposal.json</default_value>
+        <description>PROPOSAL_FILE</description>
+      </parameter>
+    </parameters>
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Proposal file</from>
+      <to>Read exact proposal bytes</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Read exact proposal bytes</from>
+      <to>Capture duplicate proposal</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Capture duplicate proposal</from>
+      <to>Proposal stored</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Proposal file</name>
+    <fields>
+      <field>
+        <name>proposal_file</name>
+        <variable>${PROPOSAL_FILE}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>LoadFileInput</type>
+    <name>Read exact proposal bytes</name>
+    <IsInFields>Y</IsInFields>
+    <DynamicFilenameField>proposal_file</DynamicFilenameField>
+    <IsIgnoreEmptyFile>N</IsIgnoreEmptyFile>
+    <IsIgnoreMissingPath>N</IsIgnoreMissingPath>
+    <encoding>UTF-8</encoding>
+    <addresultfile>N</addresultfile>
+    <limit>0</limit>
+    <fields>
+      <field>
+        <name>proposal_bytes</name>
+        <element_type>content</element_type>
+        <type>Binary</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+        <repeat>N</repeat>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Capture duplicate proposal</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT ontology.import_duplicate_v1(?::bytea) AS proposal_id</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>proposal_bytes</name>
+        <type>Binary</type>
+      </field>
+    </parameter>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>WriteToLog</type>
+    <name>Proposal stored</name>
+    <loglevel>Basic</loglevel>
+    <displayHeader>Y</displayHeader>
+    <logmessage>Proposal only. Independent review and release freezing remain separate.</logmessage>
+    <fields>
+      <field>
+        <name>proposal_id</name>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>800</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

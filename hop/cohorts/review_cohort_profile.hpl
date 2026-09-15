@@ -1,0 +1,189 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>review_cohort_profile</name>
+    <description>Append an independent cohort profile decision.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters>
+      <parameter>
+        <name>REVIEW_ID</name>
+        <default_value />
+        <description>REVIEW_ID</description>
+      </parameter>
+      <parameter>
+        <name>PROPOSAL_ID</name>
+        <default_value />
+        <description>PROPOSAL_ID</description>
+      </parameter>
+      <parameter>
+        <name>DECISION</name>
+        <default_value>REJECT</default_value>
+        <description>DECISION</description>
+      </parameter>
+      <parameter>
+        <name>REVIEWER</name>
+        <default_value />
+        <description>REVIEWER</description>
+      </parameter>
+      <parameter>
+        <name>REVIEWER_KIND</name>
+        <default_value>human</default_value>
+        <description>REVIEWER_KIND</description>
+      </parameter>
+      <parameter>
+        <name>NOTES</name>
+        <default_value />
+        <description>NOTES</description>
+      </parameter>
+    </parameters>
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Review details</from>
+      <to>Save independent review</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Save independent review</from>
+      <to>Review saved</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Review details</name>
+    <fields>
+      <field>
+        <name>review_id</name>
+        <variable>${REVIEW_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>proposal_id</name>
+        <variable>${PROPOSAL_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>decision</name>
+        <variable>${DECISION}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>reviewer</name>
+        <variable>${REVIEWER}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>reviewer_kind</name>
+        <variable>${REVIEWER_KIND}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>notes</name>
+        <variable>${NOTES}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Save independent review</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT ontology.decide_cohort_profile_v1(?::uuid,?::text,?::text,?::text,?::text,?::text) AS decision_id</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>review_id</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>proposal_id</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>decision</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>reviewer</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>reviewer_kind</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>notes</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>WriteToLog</type>
+    <name>Review saved</name>
+    <loglevel>Basic</loglevel>
+    <displayHeader>Y</displayHeader>
+    <logmessage>Historical release selections remain unchanged. No confidence score is inferred.</logmessage>
+    <fields>
+      <field>
+        <name>decision_id</name>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>
