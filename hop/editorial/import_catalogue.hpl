@@ -1,0 +1,159 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>import_catalogue</name>
+    <description>Read exact file bytes and append a validated editorial source snapshot.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Catalogue choices</from>
+      <to>Read exact catalogue bytes</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Read exact catalogue bytes</from>
+      <to>Capture verified source</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Capture verified source</from>
+      <to>Catalogue imported</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Catalogue choices</name>
+    <fields>
+      <field>
+        <name>catalogue_file</name>
+        <variable>${CATALOGUE_FILE}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>expected_sha256</name>
+        <variable>${EXPECTED_SHA256}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>expected_git_blob</name>
+        <variable>${EXPECTED_GIT_BLOB}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>LoadFileInput</type>
+    <name>Read exact catalogue bytes</name>
+    <IsInFields>Y</IsInFields>
+    <DynamicFilenameField>catalogue_file</DynamicFilenameField>
+    <IsIgnoreEmptyFile>N</IsIgnoreEmptyFile>
+    <IsIgnoreMissingPath>N</IsIgnoreMissingPath>
+    <encoding>UTF-8</encoding>
+    <addresultfile>N</addresultfile>
+    <limit>0</limit>
+    <fields>
+      <field>
+        <name>catalogue_bytes</name>
+        <element_type>content</element_type>
+        <type>Binary</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+        <repeat>N</repeat>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Capture verified source</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT editorial.capture_v1(?::bytea,?::text,?::text) AS snapshot_id</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>catalogue_bytes</name>
+        <type>Binary</type>
+      </field>
+      <field>
+        <name>expected_sha256</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>expected_git_blob</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>WriteToLog</type>
+    <name>Catalogue imported</name>
+    <loglevel>Basic</loglevel>
+    <displayHeader>Y</displayHeader>
+    <logmessage>Source captured. Import does not assert review, Git merge, classification or publication.</logmessage>
+    <fields>
+      <field>
+        <name>snapshot_id</name>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>800</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>
