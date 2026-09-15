@@ -69,6 +69,14 @@
         <precision>-1</precision>
         <trim_type>none</trim_type>
       </field>
+      <field>
+        <name>FILE_SELECTION</name>
+        <variable>${FILE_SELECTION}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
     </fields>
     <copies>1</copies>
     <distribute>Y</distribute>
@@ -85,7 +93,7 @@
     <type>DBJoin</type>
     <name>Pin source documents</name>
     <connection>jobtology-postgres</connection>
-    <sql>SELECT attachment.prepare_downloads(?,?,?,?,?::integer) AS planned_batch_id</sql>
+    <sql>SELECT attachment.prepare_downloads(?,?,?,?,?::integer,?) AS planned_batch_id</sql>
     <cache>N</cache>
     <cache_size>0</cache_size>
     <rowlimit>0</rowlimit>
@@ -110,6 +118,10 @@
       </field>
       <field>
         <name>max_files</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>FILE_SELECTION</name>
         <type>String</type>
       </field>
     </parameter>

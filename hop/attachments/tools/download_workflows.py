@@ -40,6 +40,35 @@ END $$;
 '''
 (OUT/'sql/008_processor_downloads.sql').write_text('BEGIN;\nSELECT retention.gate();\nINSERT INTO attachment.policy SELECT \'job-alio-documents-v3\',v,attachment.hash(v::text) FROM (SELECT '+literal+' v) q ON CONFLICT DO NOTHING;\n'+prepare+extra+'\nCOMMIT;\n')
 
+# A/C-only is a separate immutable policy. The five-argument entry point keeps
+# its historical named-notice selection; the six-argument workflow entry point
+# rejects a selector change when resuming an existing batch.
+ac_policy=copy.deepcopy(policy)
+ac_policy.update(policy_id='job-alio-documents-v3-ac-only',revision='2026-09-15.1')
+ac_policy['other_roles']['named_notice_or_jd']='Excluded in A_C_ONLY; retain non-A/C metadata for manual source review.'
+(OUT/'processor-policy-ac-only.json').write_text(json.dumps(ac_policy,ensure_ascii=False,indent=2)+'\n')
+ac_literal="'"+json.dumps(ac_policy,ensure_ascii=False).replace("'","''")+"'::jsonb"
+ac_prepare=prepare.replace('attachment.prepare_downloads(', 'attachment.prepare_downloads_ac_only(')
+ac_prepare=ac_prepare.replace('prepare_downloads.run','prepare_downloads_ac_only.run')
+ac_prepare=ac_prepare.replace("'job-alio-documents-v3'","'job-alio-documents-v3-ac-only'")
+ac_prepare=ac_prepare.replace("WHEN coalesce(f.value->>'atchFileType','') NOT IN ('A','C') AND coalesce(f.value->>'atchFileNm','') !~* '(직무(기술|설명|수행)|공고문|job[ _-]*description)' THEN 'ROLE_REVIEW'", "WHEN coalesce(f.value->>'atchFileType','') NOT IN ('A','C') THEN 'ROLE_REVIEW'")
+ac_prepare=ac_prepare.replace('  PERFORM attachment.check_source(id); RETURN id;', "  IF b.policy_id<>'job-alio-documents-v3-ac-only' THEN RAISE EXCEPTION 'ATTACHMENT_SELECTION_IS_IMMUTABLE'; END IF;\n  PERFORM attachment.check_source(id); RETURN id;")
+selector='''
+CREATE OR REPLACE FUNCTION attachment.prepare_downloads(id text,run text,ids_text text,base text,cap integer,selection text)
+RETURNS text LANGUAGE plpgsql AS $$
+DECLARE existing_policy text; BEGIN
+ IF selection NOT IN ('DEFAULT','A_C_ONLY') OR selection IS NULL THEN RAISE EXCEPTION 'INVALID_ATTACHMENT_SELECTION'; END IF;
+ IF id IS NOT NULL AND id<>'' THEN
+  SELECT policy_id INTO existing_policy FROM attachment.batch WHERE batch_id=id;
+  IF existing_policy IS NOT NULL AND existing_policy<>(CASE selection WHEN 'DEFAULT' THEN 'job-alio-documents-v3' ELSE 'job-alio-documents-v3-ac-only' END)
+  THEN RAISE EXCEPTION 'ATTACHMENT_SELECTION_IS_IMMUTABLE'; END IF;
+ END IF;
+ IF selection='DEFAULT' THEN RETURN attachment.prepare_downloads(id,run,ids_text,base,cap); END IF;
+ RETURN attachment.prepare_downloads_ac_only(id,run,ids_text,base,cap);
+END $$;
+'''
+(OUT/'sql/010_ac_only_selector.sql').write_text('BEGIN;\nSELECT retention.gate();\nINSERT INTO attachment.policy SELECT \'job-alio-documents-v3-ac-only\',v,attachment.hash(v::text) FROM (SELECT '+ac_literal+' v) q ON CONFLICT DO NOTHING;\n'+ac_prepare+selector+'\nCOMMIT;\n')
+
 def put(e,key,value):
  n=e.find(key)
  if n is None:n=E.SubElement(e,key)
@@ -76,10 +105,19 @@ for hop in list(w.findall('order/hop')):
 for a,b in [('Reserved file','Reuse decision'),('Reuse decision','Archived bytes available'),('Archived bytes available','Read archived original'),('Archived bytes available','Space document requests'),('Read archived original','Cached response provenance'),('Cached response provenance','Validate received body'),('Register response','Record archive reuse'),('Validate received body','Existing archive needs no copy'),('Existing archive needs no copy','Release received bytes'),('Existing archive needs no copy','Archive original response')]:child(w.find('order'),'hop',{'from':a,'to':b,'enabled':'Y'})
 save(w,OUT/'download_file.hpl')
 w=E.parse(OUT/'prepare.hpl').getroot();put(w.find('info'),'name','prepare_downloads');n=w.find("transform[name='Pin source documents']/sql");n.text=n.text.replace('attachment.prepare(','attachment.prepare_downloads(');save(w,OUT/'prepare_downloads.hpl')
+w=E.parse(OUT/'prepare_downloads.hpl').getroot()
+node=w.find("transform[name='Attachment plan']/fields")
+child(node,'field',dict(name='FILE_SELECTION',variable='${FILE_SELECTION}',type='String',length=-1,precision=-1,trim_type='none'))
+sql=w.find("transform[name='Pin source documents']/sql")
+sql.text=sql.text.replace('?,?,?,?,?::integer)', '?,?,?,?,?::integer,?)')
+node=w.find("transform[name='Pin source documents']/parameter")
+child(node,'field',dict(name='FILE_SELECTION',type='String'))
+save(w,OUT/'prepare_downloads.hpl')
 w=E.parse(OUT/'run_batch.hpl').getroot();put(w.find('info'),'name','download_batch');n=w.find("transform[type='PipelineExecutor']/filename");n.text=n.text.replace('process_file.hpl','download_file.hpl');n=w.find("transform[name='Record child outcome']/sql");n.text=n.text.replace('attachment.finish_attempt(','attachment.finish_download(');save(w,OUT/'download_batch.hpl')
 w=E.parse(OUT/'process_snapshot.hwf').getroot();put(w,'name','Archive JOB-ALIO notices and JDs for document-processor')
 for node in w.findall('actions/action/filename'):
  node.text=node.text.replace('/prepare.hpl','/prepare_downloads.hpl').replace('/run_batch.hpl','/download_batch.hpl')
+child(w.find('parameters'),'parameter',dict(name='FILE_SELECTION',default_value='DEFAULT',description='DEFAULT includes named auxiliary notice/JD files; A_C_ONLY selects provider A/C files. Frozen batch selection cannot change.'))
 save(w,OUT/'download_snapshot.hwf')
 w=E.parse(OUT/'install_processor.hwf').getroot();put(w,'name','Install archive-only document fetching');
 for a in list(w.findall('actions/action')):
@@ -88,3 +126,12 @@ for h in list(w.findall('hops/hop')):
  if h.findtext('from')=='Install per-posting input verification':w.find('hops').remove(h)
  elif h.findtext('to')=='Install per-posting input verification':put(h,'to','Success')
 n=w.find("actions/action[type='SQL']/sqlfilename");n.text=n.text.replace('007_document_processor.sql','008_processor_downloads.sql');save(w,OUT/'install_downloads.hwf')
+w=E.parse(OUT/'install_downloads.hwf').getroot()
+put(w,'name','Install A/C-only document selector')
+node=w.find("actions/action[type='SQL']")
+put(node,'name','Install A/C-only selector')
+put(node,'sqlfilename','${PROJECT_HOME}/attachments/sql/010_ac_only_selector.sql')
+for hop in w.findall('hops/hop'):
+ if hop.findtext('from')=='Install parser ledger':put(hop,'from','Install A/C-only selector')
+ if hop.findtext('to')=='Install parser ledger':put(hop,'to','Install A/C-only selector')
+save(w,OUT/'install_ac_only.hwf')

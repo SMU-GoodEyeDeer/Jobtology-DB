@@ -35,6 +35,11 @@
       <default_value>N</default_value>
       <description>Y downloads and parses. N plans only; no HTTP calls.</description>
     </parameter>
+    <parameter>
+      <name>FILE_SELECTION</name>
+      <default_value>DEFAULT</default_value>
+      <description>DEFAULT includes named auxiliary notice/JD files; A_C_ONLY selects provider A/C files. Frozen batch selection cannot change.</description>
+    </parameter>
   </parameters>
   <actions>
     <action>
