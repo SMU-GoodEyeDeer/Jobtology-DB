@@ -1,0 +1,55 @@
+{
+  "schema_version": "hop-product-occupations-v1",
+  "source_id": "INTERNAL_EDITORIAL",
+  "catalogue_id": "product-occupations",
+  "catalogue_version": 1,
+  "actor": "assistant:codex",
+  "actor_kind": "assistant",
+  "scheme": {
+    "code": "product-occupations",
+    "name": "Jobtology 지원 직무",
+    "description": "Jobtology MVP에서 사용자가 목표로 선택할 수 있는 네 가지 직무. 프로젝트에서 정한 분류이며 NCS 공식 분류와 별도로 관리한다."
+  },
+  "occupations": [
+    {
+      "code": "AI_ENGINEER",
+      "name": "AI 엔지니어",
+      "description": "머신러닝 모델이나 생성형 AI를 개발·평가하고, 이를 제품 또는 서비스에서 사용할 수 있도록 구현·운영하는 직무.",
+      "aliases": ["인공지능 엔지니어", "AI engineer"],
+      "boundary_notes": [
+        "기관이 AI를 사용한다는 사실이나 공고에 AI라는 단어가 있다는 이유만으로 이 직무에 분류하지 않는다.",
+        "모델 개발·평가 또는 AI 기능 구현이 해당 모집 직무의 실제 업무인지 확인한다."
+      ]
+    },
+    {
+      "code": "BACKEND_DEVELOPER",
+      "name": "백엔드 개발자",
+      "description": "서비스의 서버 측 기능, API, 데이터 저장 및 처리 로직을 설계·구현하고 운영하는 직무.",
+      "aliases": ["서버 개발자", "백엔드 엔지니어", "Backend developer"],
+      "boundary_notes": [
+        "전산 운영, 장비 관리 또는 정보시스템 구매 업무를 개발 업무와 동일하게 취급하지 않는다.",
+        "풀스택 공고는 실제 업무와 모집 단위를 확인하고 주된 직무가 불명확하면 검토 대상으로 남긴다."
+      ]
+    },
+    {
+      "code": "FRONTEND_DEVELOPER",
+      "name": "프론트엔드 개발자",
+      "description": "사용자가 이용하는 웹 화면과 상호작용을 코드로 구현하고, 접근성·사용성·클라이언트 동작을 개선하는 직무.",
+      "aliases": ["프론트엔드 엔지니어", "Frontend developer"],
+      "boundary_notes": [
+        "시각 디자인, 콘텐츠 편집 또는 웹사이트 운영만으로 이 직무에 분류하지 않는다.",
+        "화면과 클라이언트 기능을 직접 구현하는 업무가 있는지 확인한다."
+      ]
+    },
+    {
+      "code": "DATA_ANALYST",
+      "name": "데이터 분석가",
+      "description": "의사결정에 필요한 데이터를 수집·정리·분석하고, 지표·시각화·분석 결과를 통해 문제를 설명하는 직무.",
+      "aliases": ["데이터 애널리스트", "Data analyst"],
+      "boundary_notes": [
+        "자료 입력이나 단순 실적 집계만을 데이터 분석 직무로 단정하지 않는다.",
+        "데이터 플랫폼 구축이나 AI 모델 개발이 주된 업무인 경우 해당 업무와 분석 업무를 구분한다."
+      ]
+    }
+  ]
+}
