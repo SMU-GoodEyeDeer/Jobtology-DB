@@ -1,12 +1,18 @@
 # Complete source ingestion and NCS linking
 
-Current endpoint (2026-09-15): the reviewed NCS projection is **READY** in both
-PostgreSQL and Neo4j under publication ID `reviewed-ncs-20260915-recovered`.
-It contains **112 accepted posting extractions and 299 accepted NCS links**,
-including the 11 extractions and 14 links approved before this review. The graph
-readback confirmed 112 current `reviewedNcsEnrichment` nodes and 299 accepted
-`ALIGNS_WITH_NCS` relationships. This is the reviewed subset, not a claim that
-every posting in the source corpus has completed enrichment.
+The [IT/AI/data completion plan](cs-posting-completion-plan.md) and
+[live execution record](cs-execution-20260915.md) describe the scoped CS-role
+selection, paid-output reuse, qualification joins and remaining evidence gaps.
+
+Current endpoint (2026-09-16 KST): the reviewed NCS projection is **READY** in both
+PostgreSQL and Neo4j under publication ID `cs-reviewed-20260916-final-b`.
+Its frozen graph readback confirmed **145 accepted posting extractions and 385
+accepted NCS links**. These counts cover all current accepted extractions;
+66 selected CS positions in 45 postings are a separate role-level scope:
+54 have an accepted position-bound NCS link and 12 remain explicit
+source/catalogue gaps. Nine additional roles still need scope review. The
+projection is the reviewed subset, not a claim that every source posting has
+completed enrichment.
 
 For the recovered rejection-evaluation set, `llm/export_link_review.hwf` staged
 108 current validated postings and 453 model suggestions in 11 immutable packets.
@@ -227,6 +233,11 @@ This practical path does not require a product ontology release, cohort or deman
 model. It adds `reviewedNcsEnrichment` nodes linked to existing `jobPosting` and
 `ncsCompetency` nodes, with source/model/review provenance and evidence.
 A good extraction can publish with zero accepted links.
+On `ALIGNS_WITH_NCS`, a model-origin candidate is labelled `LLM_INFERENCE`;
+a source-reviewed manual candidate is labelled `REVIEWER_INFERENCE`.
+Both retain the candidate origin and actor as separate properties, while the
+acceptance decision still names its reviewer. The publication verifier reads
+these properties back before activation.
 
 A blank `PUBLICATION_ID` creates a new publication. Replaying an existing ID is
 allowed only while its source and review inputs are unchanged. A changed review
