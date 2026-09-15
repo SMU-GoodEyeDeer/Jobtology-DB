@@ -41,8 +41,21 @@ def main():
  assert sql(f"SELECT retention.protection({q(run)},0)")=='ATTACHMENT_BATCH'
  assert sql(f"SELECT attachment_count FROM attachment.report WHERE batch_id={q(name)} AND posting_id='101'")=='0'
  assert sql(f"SELECT string_agg(disposition,',' ORDER BY file_ordinal) FROM attachment.document WHERE batch_id={q(name)}")=='PLANNED,PLANNED,PLANNED,APPLICATION_FORM,ROLE_REVIEW,UNSUPPORTED_FORMAT,INVALID_URL'
+ # The metadata URL is pinned as source provenance; downloads use the same
+ # numeric file ID at the working official ALIO endpoint, including A/C-only.
+ ac=name+'-ac-only'
+ assert sql(f"SELECT attachment.prepare_downloads({q(ac)},{q(run)},'100','/tmp/attachment-tests',3,'A_C_ONLY')")==ac
+ resolved=json.loads(sql(f"SELECT jsonb_agg(jsonb_build_object('id',metadata->>'recrutAtchFileNo','source',source_url,'request',request_url,'disposition',disposition) ORDER BY file_ordinal) FROM attachment.document WHERE batch_id={q(ac)}"))
+ assert [r['disposition'] for r in resolved]==['PLANNED','PLANNED','PLANNED','APPLICATION_FORM','ROLE_REVIEW','UNSUPPORTED_FORMAT','INVALID_URL'],resolved
+ for r in resolved[:3]:
+  assert r['source']=='https://opendata.alio.go.kr/recruit/downloadAtchFile?recrutAtchFileNo='+r['id'],r
+  assert r['request']=='https://www.alio.go.kr/download/download.json?fileNo='+r['id'],r
+ assert all(r['request'] is None for r in resolved[3:]),resolved
+ bad(f"SELECT attachment.prepare_downloads({q(ac)},{q(run)},'100','/tmp/attachment-tests',3,'DEFAULT')",'ATTACHMENT_SELECTION_IS_IMMUTABLE')
  bad(f"SELECT attachment.verify_batch({q(name)})",'ATTACHMENT_BATCH_INCOMPLETE')
  assert body(200,b'<html>not a PDF</html>','pdf')=='UNEXPECTED_CONTENT'
+ assert body(200,b'<html>portal home</html>','hwp')=='UNEXPECTED_CONTENT'
+ assert body(200,b'<html>portal home</html>','hwpx')=='UNEXPECTED_CONTENT'
  assert body(403,b'%PDF-1.4','pdf')=='HTTP_ERROR'
  assert body(200,b'','pdf')=='EMPTY_DOCUMENT'
  assert body(200,b'%PDF-1.4','pdf')==''
