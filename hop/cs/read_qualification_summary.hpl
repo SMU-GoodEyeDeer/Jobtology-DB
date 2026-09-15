@@ -1,0 +1,102 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>read_qualification_summary</name>
+    <description>Summarize related credentials and explicit qualification/exam gaps per in-scope role.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Summary selection</from>
+      <to>Current role qualification summary</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Current role qualification summary</from>
+      <to>Preview role coverage</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Summary selection</name>
+    <fields>
+      <field>
+        <name>posting_identity</name>
+        <variable>${POSTING_IDENTITY}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>row_limit</name>
+        <variable>${ROW_LIMIT}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Current role qualification summary</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT source_id,source_posting_id,posting_identity,role_id,role_name,binding_hash,selected_family,accepted_ncs_links,technical_ncs_links,other_ncs_links,related_credentials,unfetched_links,fetched_without_mapping_links,no_ready_qualification_links,credentials_with_exam_sessions,credentials_without_current_exam_sessions,qualification_run_id,qnet_run_id FROM cs.current_role_qualification_summary WHERE posting_identity=?::text ORDER BY source_id,posting_identity,role_id LIMIT ?::integer</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>posting_identity</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>row_limit</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Dummy</type>
+    <name>Preview role coverage</name>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

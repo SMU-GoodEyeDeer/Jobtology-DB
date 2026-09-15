@@ -1,0 +1,241 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<workflow>
+  <name>Install source-independent CS scope and reports</name>
+  <description>Install source-independent CS scope and reports</description>
+  <workflow_version>1</workflow_version>
+  <workflow_status>0</workflow_status>
+  <parameters />
+  <actions>
+    <action>
+      <name>Start</name>
+      <type>SPECIAL</type>
+      <start>Y</start>
+      <repeat>N</repeat>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+      <draw>Y</draw>
+    </action>
+    <action>
+      <name>Install 001_common_postings.sql</name>
+      <type>SQL</type>
+      <connection>jobtology-postgres</connection>
+      <sqlfromfile>Y</sqlfromfile>
+      <sqlfilename>${PROJECT_HOME}/cs/sql/001_common_postings.sql</sqlfilename>
+      <sqlfilename_encoding>UTF-8</sqlfilename_encoding>
+      <useVariableSubstitution>N</useVariableSubstitution>
+      <sendOneStatement>Y</sendOneStatement>
+      <xloc>330</xloc>
+      <yloc>80</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+    </action>
+    <action>
+      <name>Install 002_scope.sql</name>
+      <type>SQL</type>
+      <connection>jobtology-postgres</connection>
+      <sqlfromfile>Y</sqlfromfile>
+      <sqlfilename>${PROJECT_HOME}/cs/sql/002_scope.sql</sqlfilename>
+      <sqlfilename_encoding>UTF-8</sqlfilename_encoding>
+      <useVariableSubstitution>N</useVariableSubstitution>
+      <sendOneStatement>Y</sendOneStatement>
+      <xloc>580</xloc>
+      <yloc>80</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+    </action>
+    <action>
+      <name>Install 003_completion_report.sql</name>
+      <type>SQL</type>
+      <connection>jobtology-postgres</connection>
+      <sqlfromfile>Y</sqlfromfile>
+      <sqlfilename>${PROJECT_HOME}/cs/sql/003_completion_report.sql</sqlfilename>
+      <sqlfilename_encoding>UTF-8</sqlfilename_encoding>
+      <useVariableSubstitution>N</useVariableSubstitution>
+      <sendOneStatement>Y</sendOneStatement>
+      <xloc>830</xloc>
+      <yloc>80</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+    </action>
+    <action>
+      <name>Install 004_scope_packets.sql</name>
+      <type>SQL</type>
+      <connection>jobtology-postgres</connection>
+      <sqlfromfile>Y</sqlfromfile>
+      <sqlfilename>${PROJECT_HOME}/cs/sql/004_scope_packets.sql</sqlfilename>
+      <sqlfilename_encoding>UTF-8</sqlfilename_encoding>
+      <useVariableSubstitution>N</useVariableSubstitution>
+      <sendOneStatement>Y</sendOneStatement>
+      <xloc>1080</xloc>
+      <yloc>80</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+    </action>
+    <action>
+      <name>Install 005_manual_ncs_links.sql</name>
+      <type>SQL</type>
+      <connection>jobtology-postgres</connection>
+      <sqlfromfile>Y</sqlfromfile>
+      <sqlfilename>${PROJECT_HOME}/cs/sql/005_manual_ncs_links.sql</sqlfilename>
+      <sqlfilename_encoding>UTF-8</sqlfilename_encoding>
+      <useVariableSubstitution>N</useVariableSubstitution>
+      <sendOneStatement>Y</sendOneStatement>
+      <xloc>1330</xloc>
+      <yloc>80</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+    </action>
+    <action>
+      <name>Install 006_qualification_support.sql</name>
+      <type>SQL</type>
+      <connection>jobtology-postgres</connection>
+      <sqlfromfile>Y</sqlfromfile>
+      <sqlfilename>${PROJECT_HOME}/cs/sql/006_qualification_support.sql</sqlfilename>
+      <sqlfilename_encoding>UTF-8</sqlfilename_encoding>
+      <useVariableSubstitution>N</useVariableSubstitution>
+      <sendOneStatement>Y</sendOneStatement>
+      <xloc>1580</xloc>
+      <yloc>80</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+    </action>
+    <action>
+      <name>Install 007_qualification_status.sql</name>
+      <type>SQL</type>
+      <connection>jobtology-postgres</connection>
+      <sqlfromfile>Y</sqlfromfile>
+      <sqlfilename>${PROJECT_HOME}/cs/sql/007_qualification_status.sql</sqlfilename>
+      <sqlfilename_encoding>UTF-8</sqlfilename_encoding>
+      <useVariableSubstitution>N</useVariableSubstitution>
+      <sendOneStatement>Y</sendOneStatement>
+      <xloc>1830</xloc>
+      <yloc>80</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+    </action>
+    <action>
+      <name>Success</name>
+      <type>SUCCESS</type>
+      <xloc>2080</xloc>
+      <yloc>80</yloc>
+      <draw>Y</draw>
+    </action>
+    <action>
+      <name>Abort</name>
+      <type>ABORT</type>
+      <message>CS scope SQL installation failed.</message>
+      <xloc>2080</xloc>
+      <yloc>240</yloc>
+      <draw>Y</draw>
+    </action>
+  </actions>
+  <hops>
+    <hop>
+      <from>Start</from>
+      <to>Install 001_common_postings.sql</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>Y</unconditional>
+    </hop>
+    <hop>
+      <from>Install 001_common_postings.sql</from>
+      <to>Abort</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Install 001_common_postings.sql</from>
+      <to>Install 002_scope.sql</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Install 002_scope.sql</from>
+      <to>Abort</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Install 002_scope.sql</from>
+      <to>Install 003_completion_report.sql</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Install 003_completion_report.sql</from>
+      <to>Abort</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Install 003_completion_report.sql</from>
+      <to>Install 004_scope_packets.sql</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Install 004_scope_packets.sql</from>
+      <to>Abort</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Install 004_scope_packets.sql</from>
+      <to>Install 005_manual_ncs_links.sql</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Install 005_manual_ncs_links.sql</from>
+      <to>Abort</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Install 005_manual_ncs_links.sql</from>
+      <to>Install 006_qualification_support.sql</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Install 006_qualification_support.sql</from>
+      <to>Abort</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Install 006_qualification_support.sql</from>
+      <to>Install 007_qualification_status.sql</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Install 007_qualification_status.sql</from>
+      <to>Abort</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Install 007_qualification_status.sql</from>
+      <to>Success</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+  </hops>
+  <notepads />
+  <attributes />
+</workflow>

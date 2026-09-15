@@ -97,7 +97,12 @@
  SELECT u.run_id FROM ingestion.run u CROSS JOIN input i WHERE u.source_id='ncs_competency' AND u.state='READY' AND u.mode&lt;&gt;'SMOKE'
  AND (nullif(i.requested_run,'') IS NULL OR u.run_id=i.requested_run) ORDER BY u.created_at DESC,u.run_id DESC LIMIT 1)
  SELECT gen_random_uuid()::text AS run_id,dep.run_id AS input_run_id_selected,year_from,year_to,
- (i.mode IN ('FULL','SMOKE') AND nullif(i.raw_root,'') IS NOT NULL AND i.max_pages BETWEEN 1 AND 1000 AND dep.run_id IS NOT NULL AND (SELECT count(DISTINCT c.occupation_name) FROM ingestion.competency c JOIN ingestion.qualification_scope s USING(occupation_name) WHERE c.run_id=dep.run_id)=11) AS options_ok
+ (i.mode IN ('FULL','SMOKE') AND nullif(i.raw_root,'') IS NOT NULL AND i.max_pages BETWEEN 1 AND 1000 AND dep.run_id IS NOT NULL
+ AND EXISTS(SELECT 1 FROM ingestion.active_qualification_scope)
+ AND NOT EXISTS(SELECT 1 FROM ingestion.active_qualification_scope s
+                WHERE NOT EXISTS(SELECT 1 FROM ingestion.competency c
+                                 WHERE c.run_id=dep.run_id AND c.occupation_code=s.occupation_code
+                                   AND c.occupation_name=s.occupation_name))) AS options_ok
  FROM input i LEFT JOIN dep ON true</sql>
     <rowlimit>0</rowlimit>
     <outer_join>N</outer_join>
@@ -192,7 +197,11 @@
     <name>Create run and partition</name>
     <sql>WITH new_run AS (
  INSERT INTO ingestion.run(run_id,source_id,mode,parser_version,policy_revision,settings)
- VALUES (?,'ncs_qualification',?,'hop-ncs_qualification-v1','2026-09-05.1',jsonb_build_object('year_from',?::integer,'year_to',?::integer,'max_requests',?::integer)) RETURNING run_id)
+ VALUES (?,'ncs_qualification',?,'hop-ncs_qualification-v1','2026-09-05.1',jsonb_build_object(
+  'year_from',?::integer,'year_to',?::integer,'max_requests',?::integer,
+  'qualification_scope_policy','cs-it-ai-data-v1',
+  'qualification_scope_codes',(SELECT coalesce(jsonb_agg(occupation_code ORDER BY occupation_code),'[]'::jsonb)
+     FROM ingestion.active_qualification_scope))) RETURNING run_id)
  INSERT INTO ingestion.dependency(run_id,input_source_id,input_run_id) SELECT run_id,'ncs_competency',? FROM new_run</sql>
     <execute_each_row>Y</execute_each_row>
     <single_statement>Y</single_statement>

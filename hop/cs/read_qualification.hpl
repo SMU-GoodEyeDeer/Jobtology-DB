@@ -1,0 +1,114 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>read_qualification</name>
+    <description>Read current accepted in-scope role links and best-effort NCS credentials; no provider calls.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Qualification selection</from>
+      <to>Current role qualification status</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Current role qualification status</from>
+      <to>Preview qualification rows</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Qualification selection</name>
+    <fields>
+      <field>
+        <name>posting_identity</name>
+        <variable>${POSTING_IDENTITY}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>technical_only</name>
+        <variable>${TECHNICAL_ONLY}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>row_limit</name>
+        <variable>${ROW_LIMIT}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Current role qualification status</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT source_id,source_posting_id,posting_identity,role_id,role_name,binding_hash,selected_family,candidate_id,ncs_unit_code,ncs_unit_name,occupation_code,occupation_name,ncs_category,qualification_code,qualification_name,qualification_status,exam_status,jsonb_array_length(exam_sessions) AS exam_session_count,qualification_run_id,qnet_run_id FROM cs.current_role_qualification WHERE posting_identity=?::text AND (?::text='N' OR ncs_category='TECHNICAL_CATEGORY_20') ORDER BY source_id,posting_identity,role_id,ncs_unit_code,qualification_code LIMIT ?::integer</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>posting_identity</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>technical_only</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>row_limit</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Dummy</type>
+    <name>Preview qualification rows</name>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

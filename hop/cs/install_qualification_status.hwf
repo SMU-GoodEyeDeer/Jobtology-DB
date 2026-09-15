@@ -1,0 +1,76 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<workflow>
+  <name>Install CS qualification status views</name>
+  <description>Install read-only, source-qualified accepted-role qualification views</description>
+  <workflow_version>1</workflow_version>
+  <workflow_status>0</workflow_status>
+  <parameters />
+  <actions>
+    <action>
+      <name>Start</name>
+      <type>SPECIAL</type>
+      <start>Y</start>
+      <repeat>N</repeat>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+    </action>
+    <action>
+      <name>Install 007 qualification status SQL</name>
+      <type>SQL</type>
+      <connection>jobtology-postgres</connection>
+      <sqlfromfile>Y</sqlfromfile>
+      <sqlfilename>${PROJECT_HOME}/cs/sql/007_qualification_status.sql</sqlfilename>
+      <sqlfilename_encoding>UTF-8</sqlfilename_encoding>
+      <useVariableSubstitution>N</useVariableSubstitution>
+      <sendOneStatement>Y</sendOneStatement>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+    </action>
+    <action>
+      <name>Success</name>
+      <type>SUCCESS</type>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+    </action>
+    <action>
+      <name>Abort</name>
+      <type>ABORT</type>
+      <message>CS qualification status SQL installation failed.</message>
+      <xloc>560</xloc>
+      <yloc>240</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+    </action>
+  </actions>
+  <hops>
+    <hop>
+      <from>Start</from>
+      <to>Install 007 qualification status SQL</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>Y</unconditional>
+    </hop>
+    <hop>
+      <from>Install 007 qualification status SQL</from>
+      <to>Success</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Install 007 qualification status SQL</from>
+      <to>Abort</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+  </hops>
+  <notepads />
+  <attributes />
+</workflow>
