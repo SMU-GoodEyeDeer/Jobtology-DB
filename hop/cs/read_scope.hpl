@@ -1,0 +1,106 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>read_scope</name>
+    <description>Inspect source-bound candidates and reviewed role decisions.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Selection</from>
+      <to>Current roles</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Current roles</from>
+      <to>Preview roles</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Selection</name>
+    <fields>
+      <field>
+        <name>scope_status</name>
+        <variable>${SCOPE_STATUS}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>limit_rows</name>
+        <variable>${POSITION_LIMIT}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Current roles</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT source_id,source_posting_id,posting_identity,role_id,role_name,title,binding_hash,scope_status,screen_status,title_families,duty_families,category_families,selected_family,extraction_state,review_decision,role_origin,duty_text FROM cs.current_scope WHERE (?='' OR scope_status=?) ORDER BY source_id,posting_identity,role_id LIMIT ?::integer</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>scope_status</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>scope_status</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>limit_rows</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Dummy</type>
+    <name>Preview roles</name>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

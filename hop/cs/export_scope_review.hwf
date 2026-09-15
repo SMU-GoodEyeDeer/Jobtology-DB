@@ -1,0 +1,124 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<workflow>
+  <name>Export current position-scope review packet</name>
+  <description>Export current position-scope review packet</description>
+  <workflow_version>1</workflow_version>
+  <workflow_status>0</workflow_status>
+  <parameters>
+    <parameter>
+      <name>SOURCE_ID</name>
+      <default_value />
+      <description>Optional source ID. Blank selects all current sources.</description>
+    </parameter>
+    <parameter>
+      <name>SCOPE_STATUS</name>
+      <default_value>NEEDS_REVIEW</default_value>
+      <description>Current scope status to export. Blank selects all.</description>
+    </parameter>
+    <parameter>
+      <name>POSTING_IDENTITIES</name>
+      <default_value />
+      <description>Optional | separated source-qualified posting identities from read_scope.hwf.</description>
+    </parameter>
+    <parameter>
+      <name>POSITION_LIMIT</name>
+      <default_value>1000</default_value>
+      <description>Hard cap, 1–1000. Reduce the selection if exceeded.</description>
+    </parameter>
+    <parameter>
+      <name>ACTOR</name>
+      <default_value />
+      <description>Operator preparing this file, distinct from its reviewer.</description>
+    </parameter>
+    <parameter>
+      <name>REVIEW_FILE</name>
+      <default_value>${PROJECT_HOME}/data/cs/scope-review.json</default_value>
+      <description>New UTF-8 JSON file. An existing file is never overwritten.</description>
+    </parameter>
+  </parameters>
+  <actions>
+    <action>
+      <name>Start</name>
+      <type>SPECIAL</type>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <attributes />
+      <start>Y</start>
+      <repeat>N</repeat>
+      <schedulerType>0</schedulerType>
+      <intervalSeconds>0</intervalSeconds>
+      <intervalMinutes>60</intervalMinutes>
+      <DayOfMonth>1</DayOfMonth>
+      <weekDay>1</weekDay>
+      <minutes>0</minutes>
+      <hour>12</hour>
+    </action>
+    <action>
+      <name>Export role and source contexts</name>
+      <type>PIPELINE</type>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <attributes />
+      <filename>${PROJECT_HOME}/cs/export_scope_review.hpl</filename>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <run_configuration>llm-local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+    </action>
+    <action>
+      <name>Success</name>
+      <type>SUCCESS</type>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <attributes />
+    </action>
+    <action>
+      <name>Abort</name>
+      <type>ABORT</type>
+      <xloc>1040</xloc>
+      <yloc>80</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <attributes />
+      <message>CS scope review workflow failed. Inspect the PostgreSQL or Hop log.</message>
+    </action>
+  </actions>
+  <hops>
+    <hop>
+      <from>Start</from>
+      <to>Export role and source contexts</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>Y</unconditional>
+    </hop>
+    <hop>
+      <from>Export role and source contexts</from>
+      <to>Abort</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Export role and source contexts</from>
+      <to>Success</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+  </hops>
+  <notepads />
+  <attributes />
+</workflow>

@@ -1,0 +1,76 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<workflow>
+  <name>Install CS scope policy and read views</name>
+  <description>Install source-bound position scope policy and accepted extraction read views</description>
+  <workflow_version>1</workflow_version>
+  <workflow_status>0</workflow_status>
+  <parameters />
+  <actions>
+    <action>
+      <name>Start</name>
+      <type>SPECIAL</type>
+      <start>Y</start>
+      <repeat>N</repeat>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+    </action>
+    <action>
+      <name>Install scope policy SQL</name>
+      <type>SQL</type>
+      <connection>jobtology-postgres</connection>
+      <sqlfromfile>Y</sqlfromfile>
+      <sqlfilename>${PROJECT_HOME}/cs/sql/002_scope.sql</sqlfilename>
+      <sqlfilename_encoding>UTF-8</sqlfilename_encoding>
+      <useVariableSubstitution>N</useVariableSubstitution>
+      <sendOneStatement>Y</sendOneStatement>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+    </action>
+    <action>
+      <name>Success</name>
+      <type>SUCCESS</type>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+    </action>
+    <action>
+      <name>Abort</name>
+      <type>ABORT</type>
+      <message>CS scope SQL installation failed.</message>
+      <xloc>560</xloc>
+      <yloc>240</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+    </action>
+  </actions>
+  <hops>
+    <hop>
+      <from>Start</from>
+      <to>Install scope policy SQL</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>Y</unconditional>
+    </hop>
+    <hop>
+      <from>Install scope policy SQL</from>
+      <to>Success</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Install scope policy SQL</from>
+      <to>Abort</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+  </hops>
+  <notepads />
+  <attributes />
+</workflow>

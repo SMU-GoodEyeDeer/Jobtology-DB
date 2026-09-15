@@ -1,0 +1,191 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>decide_scope</name>
+    <description>Save an append-only position-scope decision bound to current evidence.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Decision</from>
+      <to>Record scope decision</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Record scope decision</from>
+      <to>Decision recorded</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Decision</name>
+    <fields>
+      <field>
+        <name>posting_identity</name>
+        <variable>${POSTING_IDENTITY}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>role_id</name>
+        <variable>${ROLE_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>binding_hash</name>
+        <variable>${BINDING_HASH}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>decision</name>
+        <variable>${DECISION}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>family</name>
+        <variable>${FAMILY}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>reviewer</name>
+        <variable>${REVIEWER}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>reviewer_kind</name>
+        <variable>${REVIEWER_KIND}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>reason</name>
+        <variable>${REASON}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Record scope decision</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT cs.decide_scope_v1(?,?,?,?::text,nullif(?::text,''),?,?,?) AS decision_id</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>POSTING_IDENTITY</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>ROLE_ID</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>BINDING_HASH</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>DECISION</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>FAMILY</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>REVIEWER</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>REVIEWER_KIND</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>REASON</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>WriteToLog</type>
+    <name>Decision recorded</name>
+    <loglevel>Basic</loglevel>
+    <displayHeader>Y</displayHeader>
+    <logmessage>The source-bound role decision was recorded; no enrichment or graph publication ran.</logmessage>
+    <fields>
+      <field>
+        <name>decision_id</name>
+      </field>
+      <field>
+        <name>posting_identity</name>
+      </field>
+      <field>
+        <name>role_id</name>
+      </field>
+      <field>
+        <name>decision</name>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

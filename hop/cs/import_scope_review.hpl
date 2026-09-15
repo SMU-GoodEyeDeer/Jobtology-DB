@@ -1,0 +1,135 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>import_scope_review</name>
+    <description>Validate every frozen role/source context and save explicit decisions atomically.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Review file</from>
+      <to>Read reviewed scope packet</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Read reviewed scope packet</from>
+      <to>Apply named scope decisions</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Apply named scope decisions</from>
+      <to>Scope review receipt</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Review file</name>
+    <fields>
+      <field>
+        <name>review_filename</name>
+        <variable>${REVIEW_FILE}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>JsonInput</type>
+    <name>Read reviewed scope packet</name>
+    <IsInFields>Y</IsInFields>
+    <IsAFile>Y</IsAFile>
+    <valueField>review_filename</valueField>
+    <removeSourceField>N</removeSourceField>
+    <ignoreMissingPath>N</ignoreMissingPath>
+    <defaultPathLeafToNull>Y</defaultPathLeafToNull>
+    <doNotFailIfNoFile>N</doNotFailIfNoFile>
+    <fields>
+      <field>
+        <name>review_json</name>
+        <path>$</path>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+        <repeat>N</repeat>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Apply named scope decisions</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT cs.apply_scope_review_v1(?::jsonb)::text AS receipt</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>review_json</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>WriteToLog</type>
+    <name>Scope review receipt</name>
+    <loglevel>Basic</loglevel>
+    <displayHeader>Y</displayHeader>
+    <logmessage>Position decisions were saved. Assess scope before publishing NCS links.</logmessage>
+    <fields>
+      <field>
+        <name>receipt</name>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>800</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

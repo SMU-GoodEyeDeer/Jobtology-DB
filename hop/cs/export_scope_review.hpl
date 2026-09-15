@@ -1,0 +1,178 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>export_scope_review</name>
+    <description>Write current source-bound role contexts and blank explicit review decisions.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Review selection</from>
+      <to>Build frozen role packet</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Build frozen role packet</from>
+      <to>Save scope packet</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Save scope packet</from>
+      <to>Scope packet written</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Review selection</name>
+    <fields>
+      <field>
+        <name>source_filter</name>
+        <variable>${SOURCE_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>status_filter</name>
+        <variable>${SCOPE_STATUS}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>posting_identities</name>
+        <variable>${POSTING_IDENTITIES}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>cap</name>
+        <variable>${POSITION_LIMIT}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>actor</name>
+        <variable>${ACTOR}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>review_filename</name>
+        <variable>${REVIEW_FILE}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Build frozen role packet</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT convert_to(jsonb_pretty(cs.prepare_scope_review_v1(?,?,?,?::integer,?)),'UTF8') AS review_bytes</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>source_filter</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>status_filter</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>posting_identities</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>cap</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>actor</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>BinaryFileOutput</type>
+    <name>Save scope packet</name>
+    <binaryfield>review_bytes</binaryfield>
+    <filenamefield>review_filename</filenamefield>
+    <createparentfolder>Y</createparentfolder>
+    <overwritefile>N</overwritefile>
+    <addresultfilenames>N</addresultfilenames>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>WriteToLog</type>
+    <name>Scope packet written</name>
+    <loglevel>Basic</loglevel>
+    <displayHeader>Y</displayHeader>
+    <logmessage>Name the reviewer and fill explicit decisions, families and source-grounded notes.</logmessage>
+    <fields>
+      <field>
+        <name>review_filename</name>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>800</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>
