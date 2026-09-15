@@ -1,0 +1,245 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>finish_link_publication</name>
+    <description>Check current PostgreSQL decisions before activating the verified graph.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Publication</from>
+      <to>Confirm source and decisions unchanged</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Confirm source and decisions unchanged</from>
+      <to>Expected total</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Expected total</from>
+      <to>Activate verified projection</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Activate verified projection</from>
+      <to>Verified</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Verified</from>
+      <to>Save checkpoint</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Verified</from>
+      <to>Mismatch</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Publication</name>
+    <fields>
+      <field>
+        <name>publication_id</name>
+        <variable>${LINK_PUBLICATION_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>ExecSql</type>
+    <name>Confirm source and decisions unchanged</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT enrichment.check_link_publication(?)</sql>
+    <execute_each_row>Y</execute_each_row>
+    <single_statement>Y</single_statement>
+    <set_params>Y</set_params>
+    <replace_variables>N</replace_variables>
+    <quoteString>N</quoteString>
+    <arguments>
+      <argument>
+        <name>publication_id</name>
+      </argument>
+    </arguments>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Expected total</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT count(*)::bigint AS posting_count FROM enrichment.link_publication_item WHERE publication_id=?</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>publication_id</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Neo4jCypherOutput</type>
+    <name>Activate verified projection</name>
+    <connection>${NEO4J_CONNECTION}</connection>
+    <cypher>MATCH (m:reviewedNcsPublication {id:'jobtology-reviewed-ncs',publication_id:$publication_id,state:'LOADING'})
+OPTIONAL MATCH (e:reviewedNcsEnrichment {managed_by:'jobtology-reviewed-ncs',publication_id:$publication_id})
+WITH m,collect(e) AS nodes WHERE size(nodes)=$posting_count
+FOREACH (e IN nodes | SET e.current=true)
+SET m.state='READY',m.postings=$posting_count
+RETURN count(m)=1 AS verified</cypher>
+    <batch_size>1</batch_size>
+    <read_only>N</read_only>
+    <retry>N</retry>
+    <nr_retries_on_error>0</nr_retries_on_error>
+    <cypher_from_field>N</cypher_from_field>
+    <unwind>N</unwind>
+    <returning_graph>N</returning_graph>
+    <mappings>
+      <mapping>
+        <parameter>publication_id</parameter>
+        <field>publication_id</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>posting_count</parameter>
+        <field>posting_count</field>
+        <type>Integer</type>
+      </mapping>
+    </mappings>
+    <returns>
+      <return>
+        <name>verified</name>
+        <type>Boolean</type>
+        <source_type>Boolean</source_type>
+      </return>
+    </returns>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>800</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>Verified</name>
+    <send_true_to>Save checkpoint</send_true_to>
+    <send_false_to>Mismatch</send_false_to>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>verified</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Boolean</type>
+          <text>Y</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>1040</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>ExecSql</type>
+    <name>Save checkpoint</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT enrichment.finish_link_publication(?,true)</sql>
+    <execute_each_row>Y</execute_each_row>
+    <single_statement>Y</single_statement>
+    <set_params>Y</set_params>
+    <replace_variables>N</replace_variables>
+    <quoteString>N</quoteString>
+    <arguments>
+      <argument>
+        <name>publication_id</name>
+      </argument>
+    </arguments>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>240</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Abort</type>
+    <name>Mismatch</name>
+    <message>Graph totals differ; projection not activated.</message>
+    <always_log_rows>N</always_log_rows>
+    <abort_option>ABORT_WITH_ERROR</abort_option>
+    <row_threshold>0</row_threshold>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>240</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

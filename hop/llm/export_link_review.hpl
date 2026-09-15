@@ -1,0 +1,169 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>export_link_review</name>
+    <description>Capture validated production outputs and write a review packet; no decisions are made.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Review options</from>
+      <to>Build review packet</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Build review packet</from>
+      <to>Save review packet</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Save review packet</from>
+      <to>Review file written</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Review options</name>
+    <fields>
+      <field>
+        <name>batch_id</name>
+        <variable>${BATCH_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>posting_ids</name>
+        <variable>${POSTING_IDS}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>cap</name>
+        <variable>${POSTING_LIMIT}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>actor</name>
+        <variable>${ACTOR}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>review_filename</name>
+        <variable>${REVIEW_FILE}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Build review packet</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT convert_to(jsonb_pretty(enrichment.prepare_link_review(?,?,?::integer,?)),'UTF8') AS review_bytes</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>batch_id</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>posting_ids</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>cap</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>actor</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>BinaryFileOutput</type>
+    <name>Save review packet</name>
+    <binaryfield>review_bytes</binaryfield>
+    <filenamefield>review_filename</filenamefield>
+    <createparentfolder>Y</createparentfolder>
+    <overwritefile>N</overwritefile>
+    <addresultfilenames>N</addresultfilenames>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>WriteToLog</type>
+    <name>Review file written</name>
+    <loglevel>Basic</loglevel>
+    <displayHeader>Y</displayHeader>
+    <logmessage>Fill named reviewer, explicit decisions and notes. Null decisions remain pending.</logmessage>
+    <fields>
+      <field>
+        <name>batch_id</name>
+      </field>
+      <field>
+        <name>review_filename</name>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>800</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

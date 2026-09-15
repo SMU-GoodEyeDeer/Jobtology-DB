@@ -1,0 +1,227 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>load_link_postings</name>
+    <description>Load accepted extraction revisions with model, source and review provenance.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Publication</from>
+      <to>Frozen postings</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Frozen postings</from>
+      <to>Merge reviewed extraction</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Merge reviewed extraction</from>
+      <to>Verified</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Verified</from>
+      <to>Done</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Verified</from>
+      <to>Mismatch</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Publication</name>
+    <fields>
+      <field>
+        <name>publication_id</name>
+        <variable>${LINK_PUBLICATION_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Frozen postings</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT *,payload::text AS payload_json FROM enrichment.link_publication_item WHERE publication_id=? ORDER BY posting_id</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>publication_id</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Neo4jCypherOutput</type>
+    <name>Merge reviewed extraction</name>
+    <connection>${NEO4J_CONNECTION}</connection>
+    <cypher>MATCH (p:jobPosting {id:$posting_identity})
+MERGE (e:reviewedNcsEnrichment {id:$enrichment_id}) SET e:jobEnrichment
+SET e.managed_by='jobtology-reviewed-ncs',e.name=$name,e.posting_id=$posting_id,e.payload_json=$payload_json,
+e.payload_hash=$payload_hash,e.publication_id=$publication_id,e.current=false
+MERGE (p)-[:HAS_ENRICHMENT]-&gt;(e)
+RETURN count(e)=1 AS verified</cypher>
+    <batch_size>1</batch_size>
+    <read_only>N</read_only>
+    <retry>N</retry>
+    <nr_retries_on_error>0</nr_retries_on_error>
+    <cypher_from_field>N</cypher_from_field>
+    <unwind>N</unwind>
+    <returning_graph>N</returning_graph>
+    <mappings>
+      <mapping>
+        <parameter>publication_id</parameter>
+        <field>publication_id</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>posting_id</parameter>
+        <field>posting_id</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>enrichment_id</parameter>
+        <field>enrichment_id</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>posting_identity</parameter>
+        <field>posting_identity</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>name</parameter>
+        <field>name</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>payload_json</parameter>
+        <field>payload_json</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>payload_hash</parameter>
+        <field>payload_hash</field>
+        <type>String</type>
+      </mapping>
+    </mappings>
+    <returns>
+      <return>
+        <name>verified</name>
+        <type>Boolean</type>
+        <source_type>Boolean</source_type>
+      </return>
+    </returns>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>Verified</name>
+    <send_true_to>Done</send_true_to>
+    <send_false_to>Mismatch</send_false_to>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>verified</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Boolean</type>
+          <text>Y</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>800</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Dummy</type>
+    <name>Done</name>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>1040</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Abort</type>
+    <name>Mismatch</name>
+    <message>Reviewed-link projection differs from PostgreSQL. It has not been activated.</message>
+    <always_log_rows>N</always_log_rows>
+    <abort_option>ABORT_WITH_ERROR</abort_option>
+    <row_threshold>0</row_threshold>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>240</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

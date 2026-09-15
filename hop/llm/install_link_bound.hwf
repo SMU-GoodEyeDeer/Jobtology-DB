@@ -1,0 +1,58 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<workflow>
+  <name>Install posting-bound linking requests</name>
+  <description>Install new request schemas and their independent validator without replaying historical attempts.</description>
+  <workflow_version>1</workflow_version>
+  <workflow_status>0</workflow_status>
+  <parameters />
+  <actions>
+    <action>
+      <name>Start</name><type>SPECIAL</type><xloc>80</xloc><yloc>80</yloc><draw>Y</draw><parallel>N</parallel>
+      <attributes /><start>Y</start><repeat>N</repeat><schedulerType>0</schedulerType><intervalSeconds>0</intervalSeconds>
+      <intervalMinutes>60</intervalMinutes><DayOfMonth>1</DayOfMonth><weekDay>1</weekDay><minutes>0</minutes><hour>12</hour>
+    </action>
+    <action>
+      <name>Success</name><type>SUCCESS</type><xloc>1040</xloc><yloc>80</yloc><draw>Y</draw><parallel>N</parallel><attributes />
+    </action>
+    <action>
+      <name>Abort</name><type>ABORT</type><xloc>1040</xloc><yloc>240</yloc><draw>Y</draw><parallel>N</parallel><attributes />
+      <message>Posting-bound SQL installation failed. Inspect the preceding SQL action.</message>
+    </action>
+    <action>
+      <name>Install posting-bound schema</name><type>SQL</type><connection>jobtology-postgres</connection>
+      <sqlfromfile>Y</sqlfromfile><sqlfilename>${PROJECT_HOME}/llm/sql/025_link_bound_requests.sql</sqlfilename>
+      <sqlfilename_encoding>UTF-8</sqlfilename_encoding><useVariableSubstitution>N</useVariableSubstitution>
+      <sendOneStatement>Y</sendOneStatement><xloc>320</xloc><yloc>80</yloc><draw>Y</draw><parallel>N</parallel>
+    </action>
+    <action>
+      <name>Install request planner</name><type>SQL</type><connection>jobtology-postgres</connection>
+      <sqlfromfile>Y</sqlfromfile><sqlfilename>${PROJECT_HOME}/llm/sql/003_planning.sql</sqlfilename>
+      <sqlfilename_encoding>UTF-8</sqlfilename_encoding><useVariableSubstitution>N</useVariableSubstitution>
+      <sendOneStatement>Y</sendOneStatement><xloc>560</xloc><yloc>80</yloc><draw>Y</draw><parallel>N</parallel>
+    </action>
+    <action>
+      <name>Install saved-schema validator</name><type>SQL</type><connection>jobtology-postgres</connection>
+      <sqlfromfile>Y</sqlfromfile><sqlfilename>${PROJECT_HOME}/llm/sql/004_validation.sql</sqlfilename>
+      <sqlfilename_encoding>UTF-8</sqlfilename_encoding><useVariableSubstitution>N</useVariableSubstitution>
+      <sendOneStatement>Y</sendOneStatement><xloc>800</xloc><yloc>80</yloc><draw>Y</draw><parallel>N</parallel>
+    </action>
+    <action>
+      <name>Install rendered-fragment suggestions</name><type>SQL</type><connection>jobtology-postgres</connection>
+      <sqlfromfile>Y</sqlfromfile><sqlfilename>${PROJECT_HOME}/llm/sql/026_rendered_fragment_rebinding.sql</sqlfilename>
+      <sqlfilename_encoding>UTF-8</sqlfilename_encoding><useVariableSubstitution>N</useVariableSubstitution>
+      <sendOneStatement>Y</sendOneStatement><xloc>1040</xloc><yloc>80</yloc><draw>Y</draw><parallel>N</parallel>
+    </action>
+  </actions>
+  <hops>
+    <hop><from>Start</from><to>Install posting-bound schema</to><enabled>Y</enabled><evaluation>Y</evaluation><unconditional>Y</unconditional></hop>
+    <hop><from>Install posting-bound schema</from><to>Install request planner</to><enabled>Y</enabled><evaluation>Y</evaluation><unconditional>N</unconditional></hop>
+    <hop><from>Install posting-bound schema</from><to>Abort</to><enabled>Y</enabled><evaluation>N</evaluation><unconditional>N</unconditional></hop>
+    <hop><from>Install request planner</from><to>Install saved-schema validator</to><enabled>Y</enabled><evaluation>Y</evaluation><unconditional>N</unconditional></hop>
+    <hop><from>Install request planner</from><to>Abort</to><enabled>Y</enabled><evaluation>N</evaluation><unconditional>N</unconditional></hop>
+    <hop><from>Install saved-schema validator</from><to>Install rendered-fragment suggestions</to><enabled>Y</enabled><evaluation>Y</evaluation><unconditional>N</unconditional></hop>
+    <hop><from>Install saved-schema validator</from><to>Abort</to><enabled>Y</enabled><evaluation>N</evaluation><unconditional>N</unconditional></hop>
+    <hop><from>Install rendered-fragment suggestions</from><to>Success</to><enabled>Y</enabled><evaluation>Y</evaluation><unconditional>N</unconditional></hop>
+    <hop><from>Install rendered-fragment suggestions</from><to>Abort</to><enabled>Y</enabled><evaluation>N</evaluation><unconditional>N</unconditional></hop>
+  </hops>
+  <notepads /><attributes />
+</workflow>

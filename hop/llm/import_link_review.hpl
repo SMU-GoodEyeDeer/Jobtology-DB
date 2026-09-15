@@ -1,0 +1,135 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>import_link_review</name>
+    <description>Apply explicit reviewed decisions atomically; reject changed source/context or stale decisions.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Review file</from>
+      <to>Read review packet</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Read review packet</from>
+      <to>Apply explicit decisions</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Apply explicit decisions</from>
+      <to>Review receipt</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Review file</name>
+    <fields>
+      <field>
+        <name>review_filename</name>
+        <variable>${REVIEW_FILE}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>JsonInput</type>
+    <name>Read review packet</name>
+    <IsInFields>Y</IsInFields>
+    <IsAFile>Y</IsAFile>
+    <valueField>review_filename</valueField>
+    <removeSourceField>N</removeSourceField>
+    <ignoreMissingPath>N</ignoreMissingPath>
+    <defaultPathLeafToNull>Y</defaultPathLeafToNull>
+    <doNotFailIfNoFile>N</doNotFailIfNoFile>
+    <fields>
+      <field>
+        <name>review_json</name>
+        <path>$</path>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+        <repeat>N</repeat>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Apply explicit decisions</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT enrichment.apply_link_review(?::jsonb)::text AS outcome</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>review_json</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>WriteToLog</type>
+    <name>Review receipt</name>
+    <loglevel>Basic</loglevel>
+    <displayHeader>Y</displayHeader>
+    <logmessage>No graph write occurred. Run publish_links.hwf after review.</logmessage>
+    <fields>
+      <field>
+        <name>outcome</name>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>800</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>
