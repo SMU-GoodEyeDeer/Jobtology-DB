@@ -1,0 +1,144 @@
+{
+  "schema_version": "attachment-source-assertions-v1",
+  "reviewer": "assistant:source-review-20260912",
+  "reviewer_kind": "assistant",
+  "status": "PROVISIONAL_PARTIAL_ASSERTIONS",
+  "job_run_id": "7c34eb6b-0e8f-4deb-a93b-9d336762f8be",
+  "ncs_run_id": "a32170ed-7485-4e31-82d3-ed48b3398946",
+  "attachment_batch_id": "attachments-20260912-three-postings",
+  "notes": [
+    "Source-located assertions for future attachment-aware regression. Not human gold, full source review, production acceptance, or an accuracy score.",
+    "Do not include assertions in model input. The legacy inline evaluation importer does not support this input contract.",
+    "Base-code declarations do not establish an NCS standard version. The catalogue also contains a document-writing unit; it remains an example here."
+  ],
+  "assertions": [
+    {
+      "posting_id": "303324",
+      "kind": "required_conjunction",
+      "expected": "Medical licence AND specialist certification must remain a conjunction.",
+      "evidence": {
+        "file_id": "3065270",
+        "filename": "직무기술서(의사직).hwp",
+        "raw_sha256": "0dcb9e3610d8b3b54ead21d9107ef54ce40b81fde54ade8721a178bbb4bcafc7",
+        "locator": "body:1",
+        "section_sha256": "9d1cf600cf136b180b1c406e830c5761c9cceed1732dbe02fc1f237e9c8f7686",
+        "start_offset": 412,
+        "end_offset": 431,
+        "offset_unit": "UNICODE_CODE_POINT",
+        "excerpt": "의사면허증 및 전문의 자격증 소지자"
+      }
+    },
+    {
+      "posting_id": "303324",
+      "kind": "conditional_duty",
+      "expected": "Retain the conditional nature of clinical education and research.",
+      "evidence": {
+        "file_id": "3065270",
+        "filename": "직무기술서(의사직).hwp",
+        "raw_sha256": "0dcb9e3610d8b3b54ead21d9107ef54ce40b81fde54ade8721a178bbb4bcafc7",
+        "locator": "body:1",
+        "section_sha256": "9d1cf600cf136b180b1c406e830c5761c9cceed1732dbe02fc1f237e9c8f7686",
+        "start_offset": 290,
+        "end_offset": 309,
+        "offset_unit": "UNICODE_CODE_POINT",
+        "excerpt": "필요 시 임상교육 및 연구 등 시행"
+      }
+    },
+    {
+      "posting_id": "304739",
+      "kind": "declared_competency_base",
+      "expected": "An actual primary-competency reference; the source does not identify a standard version.",
+      "evidence": {
+        "file_id": "3073722",
+        "filename": "직무기술서(기술직).hwp",
+        "raw_sha256": "0c405b3167cb26d171ad63c7266874c2c040f7758a2da221e015b713ff6de52d",
+        "locator": "body:1",
+        "section_sha256": "82595bd68ccdd14d5f9e02971d169638a81dc26305489041d6252dbbd72de9dd",
+        "start_offset": 1027,
+        "end_offset": 1049,
+        "offset_unit": "UNICODE_CODE_POINT",
+        "excerpt": "1002020101. 주거용건물 유지관리"
+      }
+    },
+    {
+      "posting_id": "304739",
+      "kind": "declared_competency_base",
+      "expected": "An actual primary-competency reference; the source does not identify a standard version.",
+      "evidence": {
+        "file_id": "3073722",
+        "filename": "직무기술서(기술직).hwp",
+        "raw_sha256": "0c405b3167cb26d171ad63c7266874c2c040f7758a2da221e015b713ff6de52d",
+        "locator": "body:1",
+        "section_sha256": "82595bd68ccdd14d5f9e02971d169638a81dc26305489041d6252dbbd72de9dd",
+        "start_offset": 1052,
+        "end_offset": 1071,
+        "offset_unit": "UNICODE_CODE_POINT",
+        "excerpt": "1002020103. 주택 안전관리"
+      }
+    },
+    {
+      "posting_id": "304739",
+      "kind": "example_not_job_mapping",
+      "expected": "This appears as an example of code structure. Its presence alone must not create a job-to-document-writing competency mapping.",
+      "evidence": {
+        "file_id": "3073722",
+        "filename": "직무기술서(기술직).hwp",
+        "raw_sha256": "0c405b3167cb26d171ad63c7266874c2c040f7758a2da221e015b713ff6de52d",
+        "locator": "body:1",
+        "section_sha256": "82595bd68ccdd14d5f9e02971d169638a81dc26305489041d6252dbbd72de9dd",
+        "start_offset": 973,
+        "end_offset": 1002,
+        "offset_unit": "UNICODE_CODE_POINT",
+        "excerpt": "능력단위 코드 예시 : 0202030201. 문서작성"
+      }
+    },
+    {
+      "posting_id": "304739",
+      "kind": "age_limit_qualifies_unrestricted",
+      "expected": "The notice limits the general unrestricted-age wording; generic job-description metadata must not erase this limit.",
+      "evidence": {
+        "file_id": "3073720",
+        "filename": "NCS 채용공고문(경기북부지사 관할 권역(파주고양김포 권역) 기술직 1명) 긴급.hwpx",
+        "raw_sha256": "c802a04f820c82e494c2421e2b031131168abb721f7bc4a8c05e79067fbbe913",
+        "locator": "zip:Contents/section0.xml",
+        "section_sha256": "6831c4d18bdeead472df1179a9005563f1090b3e8125bcb4627dfcaf1f4eaacd",
+        "start_offset": 4800,
+        "end_offset": 4814,
+        "offset_unit": "UNICODE_CODE_POINT",
+        "excerpt": "정년(만60세) 이하인 자"
+      }
+    },
+    {
+      "posting_id": "304739",
+      "kind": "conditional_permission",
+      "expected": "Discharge by the final-result announcement date and ability to participate are conditions on permission to apply, not a blanket waiver of military compliance.",
+      "evidence": {
+        "file_id": "3073720",
+        "filename": "NCS 채용공고문(경기북부지사 관할 권역(파주고양김포 권역) 기술직 1명) 긴급.hwpx",
+        "raw_sha256": "c802a04f820c82e494c2421e2b031131168abb721f7bc4a8c05e79067fbbe913",
+        "locator": "zip:Contents/section0.xml",
+        "section_sha256": "6831c4d18bdeead472df1179a9005563f1090b3e8125bcb4627dfcaf1f4eaacd",
+        "start_offset": 4892,
+        "end_offset": 4932,
+        "offset_unit": "UNICODE_CODE_POINT",
+        "excerpt": "최종 합격자 발표일까지 전역예정자  로서 전형절차에 응시가능자 지원 가능"
+      }
+    },
+    {
+      "posting_id": "304817",
+      "kind": "undeveloped_classification",
+      "expected": "The document explicitly labels the clinical classification undeveloped; do not invent a versioned NCS unit from this heading.",
+      "evidence": {
+        "file_id": "3074134",
+        "filename": "[붙임] 직무기술서(의사직_호흡기내과).pdf",
+        "raw_sha256": "11ebd304a82dbe2fedc1ff772607f586551c6420c9f2fd080b042b4d1883d2f7",
+        "locator": "page:1",
+        "section_sha256": "b5e77e9850ead9777917129ee66da6325b8bd8feb361b41488724650aaeade01",
+        "start_offset": 155,
+        "end_offset": 164,
+        "offset_unit": "UNICODE_CODE_POINT",
+        "excerpt": "임상의학(미개발)"
+      }
+    }
+  ]
+}

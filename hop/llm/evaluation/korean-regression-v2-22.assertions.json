@@ -1,0 +1,570 @@
+{
+  "dataset_id": "korean-regression-v2-22",
+  "reviewer": "assistant:provisional-source-review:2026-09-12",
+  "cases": [
+    {
+      "posting_id": "304450",
+      "labels": {
+        "requirements": [
+          {
+            "field": "education",
+            "quote": "학력무관",
+            "category": "education",
+            "kind": "unrestricted",
+            "importance": "unrestricted",
+            "logic": "single",
+            "check_logic": false
+          }
+        ],
+        "duties": [],
+        "ncs_codes": [],
+        "requirements_complete": false,
+        "duties_complete": true,
+        "ncs_complete": true
+      }
+    },
+    {
+      "posting_id": "304648",
+      "labels": {
+        "requirements": [
+          {
+            "field": "education",
+            "quote": "학력무관",
+            "category": "education",
+            "kind": "unrestricted",
+            "importance": "unrestricted",
+            "logic": "single",
+            "check_logic": false
+          }
+        ],
+        "duties": [],
+        "ncs_codes": [],
+        "requirements_complete": false,
+        "duties_complete": true,
+        "ncs_complete": true
+      }
+    },
+    {
+      "posting_id": "304574",
+      "labels": {
+        "requirements": [
+          {
+            "field": "education",
+            "quote": "학력무관",
+            "category": "education",
+            "kind": "unrestricted",
+            "importance": "unrestricted",
+            "logic": "single",
+            "check_logic": false
+          },
+          {
+            "field": "preference_text",
+            "quote": "건설업 기초안전보건교육 수료장",
+            "category": "qualification",
+            "kind": "preference",
+            "importance": "preferred",
+            "logic": "single",
+            "check_logic": false
+          }
+        ],
+        "duties": [],
+        "ncs_codes": [],
+        "requirements_complete": false,
+        "duties_complete": true,
+        "ncs_complete": true
+      }
+    },
+    {
+      "posting_id": "298713",
+      "labels": {
+        "requirements": [
+          {
+            "field": "education",
+            "quote": "학력무관",
+            "category": "education",
+            "kind": "unrestricted",
+            "importance": "unrestricted",
+            "logic": "single",
+            "check_logic": false
+          }
+        ],
+        "duties": [],
+        "ncs_codes": [],
+        "requirements_complete": false,
+        "duties_complete": true,
+        "ncs_complete": true
+      }
+    },
+    {
+      "posting_id": "304237",
+      "labels": {
+        "requirements": [
+          {
+            "field": "education",
+            "quote": "학력무관",
+            "category": "education",
+            "kind": "unrestricted",
+            "importance": "unrestricted",
+            "logic": "single",
+            "check_logic": false
+          }
+        ],
+        "duties": [],
+        "ncs_codes": [],
+        "requirements_complete": false,
+        "duties_complete": true,
+        "ncs_complete": true
+      }
+    },
+    {
+      "posting_id": "304400",
+      "labels": {
+        "requirements": [
+          {
+            "field": "disqualification_text",
+            "quote": "병역법 제76조 제1항 각 호에 따른 병역의무 불이행자",
+            "category": "other",
+            "kind": "exclusion",
+            "importance": "excluded",
+            "logic": "single",
+            "check_logic": false
+          }
+        ],
+        "duties": [],
+        "ncs_codes": [],
+        "requirements_complete": false,
+        "duties_complete": true,
+        "ncs_complete": true
+      }
+    },
+    {
+      "posting_id": "304630",
+      "labels": {
+        "requirements": [
+          {
+            "field": "education",
+            "quote": "학력무관",
+            "category": "education",
+            "kind": "unrestricted",
+            "importance": "unrestricted",
+            "logic": "single",
+            "check_logic": false
+          },
+          {
+            "field": "eligibility_text",
+            "quote": "언어재활사 자격 소지자",
+            "category": "qualification",
+            "kind": "eligibility",
+            "importance": "required",
+            "logic": "single",
+            "check_logic": false
+          },
+          {
+            "field": "eligibility_text",
+            "quote": "인공와우 재활치료 경력자",
+            "category": "experience",
+            "kind": "preference",
+            "importance": "preferred",
+            "logic": "single",
+            "check_logic": false
+          },
+          {
+            "field": "eligibility_text",
+            "quote": "종합병원급 근무 경험자",
+            "category": "experience",
+            "kind": "preference",
+            "importance": "preferred",
+            "logic": "single",
+            "check_logic": false
+          }
+        ],
+        "duties": [],
+        "ncs_codes": [],
+        "requirements_complete": false,
+        "duties_complete": true,
+        "ncs_complete": true
+      }
+    },
+    {
+      "posting_id": "300965",
+      "labels": {
+        "requirements": [
+          {
+            "field": "education",
+            "quote": "대졸(4년),석사,박사",
+            "category": "education",
+            "kind": "eligibility",
+            "importance": "required",
+            "logic": "any_of"
+          }
+        ],
+        "duties": [],
+        "ncs_codes": [],
+        "requirements_complete": false,
+        "duties_complete": true,
+        "ncs_complete": true
+      }
+    },
+    {
+      "posting_id": "304717",
+      "labels": {
+        "requirements": [],
+        "duties": [],
+        "ncs_codes": [],
+        "requirements_complete": false,
+        "duties_complete": true,
+        "ncs_complete": true
+      }
+    },
+    {
+      "posting_id": "304830",
+      "labels": {
+        "requirements": [
+          {
+            "field": "education",
+            "quote": "학력무관",
+            "category": "education",
+            "kind": "unrestricted",
+            "importance": "unrestricted",
+            "logic": "single",
+            "check_logic": false
+          },
+          {
+            "field": "disqualification_text",
+            "quote": "파산선고를 받고 복권되지 아니한 사람",
+            "category": "other",
+            "kind": "exclusion",
+            "importance": "excluded",
+            "logic": "single",
+            "check_logic": false
+          }
+        ],
+        "duties": [],
+        "ncs_codes": [],
+        "requirements_complete": false,
+        "duties_complete": true,
+        "ncs_complete": true
+      }
+    },
+    {
+      "posting_id": "304846",
+      "labels": {
+        "requirements": [
+          {
+            "field": "education",
+            "quote": "학력무관",
+            "category": "education",
+            "kind": "unrestricted",
+            "importance": "unrestricted",
+            "logic": "single",
+            "check_logic": false
+          }
+        ],
+        "duties": [],
+        "ncs_codes": [],
+        "requirements_complete": false,
+        "duties_complete": true,
+        "ncs_complete": true
+      }
+    },
+    {
+      "posting_id": "304676",
+      "labels": {
+        "requirements": [
+          {
+            "field": "education",
+            "quote": "학력무관",
+            "category": "education",
+            "kind": "unrestricted",
+            "importance": "unrestricted",
+            "logic": "single",
+            "check_logic": false
+          },
+          {
+            "field": "eligibility_text",
+            "quote": "국가기술자격법상 에너지관리기능사 이상의 자격증 소지자",
+            "category": "qualification",
+            "kind": "eligibility",
+            "importance": "required",
+            "logic": "single",
+            "check_logic": false
+          }
+        ],
+        "duties": [],
+        "ncs_codes": [],
+        "requirements_complete": false,
+        "duties_complete": true,
+        "ncs_complete": true
+      }
+    },
+    {
+      "posting_id": "299690",
+      "labels": {
+        "requirements": [
+          {
+            "field": "education",
+            "quote": "대졸(4년),석사,박사",
+            "category": "education",
+            "kind": "eligibility",
+            "importance": "required",
+            "logic": "any_of"
+          }
+        ],
+        "duties": [],
+        "ncs_codes": [],
+        "requirements_complete": false,
+        "duties_complete": true,
+        "ncs_complete": true
+      }
+    },
+    {
+      "posting_id": "304445",
+      "labels": {
+        "requirements": [
+          {
+            "field": "education",
+            "quote": "학력무관",
+            "category": "education",
+            "kind": "unrestricted",
+            "importance": "unrestricted",
+            "logic": "single",
+            "check_logic": false
+          }
+        ],
+        "duties": [],
+        "ncs_codes": [],
+        "requirements_complete": false,
+        "duties_complete": true,
+        "ncs_complete": true
+      }
+    },
+    {
+      "posting_id": "304741",
+      "labels": {
+        "requirements": [
+          {
+            "field": "education",
+            "quote": "학력무관",
+            "category": "education",
+            "kind": "unrestricted",
+            "importance": "unrestricted",
+            "logic": "single",
+            "check_logic": false
+          }
+        ],
+        "duties": [],
+        "ncs_codes": [],
+        "requirements_complete": false,
+        "duties_complete": true,
+        "ncs_complete": true
+      }
+    },
+    {
+      "posting_id": "304660",
+      "labels": {
+        "requirements": [
+          {
+            "field": "education",
+            "quote": "학력무관",
+            "category": "education",
+            "kind": "unrestricted",
+            "importance": "unrestricted",
+            "logic": "single",
+            "check_logic": false
+          },
+          {
+            "field": "eligibility_text",
+            "quote": "간호사 면허증 소지자 또는 간호사 증명서 소지자",
+            "category": "qualification",
+            "kind": "eligibility",
+            "importance": "required",
+            "logic": "any_of"
+          },
+          {
+            "field": "disqualification_text",
+            "quote": "파산자로서 복권되지 아니한 자",
+            "category": "other",
+            "kind": "exclusion",
+            "importance": "excluded",
+            "logic": "single",
+            "check_logic": false
+          }
+        ],
+        "duties": [],
+        "ncs_codes": [],
+        "requirements_complete": false,
+        "duties_complete": true,
+        "ncs_complete": true
+      }
+    },
+    {
+      "posting_id": "304844",
+      "labels": {
+        "requirements": [
+          {
+            "field": "education",
+            "quote": "학력무관",
+            "category": "education",
+            "kind": "unrestricted",
+            "importance": "unrestricted",
+            "logic": "single",
+            "check_logic": false
+          },
+          {
+            "field": "disqualification_text",
+            "quote": "채용구비서류에 허위사실이 발견된 자",
+            "category": "other",
+            "kind": "exclusion",
+            "importance": "excluded",
+            "logic": "single",
+            "check_logic": false
+          }
+        ],
+        "duties": [],
+        "ncs_codes": [],
+        "requirements_complete": false,
+        "duties_complete": true,
+        "ncs_complete": true
+      }
+    },
+    {
+      "posting_id": "304165",
+      "labels": {
+        "requirements": [
+          {
+            "field": "education",
+            "quote": "대졸(4년),석사,박사",
+            "category": "education",
+            "kind": "eligibility",
+            "importance": "required",
+            "logic": "any_of"
+          }
+        ],
+        "duties": [],
+        "ncs_codes": [],
+        "requirements_complete": false,
+        "duties_complete": true,
+        "ncs_complete": true
+      }
+    },
+    {
+      "posting_id": "295717",
+      "labels": {
+        "requirements": [
+          {
+            "field": "education",
+            "quote": "석사,박사",
+            "category": "education",
+            "kind": "eligibility",
+            "importance": "required",
+            "logic": "any_of"
+          }
+        ],
+        "duties": [],
+        "ncs_codes": [],
+        "requirements_complete": false,
+        "duties_complete": true,
+        "ncs_complete": true
+      }
+    },
+    {
+      "posting_id": "304739",
+      "labels": {
+        "requirements": [
+          {
+            "field": "education",
+            "quote": "학력무관",
+            "category": "education",
+            "kind": "unrestricted",
+            "importance": "unrestricted",
+            "logic": "single",
+            "check_logic": false
+          }
+        ],
+        "duties": [],
+        "ncs_codes": [],
+        "requirements_complete": false,
+        "duties_complete": true,
+        "ncs_complete": true
+      }
+    },
+    {
+      "posting_id": "304435",
+      "labels": {
+        "requirements": [
+          {
+            "field": "education",
+            "quote": "고졸",
+            "category": "education",
+            "kind": "eligibility",
+            "importance": "required",
+            "logic": "single",
+            "check_logic": false
+          },
+          {
+            "field": "eligibility_text",
+            "quote": "임상병리사 면허 소지자",
+            "category": "qualification",
+            "kind": "eligibility",
+            "importance": "required",
+            "logic": "single",
+            "check_logic": false
+          },
+          {
+            "field": "eligibility_text",
+            "quote": "장례지도사 자격증 소지자",
+            "category": "qualification",
+            "kind": "eligibility",
+            "importance": "required",
+            "logic": "single",
+            "check_logic": false
+          }
+        ],
+        "duties": [
+          {
+            "field": "eligibility_text",
+            "quote": "진단검사의학과 업무 전반"
+          },
+          {
+            "field": "eligibility_text",
+            "quote": "장례 절차 및 예식진행"
+          }
+        ],
+        "ncs_codes": [],
+        "requirements_complete": false,
+        "duties_complete": false,
+        "ncs_complete": false
+      }
+    },
+    {
+      "posting_id": "304602",
+      "labels": {
+        "requirements": [
+          {
+            "field": "education",
+            "quote": "학력무관",
+            "category": "education",
+            "kind": "unrestricted",
+            "importance": "unrestricted",
+            "logic": "single",
+            "check_logic": false
+          }
+        ],
+        "duties": [
+          {
+            "field": "eligibility_text",
+            "quote": "노무관련 구제신청 및 진정사건 대리"
+          },
+          {
+            "field": "eligibility_text",
+            "quote": "노동법률 제언"
+          }
+        ],
+        "ncs_codes": [],
+        "requirements_complete": false,
+        "duties_complete": false,
+        "ncs_complete": false
+      }
+    }
+  ]
+}

@@ -1,0 +1,445 @@
+{
+  "schema_version": "attachment-review-checkpoints-v1",
+  "reviewer": "assistant:source-review-20260913",
+  "reviewer_kind": "assistant",
+  "status": "PROVISIONAL_PARTIAL_ASSERTIONS",
+  "job_run_id": "7c34eb6b-0e8f-4deb-a93b-9d336762f8be",
+  "dataset_id": "korean-attachments-v2",
+  "assessed_batch_id": "9bd86bc7-165a-4b14-b41c-ebcb79723ddb",
+  "offset_unit": "unicode-codepoint-zero-half-open",
+  "notes": [
+    "These seven source-located checkpoints are assistant review notes, not human gold, exhaustive source review, or production acceptance.",
+    "Assessments concern the preserved ko-v7 pilot response at that checkpoint only. All three responses remain rejected overall.",
+    "Do not put these assertions or assessments into model input. Recheck changed documents by their hashes before applying the expectations.",
+    "Rates and role applicability are reviewed as claims made by the notice; this does not decide an individual applicant eligibility."
+  ],
+  "assertions": [
+    {
+      "posting_id": "303324",
+      "kind": "clinical_professor_scope",
+      "expected": "Research/publication eligibility applies to clinical professors only. A combined clinical/treatment-professor position without an explicit applicability guard does not preserve this scope.",
+      "saved_pilot_assessment": "FAIL",
+      "evidence": [
+        {
+          "field": "attachment_1_3065268",
+          "evidence_id": "attachment_1_3065268:22",
+          "file_id": "3065268",
+          "raw_sha256": "be79d52a6a94e31e078d2a46c3a5a2cbe2f28175068b48d20e9ccf57ea4925dd",
+          "field_text_sha256": "900873cdf7081ea9cd5c3fdd34320d227cf2ac9c3508050dcd0f5f9e469e9750",
+          "start": 245,
+          "end": 263,
+          "excerpt": " 나. 응시자격(임상교수에 한함)"
+        },
+        {
+          "field": "attachment_1_3065268",
+          "evidence_id": "attachment_1_3065268:24",
+          "file_id": "3065268",
+          "raw_sha256": "be79d52a6a94e31e078d2a46c3a5a2cbe2f28175068b48d20e9ccf57ea4925dd",
+          "field_text_sha256": "900873cdf7081ea9cd5c3fdd34320d227cf2ac9c3508050dcd0f5f9e469e9750",
+          "start": 265,
+          "end": 339,
+          "excerpt": "  - 채용공고일 기준 최근 5년 이내(의무 군복무자인 경우 복무 기간 별도로 산정)에 채용분야의 국제전문, 국제기타 또는 국내전문학"
+        },
+        {
+          "field": "attachment_1_3065268",
+          "evidence_id": "attachment_1_3065268:26",
+          "file_id": "3065268",
+          "raw_sha256": "be79d52a6a94e31e078d2a46c3a5a2cbe2f28175068b48d20e9ccf57ea4925dd",
+          "field_text_sha256": "900873cdf7081ea9cd5c3fdd34320d227cf2ac9c3508050dcd0f5f9e469e9750",
+          "start": 341,
+          "end": 410,
+          "excerpt": "술지에 1인저자·주저자(제1저자 또는 교신저자)인 논문 2편 이상을 포함하여 연구실적물 참여인정율 200% 이상을 충족한 자"
+        }
+      ]
+    },
+    {
+      "posting_id": "303324",
+      "kind": "research_scoring_definition",
+      "expected": "Preserve the contribution rates 100/70/50/40/30 percent and the SCI(E) main-author multiplier 1.5 as definitions used by the 200-percent research threshold; they are not generic job-profile context.",
+      "saved_pilot_assessment": "FAIL",
+      "evidence": [
+        {
+          "field": "attachment_1_3065268",
+          "evidence_id": "attachment_1_3065268:28",
+          "file_id": "3065268",
+          "raw_sha256": "be79d52a6a94e31e078d2a46c3a5a2cbe2f28175068b48d20e9ccf57ea4925dd",
+          "field_text_sha256": "900873cdf7081ea9cd5c3fdd34320d227cf2ac9c3508050dcd0f5f9e469e9750",
+          "start": 412,
+          "end": 424,
+          "excerpt": "※ 연구실적 참여인정률"
+        },
+        {
+          "field": "attachment_1_3065268",
+          "evidence_id": "attachment_1_3065268:30",
+          "file_id": "3065268",
+          "raw_sha256": "be79d52a6a94e31e078d2a46c3a5a2cbe2f28175068b48d20e9ccf57ea4925dd",
+          "field_text_sha256": "900873cdf7081ea9cd5c3fdd34320d227cf2ac9c3508050dcd0f5f9e469e9750",
+          "start": 426,
+          "end": 440,
+          "excerpt": "⑴ 1인 저자 : 100%"
+        },
+        {
+          "field": "attachment_1_3065268",
+          "evidence_id": "attachment_1_3065268:32",
+          "file_id": "3065268",
+          "raw_sha256": "be79d52a6a94e31e078d2a46c3a5a2cbe2f28175068b48d20e9ccf57ea4925dd",
+          "field_text_sha256": "900873cdf7081ea9cd5c3fdd34320d227cf2ac9c3508050dcd0f5f9e469e9750",
+          "start": 442,
+          "end": 467,
+          "excerpt": "⑵ 주저자(제1저자 또는 교신저자) : 70%"
+        },
+        {
+          "field": "attachment_1_3065268",
+          "evidence_id": "attachment_1_3065268:34",
+          "file_id": "3065268",
+          "raw_sha256": "be79d52a6a94e31e078d2a46c3a5a2cbe2f28175068b48d20e9ccf57ea4925dd",
+          "field_text_sha256": "900873cdf7081ea9cd5c3fdd34320d227cf2ac9c3508050dcd0f5f9e469e9750",
+          "start": 469,
+          "end": 485,
+          "excerpt": "⑶ 공동저자(2인) : 50%"
+        },
+        {
+          "field": "attachment_1_3065268",
+          "evidence_id": "attachment_1_3065268:36",
+          "file_id": "3065268",
+          "raw_sha256": "be79d52a6a94e31e078d2a46c3a5a2cbe2f28175068b48d20e9ccf57ea4925dd",
+          "field_text_sha256": "900873cdf7081ea9cd5c3fdd34320d227cf2ac9c3508050dcd0f5f9e469e9750",
+          "start": 487,
+          "end": 503,
+          "excerpt": "⑷ 공동저자(3인) : 40%"
+        },
+        {
+          "field": "attachment_1_3065268",
+          "evidence_id": "attachment_1_3065268:38",
+          "file_id": "3065268",
+          "raw_sha256": "be79d52a6a94e31e078d2a46c3a5a2cbe2f28175068b48d20e9ccf57ea4925dd",
+          "field_text_sha256": "900873cdf7081ea9cd5c3fdd34320d227cf2ac9c3508050dcd0f5f9e469e9750",
+          "start": 505,
+          "end": 523,
+          "excerpt": "⑸ 공공저자(4인이상) : 30%"
+        },
+        {
+          "field": "attachment_1_3065268",
+          "evidence_id": "attachment_1_3065268:40",
+          "file_id": "3065268",
+          "raw_sha256": "be79d52a6a94e31e078d2a46c3a5a2cbe2f28175068b48d20e9ccf57ea4925dd",
+          "field_text_sha256": "900873cdf7081ea9cd5c3fdd34320d227cf2ac9c3508050dcd0f5f9e469e9750",
+          "start": 525,
+          "end": 550,
+          "excerpt": "⑹ SCI(E)의 주저자인 경우 가중치 1.5"
+        }
+      ]
+    },
+    {
+      "posting_id": "303324",
+      "kind": "medical_credentials_conjunction",
+      "expected": "Medical licence and specialist certification are both required. Preserve the conjunction and the shared holder qualifier.",
+      "saved_pilot_assessment": "PARTIAL",
+      "evidence": [
+        {
+          "field": "attachment_3_3065270",
+          "evidence_id": "attachment_3_3065270:45",
+          "file_id": "3065270",
+          "raw_sha256": "0dcb9e3610d8b3b54ead21d9107ef54ce40b81fde54ade8721a178bbb4bcafc7",
+          "field_text_sha256": "9d1cf600cf136b180b1c406e830c5761c9cceed1732dbe02fc1f237e9c8f7686",
+          "start": 405,
+          "end": 410,
+          "excerpt": "자격요건 "
+        },
+        {
+          "field": "attachment_3_3065270",
+          "evidence_id": "attachment_3_3065270:47",
+          "file_id": "3065270",
+          "raw_sha256": "0dcb9e3610d8b3b54ead21d9107ef54ce40b81fde54ade8721a178bbb4bcafc7",
+          "field_text_sha256": "9d1cf600cf136b180b1c406e830c5761c9cceed1732dbe02fc1f237e9c8f7686",
+          "start": 412,
+          "end": 432,
+          "excerpt": "의사면허증 및 전문의 자격증 소지자 "
+        }
+      ],
+      "assessment_notes": "The response has an AND with both credential atoms. Its first atom contains only the licence noun; shared-holder interpretation still needs review before typed rule acceptance."
+    },
+    {
+      "posting_id": "304739",
+      "kind": "youth_bonus_points",
+      "expected": "The youth preference has both the 15-to-34 age condition and a score of 5. Merely extracting the demographic condition omits the effect.",
+      "saved_pilot_assessment": "FAIL",
+      "evidence": [
+        {
+          "field": "attachment_1_3073720",
+          "evidence_id": "attachment_1_3073720:177",
+          "file_id": "3073720",
+          "raw_sha256": "c802a04f820c82e494c2421e2b031131168abb721f7bc4a8c05e79067fbbe913",
+          "field_text_sha256": "0cd91bd52d206b3e550dcf34be9645560b5048bbe8487f4e68d7ac4ecec69c4e",
+          "start": 2887,
+          "end": 2901,
+          "excerpt": "  ➀ 일반가점 적용 사항"
+        },
+        {
+          "field": "attachment_1_3073720",
+          "evidence_id": "attachment_1_3073720:180",
+          "file_id": "3073720",
+          "raw_sha256": "c802a04f820c82e494c2421e2b031131168abb721f7bc4a8c05e79067fbbe913",
+          "field_text_sha256": "0cd91bd52d206b3e550dcf34be9645560b5048bbe8487f4e68d7ac4ecec69c4e",
+          "start": 2911,
+          "end": 2913,
+          "excerpt": "가점"
+        },
+        {
+          "field": "attachment_1_3073720",
+          "evidence_id": "attachment_1_3073720:181",
+          "file_id": "3073720",
+          "raw_sha256": "c802a04f820c82e494c2421e2b031131168abb721f7bc4a8c05e79067fbbe913",
+          "field_text_sha256": "0cd91bd52d206b3e550dcf34be9645560b5048bbe8487f4e68d7ac4ecec69c4e",
+          "start": 2914,
+          "end": 2916,
+          "excerpt": "청년"
+        },
+        {
+          "field": "attachment_1_3073720",
+          "evidence_id": "attachment_1_3073720:182",
+          "file_id": "3073720",
+          "raw_sha256": "c802a04f820c82e494c2421e2b031131168abb721f7bc4a8c05e79067fbbe913",
+          "field_text_sha256": "0cd91bd52d206b3e550dcf34be9645560b5048bbe8487f4e68d7ac4ecec69c4e",
+          "start": 2917,
+          "end": 2953,
+          "excerpt": "· 청년고용촉진 특별법에 의한 청년(만15세 이상 만34세 이하)"
+        },
+        {
+          "field": "attachment_1_3073720",
+          "evidence_id": "attachment_1_3073720:183",
+          "file_id": "3073720",
+          "raw_sha256": "c802a04f820c82e494c2421e2b031131168abb721f7bc4a8c05e79067fbbe913",
+          "field_text_sha256": "0cd91bd52d206b3e550dcf34be9645560b5048bbe8487f4e68d7ac4ecec69c4e",
+          "start": 2954,
+          "end": 2955,
+          "excerpt": "5"
+        }
+      ]
+    },
+    {
+      "posting_id": "304739",
+      "kind": "technical_certificate_scores_and_limit",
+      "expected": "Keep technical qualification categories paired with their respective 10/8/5/3 scores, the highest-one-certificate limit and the referenced definition. Do not attach the administrative-role rows to the technical role.",
+      "saved_pilot_assessment": "FAIL",
+      "evidence": [
+        {
+          "field": "attachment_1_3073720",
+          "evidence_id": "attachment_1_3073720:193",
+          "file_id": "3073720",
+          "raw_sha256": "c802a04f820c82e494c2421e2b031131168abb721f7bc4a8c05e79067fbbe913",
+          "field_text_sha256": "0cd91bd52d206b3e550dcf34be9645560b5048bbe8487f4e68d7ac4ecec69c4e",
+          "start": 3202,
+          "end": 3240,
+          "excerpt": "  ➁ 자격증 가점 적용 사항(가점이 가장 높은 자격증 1개만 적용)"
+        },
+        {
+          "field": "attachment_1_3073720",
+          "evidence_id": "attachment_1_3073720:196",
+          "file_id": "3073720",
+          "raw_sha256": "c802a04f820c82e494c2421e2b031131168abb721f7bc4a8c05e79067fbbe913",
+          "field_text_sha256": "0cd91bd52d206b3e550dcf34be9645560b5048bbe8487f4e68d7ac4ecec69c4e",
+          "start": 3248,
+          "end": 3250,
+          "excerpt": "가점"
+        },
+        {
+          "field": "attachment_1_3073720",
+          "evidence_id": "attachment_1_3073720:197",
+          "file_id": "3073720",
+          "raw_sha256": "c802a04f820c82e494c2421e2b031131168abb721f7bc4a8c05e79067fbbe913",
+          "field_text_sha256": "0cd91bd52d206b3e550dcf34be9645560b5048bbe8487f4e68d7ac4ecec69c4e",
+          "start": 3251,
+          "end": 3253,
+          "excerpt": "기술"
+        },
+        {
+          "field": "attachment_1_3073720",
+          "evidence_id": "attachment_1_3073720:198",
+          "file_id": "3073720",
+          "raw_sha256": "c802a04f820c82e494c2421e2b031131168abb721f7bc4a8c05e79067fbbe913",
+          "field_text_sha256": "0cd91bd52d206b3e550dcf34be9645560b5048bbe8487f4e68d7ac4ecec69c4e",
+          "start": 3254,
+          "end": 3287,
+          "excerpt": "· 〔전기, 소방, 보일러(에너지관리), 승강기〕(산업)기사"
+        },
+        {
+          "field": "attachment_1_3073720",
+          "evidence_id": "attachment_1_3073720:199",
+          "file_id": "3073720",
+          "raw_sha256": "c802a04f820c82e494c2421e2b031131168abb721f7bc4a8c05e79067fbbe913",
+          "field_text_sha256": "0cd91bd52d206b3e550dcf34be9645560b5048bbe8487f4e68d7ac4ecec69c4e",
+          "start": 3288,
+          "end": 3290,
+          "excerpt": "10"
+        },
+        {
+          "field": "attachment_1_3073720",
+          "evidence_id": "attachment_1_3073720:200",
+          "file_id": "3073720",
+          "raw_sha256": "c802a04f820c82e494c2421e2b031131168abb721f7bc4a8c05e79067fbbe913",
+          "field_text_sha256": "0cd91bd52d206b3e550dcf34be9645560b5048bbe8487f4e68d7ac4ecec69c4e",
+          "start": 3291,
+          "end": 3330,
+          "excerpt": "· 공동주택관리 시설물 선임가능 기능사 이상 자격증 보유자(붙임2_3)"
+        },
+        {
+          "field": "attachment_1_3073720",
+          "evidence_id": "attachment_1_3073720:201",
+          "file_id": "3073720",
+          "raw_sha256": "c802a04f820c82e494c2421e2b031131168abb721f7bc4a8c05e79067fbbe913",
+          "field_text_sha256": "0cd91bd52d206b3e550dcf34be9645560b5048bbe8487f4e68d7ac4ecec69c4e",
+          "start": 3331,
+          "end": 3332,
+          "excerpt": "8"
+        },
+        {
+          "field": "attachment_1_3073720",
+          "evidence_id": "attachment_1_3073720:202",
+          "file_id": "3073720",
+          "raw_sha256": "c802a04f820c82e494c2421e2b031131168abb721f7bc4a8c05e79067fbbe913",
+          "field_text_sha256": "0cd91bd52d206b3e550dcf34be9645560b5048bbe8487f4e68d7ac4ecec69c4e",
+          "start": 3333,
+          "end": 3373,
+          "excerpt": "· 「국가기술자격법」에 의한 산업기사 이상 자격증 보유자(선임무관)주5)"
+        },
+        {
+          "field": "attachment_1_3073720",
+          "evidence_id": "attachment_1_3073720:203",
+          "file_id": "3073720",
+          "raw_sha256": "c802a04f820c82e494c2421e2b031131168abb721f7bc4a8c05e79067fbbe913",
+          "field_text_sha256": "0cd91bd52d206b3e550dcf34be9645560b5048bbe8487f4e68d7ac4ecec69c4e",
+          "start": 3374,
+          "end": 3375,
+          "excerpt": "5"
+        },
+        {
+          "field": "attachment_1_3073720",
+          "evidence_id": "attachment_1_3073720:204",
+          "file_id": "3073720",
+          "raw_sha256": "c802a04f820c82e494c2421e2b031131168abb721f7bc4a8c05e79067fbbe913",
+          "field_text_sha256": "0cd91bd52d206b3e550dcf34be9645560b5048bbe8487f4e68d7ac4ecec69c4e",
+          "start": 3376,
+          "end": 3408,
+          "excerpt": "· 「국가기술자격법」에 의한 자격증 보유자(선임무관)주5)"
+        },
+        {
+          "field": "attachment_1_3073720",
+          "evidence_id": "attachment_1_3073720:205",
+          "file_id": "3073720",
+          "raw_sha256": "c802a04f820c82e494c2421e2b031131168abb721f7bc4a8c05e79067fbbe913",
+          "field_text_sha256": "0cd91bd52d206b3e550dcf34be9645560b5048bbe8487f4e68d7ac4ecec69c4e",
+          "start": 3409,
+          "end": 3410,
+          "excerpt": "3"
+        },
+        {
+          "field": "attachment_1_3073720",
+          "evidence_id": "attachment_1_3073720:223",
+          "file_id": "3073720",
+          "raw_sha256": "c802a04f820c82e494c2421e2b031131168abb721f7bc4a8c05e79067fbbe913",
+          "field_text_sha256": "0cd91bd52d206b3e550dcf34be9645560b5048bbe8487f4e68d7ac4ecec69c4e",
+          "start": 3685,
+          "end": 3742,
+          "excerpt": "   주5) 「국가기술자격법」에 의한 자격보유자 : 공동주택관리업무와 관련된 직무별 자격증(붙임2_2)"
+        }
+      ]
+    },
+    {
+      "posting_id": "304739",
+      "kind": "former_worker_alternatives",
+      "expected": "Preserve the alternative worker categories with their respective 6-month/6-month/1-year durations and the document-screening bonus of 3 percent. A single atom combining all three categories does not specify their alternative applicability.",
+      "saved_pilot_assessment": "FAIL",
+      "evidence": [
+        {
+          "field": "attachment_1_3073720",
+          "evidence_id": "attachment_1_3073720:240",
+          "file_id": "3073720",
+          "raw_sha256": "c802a04f820c82e494c2421e2b031131168abb721f7bc4a8c05e79067fbbe913",
+          "field_text_sha256": "0cd91bd52d206b3e550dcf34be9645560b5048bbe8487f4e68d7ac4ecec69c4e",
+          "start": 3977,
+          "end": 3981,
+          "excerpt": "우리공단"
+        },
+        {
+          "field": "attachment_1_3073720",
+          "evidence_id": "attachment_1_3073720:241",
+          "file_id": "3073720",
+          "raw_sha256": "c802a04f820c82e494c2421e2b031131168abb721f7bc4a8c05e79067fbbe913",
+          "field_text_sha256": "0cd91bd52d206b3e550dcf34be9645560b5048bbe8487f4e68d7ac4ecec69c4e",
+          "start": 3982,
+          "end": 3986,
+          "excerpt": "근무경력"
+        },
+        {
+          "field": "attachment_1_3073720",
+          "evidence_id": "attachment_1_3073720:242",
+          "file_id": "3073720",
+          "raw_sha256": "c802a04f820c82e494c2421e2b031131168abb721f7bc4a8c05e79067fbbe913",
+          "field_text_sha256": "0cd91bd52d206b3e550dcf34be9645560b5048bbe8487f4e68d7ac4ecec69c4e",
+          "start": 3987,
+          "end": 4008,
+          "excerpt": " · 체험형인턴 : 6개월 이상 근무자"
+        },
+        {
+          "field": "attachment_1_3073720",
+          "evidence_id": "attachment_1_3073720:243",
+          "file_id": "3073720",
+          "raw_sha256": "c802a04f820c82e494c2421e2b031131168abb721f7bc4a8c05e79067fbbe913",
+          "field_text_sha256": "0cd91bd52d206b3e550dcf34be9645560b5048bbe8487f4e68d7ac4ecec69c4e",
+          "start": 4009,
+          "end": 4030,
+          "excerpt": " · 육아대체직 : 6개월 이상 근무자"
+        },
+        {
+          "field": "attachment_1_3073720",
+          "evidence_id": "attachment_1_3073720:244",
+          "file_id": "3073720",
+          "raw_sha256": "c802a04f820c82e494c2421e2b031131168abb721f7bc4a8c05e79067fbbe913",
+          "field_text_sha256": "0cd91bd52d206b3e550dcf34be9645560b5048bbe8487f4e68d7ac4ecec69c4e",
+          "start": 4031,
+          "end": 4052,
+          "excerpt": " · 사회복무요원 : 1년 이상 근무자"
+        },
+        {
+          "field": "attachment_1_3073720",
+          "evidence_id": "attachment_1_3073720:245",
+          "file_id": "3073720",
+          "raw_sha256": "c802a04f820c82e494c2421e2b031131168abb721f7bc4a8c05e79067fbbe913",
+          "field_text_sha256": "0cd91bd52d206b3e550dcf34be9645560b5048bbe8487f4e68d7ac4ecec69c4e",
+          "start": 4053,
+          "end": 4064,
+          "excerpt": "서류전형 만점의 3%"
+        }
+      ]
+    },
+    {
+      "posting_id": "304817",
+      "kind": "male_only_military_alternatives",
+      "expected": "Apply the completed-service OR exemption condition only to men. Preserve if-then with an OR consequence, rather than requiring both alternatives or applying the condition to all applicants.",
+      "saved_pilot_assessment": "PASS",
+      "evidence": [
+        {
+          "field": "attachment_1_3074132",
+          "evidence_id": "attachment_1_3074132:17",
+          "file_id": "3074132",
+          "raw_sha256": "bc40a54694bd3a713ca3c64bc4d5d785ac6d2ec2fcd8b2f9ed092d3356087440",
+          "field_text_sha256": "b59fd34f259fdb9a0c7ed73936a27da1245cec6380ebbd1ccfc069d24f443f66",
+          "start": 141,
+          "end": 147,
+          "excerpt": "[필수사항]"
+        },
+        {
+          "field": "attachment_1_3074132",
+          "evidence_id": "attachment_1_3074132:21",
+          "file_id": "3074132",
+          "raw_sha256": "bc40a54694bd3a713ca3c64bc4d5d785ac6d2ec2fcd8b2f9ed092d3356087440",
+          "field_text_sha256": "b59fd34f259fdb9a0c7ed73936a27da1245cec6380ebbd1ccfc069d24f443f66",
+          "start": 196,
+          "end": 211,
+          "excerpt": "ㆍ남자는 병역필 또는 면제자"
+        }
+      ]
+    }
+  ]
+}

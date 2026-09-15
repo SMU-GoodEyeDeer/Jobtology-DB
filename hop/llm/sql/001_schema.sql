@@ -4,6 +4,14 @@ CREATE SCHEMA IF NOT EXISTS enrichment;
 CREATE OR REPLACE FUNCTION enrichment.hash(v text) RETURNS text
 LANGUAGE sql IMMUTABLE STRICT AS $$ SELECT encode(sha256(convert_to(v,'UTF8')),'hex') $$;
 
+-- A completed provider response settles a reservation at its reported cost.
+-- Unknown/unfinished requests keep their reservation; audit rows are never erased.
+CREATE OR REPLACE FUNCTION enrichment.accounted_cost(state text, reported numeric, reservation numeric)
+RETURNS numeric LANGUAGE sql IMMUTABLE AS $$
+ SELECT CASE WHEN state IN ('VALIDATED','REJECTED','ERROR') AND reported>=0
+  THEN reported ELSE greatest(reservation,coalesce(reported,0)) END
+$$;
+
 CREATE TABLE IF NOT EXISTS enrichment.prompt (
   version text NOT NULL, stage text NOT NULL CHECK(stage IN ('extract','categorize')),
   system_prompt text NOT NULL, output_schema jsonb NOT NULL,
@@ -51,6 +59,22 @@ CREATE TABLE IF NOT EXISTS enrichment.item (
   state text NOT NULL DEFAULT 'PENDING' CHECK(state IN ('PENDING','VALIDATED','REJECTED')),
   issue text, UNIQUE(batch_id,posting_id)
 );
+CREATE TABLE IF NOT EXISTS enrichment.input_bundle (
+ bundle_id text PRIMARY KEY, job_run_id text NOT NULL REFERENCES ingestion.run,
+ posting_id text NOT NULL, source_data jsonb NOT NULL, source_hash text NOT NULL,
+ manifest jsonb NOT NULL, created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+ CHECK(source_hash=encode(sha256(convert_to(source_data::text,'UTF8')),'hex'))
+);
+CREATE TABLE IF NOT EXISTS enrichment.item_input (
+ item_id text PRIMARY KEY REFERENCES enrichment.item,
+ bundle_id text NOT NULL REFERENCES enrichment.input_bundle
+);
+CREATE TABLE IF NOT EXISTS enrichment.test_case_input (
+ dataset_id text NOT NULL, posting_id text NOT NULL,
+ bundle_id text NOT NULL REFERENCES enrichment.input_bundle,
+ PRIMARY KEY(dataset_id,posting_id),
+ FOREIGN KEY(dataset_id,posting_id) REFERENCES enrichment.test_case
+);
 CREATE TABLE IF NOT EXISTS enrichment.attempt (
   attempt_id text PRIMARY KEY, batch_id text NOT NULL REFERENCES enrichment.batch,
   item_id text NOT NULL REFERENCES enrichment.item,
@@ -65,8 +89,29 @@ CREATE TABLE IF NOT EXISTS enrichment.attempt (
   reserved_at timestamptz, completed_at timestamptz, UNIQUE(item_id,stage)
 );
 CREATE INDEX IF NOT EXISTS attempt_cache ON enrichment.attempt(cache_key) WHERE state='VALIDATED';
+-- ko-v2 stores the provider object separately from its deterministic evidence hydration.
+-- Old response bodies/parsed outputs and prompt versions remain untouched.
+ALTER TABLE enrichment.attempt ADD COLUMN IF NOT EXISTS raw_output jsonb;
 CREATE INDEX IF NOT EXISTS attempt_budget ON enrichment.attempt(reserved_at) WHERE reserved_at IS NOT NULL;
 CREATE INDEX IF NOT EXISTS item_batch ON enrichment.item(batch_id);
+CREATE TABLE IF NOT EXISTS enrichment.repair_item (
+ item_id text PRIMARY KEY REFERENCES enrichment.item,
+ prior_item_id text NOT NULL REFERENCES enrichment.item,
+ prior_attempt_id text NOT NULL REFERENCES enrichment.attempt,
+ trigger_issues jsonb NOT NULL,
+ previous_output jsonb,
+ audit_version text,
+ created_at timestamptz NOT NULL DEFAULT clock_timestamp()
+);
+CREATE TABLE IF NOT EXISTS enrichment.extraction_audit (
+ attempt_id text NOT NULL REFERENCES enrichment.attempt,
+ validator_version text NOT NULL,
+ raw_output_hash text NOT NULL,
+ source_hash text NOT NULL,
+ issues jsonb NOT NULL,
+ checked_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+ PRIMARY KEY(attempt_id,validator_version)
+);
 CREATE TABLE IF NOT EXISTS enrichment.review (
   review_id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   item_id text NOT NULL REFERENCES enrichment.item,
@@ -86,6 +131,23 @@ LANGUAGE sql IMMUTABLE AS $$
  'regions','ncs_category_codes','ncs_category_names','eligibility_text','preference_text',
  'selection_text','disqualification_text','duties_text','description_text')
  AND jsonb_typeof(value)='string' AND length(btrim(value#>>'{}'))>0
+$$;
+-- New document fields are admitted only through the explicit input contract.
+-- source_fields remains the original inline whitelist for old hashes/reviews.
+CREATE OR REPLACE FUNCTION enrichment.is_attachment_field(n jsonb,f text) RETURNS boolean
+LANGUAGE sql IMMUTABLE AS $$
+ SELECT coalesce(n#>>'{_input,contract}' IN ('attachment-input-v1','attachment-input-v2') AND f ~ '^attachment_[0-9]+_[0-9]+$'
+  AND n#>'{_input,fields}' ? f AND jsonb_typeof(n->f)='string',false)
+$$;
+CREATE OR REPLACE FUNCTION enrichment.input_fields(n jsonb) RETURNS jsonb
+LANGUAGE sql IMMUTABLE AS $$
+ SELECT enrichment.source_fields(n)||coalesce(jsonb_object_agg(key,value),'{}') FROM jsonb_each(n)
+ WHERE enrichment.is_attachment_field(n,key)
+$$;
+CREATE OR REPLACE FUNCTION enrichment.narrative_field(n jsonb,f text) RETURNS boolean
+LANGUAGE sql IMMUTABLE AS $$
+ SELECT f IN ('eligibility_text','preference_text','disqualification_text','selection_text','duties_text','description_text')
+  OR enrichment.is_attachment_field(n,f)
 $$;
 CREATE OR REPLACE FUNCTION enrichment.assert_snapshot(id text, source text) RETURNS void
 LANGUAGE plpgsql STABLE AS $$ BEGIN

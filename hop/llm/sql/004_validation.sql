@@ -83,11 +83,30 @@ BEGIN
  RETURN errors;
 END $$;
 
+-- OpenRouter-funded calls report usage.cost. BYOK calls deliberately report
+-- usage.cost=0 and expose the actual provider charge separately. Returning NULL
+-- for an incomplete cost record preserves the existing request reservation.
+CREATE OR REPLACE FUNCTION enrichment.response_cost(envelope jsonb) RETURNS numeric
+LANGUAGE plpgsql IMMUTABLE AS $$
+DECLARE value jsonb; result numeric;
+BEGIN
+ IF envelope#>'{usage,is_byok}' = 'true'::jsonb THEN
+  value:=envelope#>'{usage,cost_details,upstream_inference_cost}';
+ ELSE
+  value:=envelope#>'{usage,cost}';
+ END IF;
+ IF jsonb_typeof(value) IS DISTINCT FROM 'number' THEN RETURN NULL; END IF;
+ result:=(value#>>'{}')::numeric;
+ RETURN CASE WHEN result>=0 THEN result END;
+EXCEPTION WHEN OTHERS THEN RETURN NULL;
+END $$;
+
 CREATE OR REPLACE FUNCTION enrichment.save_response(aid text, status integer, body text, elapsed bigint)
 RETURNS void LANGUAGE plpgsql AS $$
 DECLARE a enrichment.attempt%ROWTYPE; b enrichment.batch%ROWTYPE; i enrichment.item%ROWTYPE;
- envelope jsonb; output jsonb; ext jsonb; errors jsonb:='[]'; content text; schema jsonb;
- prompt_count bigint; output_count bigint; charged numeric;
+ envelope jsonb; output jsonb; provider_output jsonb; ext jsonb; errors jsonb:='[]'; content text; schema jsonb;
+ normalized jsonb; normalization_note jsonb:='{}'::jsonb; removed integer;
+ prompt_count bigint; output_count bigint; charged numeric; problem text;
 BEGIN
  SELECT * INTO STRICT a FROM enrichment.attempt WHERE attempt_id=aid FOR UPDATE;
  IF a.state<>'RESERVED' THEN RAISE EXCEPTION 'RESPONSE_WITHOUT_RESERVATION'; END IF;
@@ -109,39 +128,91 @@ BEGIN
     content:=envelope#>>'{choices,0,message,content}';
     BEGIN
      IF NOT coalesce(content IS JSON OBJECT WITH UNIQUE KEYS,false) THEN RAISE EXCEPTION 'INVALID_JSON'; END IF;
-     output:=content::jsonb;
+     output:=content::jsonb; provider_output:=output;
     EXCEPTION WHEN OTHERS THEN errors:=errors||'["INVALID_OUTPUT_JSON"]'::jsonb; END;
    END IF;
    BEGIN
     IF envelope#>>'{usage,prompt_tokens}' ~ '^[0-9]{1,12}$' THEN prompt_count:=(envelope#>>'{usage,prompt_tokens}')::bigint; END IF;
     IF envelope#>>'{usage,completion_tokens}' ~ '^[0-9]{1,12}$' THEN output_count:=(envelope#>>'{usage,completion_tokens}')::bigint; END IF;
-    IF jsonb_typeof(envelope#>'{usage,cost}')='number' AND (envelope#>>'{usage,cost}')::numeric>=0
-    THEN charged:=(envelope#>>'{usage,cost}')::numeric; END IF;
+    charged:=enrichment.response_cost(envelope);
    EXCEPTION WHEN OTHERS THEN NULL; END;
   END IF;
  END IF;
+ IF b.settings->>'input_kind'='accepted_revision' THEN
+  problem:=enrichment.revision_input_issue(i.item_id);
+  IF problem IS NOT NULL THEN errors:=errors||jsonb_build_array(problem); END IF;
+ END IF;
  IF output IS NOT NULL AND errors='[]' THEN
   schema:=a.request_body#>'{response_format,json_schema,schema}';
-  errors:=enrichment.schema_issues(output,schema);
+  errors:=CASE WHEN schema->>'description'='jobtology:link-bound-v1' AND a.stage='extract'
+   THEN enrichment.schema_issues(output,(SELECT output_schema FROM enrichment.prompt
+    WHERE version=b.settings->>'prompt_version' AND stage='extract'))
+   -- Source-bound citation IDs and field ownership are checked independently by
+   -- output_issues_link_v1 below, avoiding repeated long regex scans on documents.
+   WHEN schema->>'description'='jobtology:link-bound-v1' AND a.stage='categorize'
+   THEN enrichment.schema_issues(output,schema)
+   WHEN schema->>'description'='jobtology:source-bound-ranges-v1'
+   THEN enrichment.schema_issues_request_v1(output,schema)
+   WHEN b.settings->>'prompt_version' IN ('ko-v6','ko-v7') THEN enrichment.schema_issues_v6(output,schema)
+   ELSE enrichment.schema_issues(output,schema) END;
   IF errors='[]' THEN
-   SELECT parsed_output INTO ext FROM enrichment.attempt WHERE attempt_id=i.extraction_id;
-   errors:=enrichment.output_issues(a.stage,output,i.source_data,ext,a.candidates,(b.settings->>'max_matches')::integer);
+   IF a.stage='categorize' AND schema->>'description'='jobtology:link-bound-v1'
+    AND jsonb_typeof(output->'matches')='array' THEN
+    normalized:=enrichment.dedup_exact_matches_v1(output);
+    removed:=jsonb_array_length(output->'matches')-jsonb_array_length(normalized->'matches');
+    IF removed>0 THEN
+     output:=normalized;
+     normalization_note:=jsonb_build_object('policy','exact-match-object-dedup-v1','removed',removed);
+    END IF;
+   END IF;
+   IF b.settings->>'input_kind'='accepted_revision' THEN
+    SELECT r.extraction INTO STRICT ext FROM enrichment.revision_input binding JOIN enrichment.extraction_revision r USING(revision_id)
+    WHERE binding.item_id=i.item_id;
+   ELSE SELECT parsed_output INTO ext FROM enrichment.attempt WHERE attempt_id=i.extraction_id; END IF;
+   IF a.stage='extract' AND b.settings->>'prompt_version'='ko-v7' THEN
+    errors:=enrichment.output_issues_v7(output,i.source_data);
+    IF errors='[]' THEN output:=enrichment.hydrate_v7(output,i.source_data); END IF;
+   ELSIF a.stage='extract' AND b.settings->>'prompt_version'='ko-v6' THEN
+    errors:=enrichment.output_issues_v6(output,i.source_data);
+    IF errors='[]' THEN output:=enrichment.hydrate_v6(output,i.source_data); END IF;
+   ELSIF a.stage='extract' AND b.settings->>'prompt_version'='ko-v5' THEN
+    errors:=enrichment.output_issues_v5(output,i.source_data);
+    IF errors='[]' THEN output:=enrichment.hydrate_v5(output,i.source_data); END IF;
+   ELSIF a.stage='extract' AND b.settings->>'prompt_version'='ko-v4' THEN
+    errors:=enrichment.output_issues_v4(output,i.source_data);
+    IF errors='[]' THEN output:=enrichment.hydrate_v4(output,i.source_data); END IF;
+   ELSIF a.stage='extract' AND b.settings->>'prompt_version'='ko-link-v1' THEN
+    errors:=enrichment.output_issues_link_v1(output,i.source_data);
+    IF errors='[]' THEN output:=enrichment.hydrate_link_v1(output,i.source_data); END IF;
+   ELSIF a.stage='extract' AND b.settings->>'prompt_version'='ko-v3' THEN
+    errors:=enrichment.output_issues_v3(output,i.source_data);
+    IF errors='[]' THEN output:=enrichment.hydrate_v3(output,i.source_data); END IF;
+   ELSIF a.stage='extract' AND b.settings->>'prompt_version'='ko-v2' THEN
+    errors:=enrichment.output_issues_v2(output,i.source_data);
+    IF errors='[]' THEN output:=enrichment.hydrate_v2(output,i.source_data); END IF;
+   ELSE
+    errors:=enrichment.output_issues(a.stage,output,i.source_data,ext,a.candidates,(b.settings->>'max_matches')::integer);
+   END IF;
   END IF;
  END IF;
  UPDATE enrichment.attempt SET state=CASE WHEN errors='[]' THEN 'VALIDATED' WHEN status=0 OR status<>200 THEN 'ERROR' ELSE 'REJECTED' END,
   http_status=status,response_body=CASE WHEN octet_length(body)<=8388608 THEN body END,
   response_id=envelope->>'id',actual_model=envelope->>'model',provider=envelope->>'provider',
-  parsed_output=output,issues=errors,prompt_tokens=prompt_count,completion_tokens=output_count,cost_usd=charged,
+  parsed_output=output,raw_output=provider_output,normalization=normalization_note,issues=errors,prompt_tokens=prompt_count,completion_tokens=output_count,cost_usd=charged,
   latency_ms=elapsed,completed_at=clock_timestamp() WHERE attempt_id=aid;
 END $$;
 
 CREATE OR REPLACE FUNCTION enrichment.finish_batch(id text, failed boolean DEFAULT false)
 RETURNS void LANGUAGE plpgsql AS $$ BEGIN
  UPDATE enrichment.item i SET
-  state=CASE WHEN EXISTS(SELECT 1 FROM enrichment.attempt e WHERE e.attempt_id=i.extraction_id AND e.state='VALIDATED')
+  state=CASE WHEN (EXISTS(SELECT 1 FROM enrichment.attempt e WHERE e.attempt_id=i.extraction_id AND e.state='VALIDATED')
+   OR (EXISTS(SELECT 1 FROM enrichment.revision_input ri WHERE ri.item_id=i.item_id) AND enrichment.revision_input_issue(i.item_id) IS NULL))
    AND EXISTS(SELECT 1 FROM enrichment.attempt c WHERE c.attempt_id=i.categorization_id AND c.state IN ('VALIDATED','SKIPPED'))
    THEN 'VALIDATED' ELSE 'REJECTED' END,
-  issue=CASE WHEN NOT EXISTS(SELECT 1 FROM enrichment.attempt e WHERE e.attempt_id=i.extraction_id AND e.state='VALIDATED') THEN 'EXTRACTION_NOT_VALIDATED'
+  issue=CASE WHEN EXISTS(SELECT 1 FROM enrichment.revision_input ri WHERE ri.item_id=i.item_id)
+   AND enrichment.revision_input_issue(i.item_id) IS NOT NULL THEN enrichment.revision_input_issue(i.item_id)
+   WHEN NOT EXISTS(SELECT 1 FROM enrichment.attempt e WHERE e.attempt_id=i.extraction_id AND e.state='VALIDATED')
+   AND NOT EXISTS(SELECT 1 FROM enrichment.revision_input ri WHERE ri.item_id=i.item_id) THEN 'EXTRACTION_NOT_VALIDATED'
    WHEN NOT EXISTS(SELECT 1 FROM enrichment.attempt c WHERE c.attempt_id=i.categorization_id AND c.state IN ('VALIDATED','SKIPPED')) THEN 'CATEGORIZATION_NOT_VALIDATED' END
  WHERE i.batch_id=id AND EXISTS(SELECT 1 FROM enrichment.batch b WHERE b.batch_id=id AND b.settings->>'execute_requests'='Y');
  IF NOT failed THEN

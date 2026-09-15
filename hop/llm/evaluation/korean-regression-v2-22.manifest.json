@@ -1,0 +1,120 @@
+{
+  "dataset_id": "korean-regression-v2-22",
+  "job_run_id": "77ccb77b-3afc-4965-8ce5-efd687304954",
+  "ncs_run_id": "a32170ed-7485-4e31-82d3-ed48b3398946",
+  "label_author": "assistant:provisional-source-review:2026-09-12",
+  "label_status": "provisional assistant-authored assertions; not human gold",
+  "selection": "The 20 ko-v1 regression cases plus two existing explicit-duty cases. Previously observed regression set, not a held-out benchmark.",
+  "cases": [
+    {
+      "posting_id": "304450",
+      "source_hash": "2ee9ebbe8f7fb9286e260fa96a355bf6ce44d46d1f2ec88bbc1dfe6a403e62b1",
+      "ordinal": 1
+    },
+    {
+      "posting_id": "304648",
+      "source_hash": "3583e95c158fc4cbea5de5ef3f28fdba82828e4a6869d362feaf818ab11712f1",
+      "ordinal": 2
+    },
+    {
+      "posting_id": "304574",
+      "source_hash": "e84c3a41a65a1583f60f71f3f01c6c47adba9fadc2485a22bf5cc1078c4d545e",
+      "ordinal": 3
+    },
+    {
+      "posting_id": "298713",
+      "source_hash": "c1e24dd284ad0027873c1ad25d92dcfafac1e53ea4a01a38c5d44e2b180790c1",
+      "ordinal": 4
+    },
+    {
+      "posting_id": "304237",
+      "source_hash": "d0f3d6fc32620d969de60933087c3061c7a85185b0e63501d926e94ab1d0b863",
+      "ordinal": 5
+    },
+    {
+      "posting_id": "304400",
+      "source_hash": "d0f1f9ae177bb769b1daa517778daf5800bb50ed0f50d7e196c40cf526c03be2",
+      "ordinal": 6
+    },
+    {
+      "posting_id": "304630",
+      "source_hash": "8be40619fa9b0197453bc463d446cbdde98c709bf827321981976acd832ce99b",
+      "ordinal": 7
+    },
+    {
+      "posting_id": "300965",
+      "source_hash": "dc4f97253611f131b9655ba9d42be75bb9ed88905f31d24d96f7fd10e04efad9",
+      "ordinal": 8
+    },
+    {
+      "posting_id": "304717",
+      "source_hash": "e4c48b005bc12ec46ae16d4884fd17f02003bcdc1f82ea02ad79a6a2b95d8845",
+      "ordinal": 9
+    },
+    {
+      "posting_id": "304830",
+      "source_hash": "ddbade59b63038e14f1d6736b4ae6159b7f76e540f2a6b1a6b4de0365b954ec2",
+      "ordinal": 10
+    },
+    {
+      "posting_id": "304846",
+      "source_hash": "3405bf7a718fd36b763e7f2f13ca91fdc31b65cc44a1ec59c868d1616863fb06",
+      "ordinal": 11
+    },
+    {
+      "posting_id": "304676",
+      "source_hash": "66bc0101015737eca6d29d31e82dcc927d3541743024ac7169ed3c344f9b7107",
+      "ordinal": 12
+    },
+    {
+      "posting_id": "299690",
+      "source_hash": "8e1a3076cd29858eb1476957159c84ffe8f38e5036e0da5e7144d1fdba696f92",
+      "ordinal": 13
+    },
+    {
+      "posting_id": "304445",
+      "source_hash": "07b79668da8874d9f2f03c5c6cf00ca537bd8a3abc6fd78f34fb3e12deddd1f9",
+      "ordinal": 14
+    },
+    {
+      "posting_id": "304741",
+      "source_hash": "23b3046b71674f376973464f4a32ebef7ba6e836ec097410a9e039998c19b7ef",
+      "ordinal": 15
+    },
+    {
+      "posting_id": "304660",
+      "source_hash": "ecc7a3eea44ffcd23443b3ceaacec77ab93b5fc4cb6544a6a8616d5d940a91ec",
+      "ordinal": 16
+    },
+    {
+      "posting_id": "304844",
+      "source_hash": "07d9450ef3b49997974c0b21de08ed8a4670f27a61232d828768f60be80e4b13",
+      "ordinal": 17
+    },
+    {
+      "posting_id": "304165",
+      "source_hash": "b0f9f9923650b5f5f51f5ff180968d984322e92cafd8c30ebae6fe64b4e33e4e",
+      "ordinal": 18
+    },
+    {
+      "posting_id": "295717",
+      "source_hash": "6397b5967dfe9cd74e3e75b601bb706ee3da754dded324ab229ee0d5b221c56c",
+      "ordinal": 19
+    },
+    {
+      "posting_id": "304739",
+      "source_hash": "c2f243e032612ee65f628877e30121272d030515b984e7d3f233d4a458f2ad87",
+      "ordinal": 20
+    },
+    {
+      "posting_id": "304435",
+      "source_hash": "c5bcc2b97cb9ddc37040cf0991873c56c6de23bef5ce219928ffae2faacc92ef",
+      "ordinal": 21
+    },
+    {
+      "posting_id": "304602",
+      "source_hash": "8c41636a0a6cc3680fecf8aff99ea1ad1f28ec29a34a1612db5fb52b5224142d",
+      "ordinal": 22
+    }
+  ]
+}

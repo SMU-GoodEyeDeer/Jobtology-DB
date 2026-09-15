@@ -20,6 +20,8 @@ RETURNS void LANGUAGE plpgsql AS $$ BEGIN
  IF decision NOT IN ('ACCEPT','REJECT') OR nullif(btrim(reviewer),'') IS NULL THEN RAISE EXCEPTION 'INVALID_REVIEW'; END IF;
  PERFORM 1 FROM enrichment.item WHERE item_id=id FOR UPDATE;
  IF NOT FOUND THEN RAISE EXCEPTION 'UNKNOWN_ITEM'; END IF;
+ IF EXISTS(SELECT 1 FROM enrichment.revision_input WHERE item_id=id)
+ THEN RAISE EXCEPTION 'REVISION_BATCH_REQUIRES_PER_LINK_REVIEW'; END IF;
  IF decision='ACCEPT' AND NOT EXISTS(SELECT 1 FROM enrichment.result WHERE item_id=id AND state='VALIDATED' AND mode='ENRICH')
  THEN RAISE EXCEPTION 'ONLY_VALIDATED_ENRICH_ITEMS_CAN_BE_ACCEPTED'; END IF;
  INSERT INTO enrichment.review(item_id,decision,reviewer,notes) VALUES(id,decision,reviewer,coalesce(notes,''));
@@ -67,8 +69,10 @@ RETURNS void LANGUAGE plpgsql AS $$ DECLARE src jsonb; ncs text; x jsonb; k text
  FOR x IN SELECT jsonb_array_elements(labels->'requirements') LOOP
   IF NOT x ?& ARRAY['field','quote','category','importance','logic'] OR
    x->>'category' NOT IN ('education','experience','qualification','skill','other') OR
-   x->>'importance' NOT IN ('required','preferred','unspecified') OR
-   x->>'logic' NOT IN ('single','all_of','any_of','unspecified')
+   x->>'importance' NOT IN ('required','preferred','unspecified','excluded','unrestricted') OR
+   x->>'logic' NOT IN ('single','all_of','any_of','unspecified','conditional') OR
+   (x ? 'kind' AND x->>'kind' NOT IN ('eligibility','preference','exclusion','unrestricted')) OR
+   (x ? 'check_logic' AND jsonb_typeof(x->'check_logic')<>'boolean')
   THEN RAISE EXCEPTION 'INVALID_GOLD_REQUIREMENT'; END IF;
  END LOOP;
  FOR x IN SELECT jsonb_array_elements(labels->'ncs_codes') LOOP
@@ -84,8 +88,15 @@ CREATE OR REPLACE FUNCTION enrichment.label_matches(pred jsonb, gold jsonb, sect
 RETURNS boolean LANGUAGE sql IMMUTABLE AS $$
  SELECT coalesce(pred#>>'{evidence,field}'=gold->>'field'
  AND position(gold->>'quote' in pred#>>'{evidence,quote}')>0
- AND (section='duties' OR (pred->>'category'=gold->>'category' AND pred->>'importance'=gold->>'importance' AND pred->>'logic'=gold->>'logic'))
- AND (NOT gold ? 'position' OR pred->'position'=gold->'position'),false)
+ AND (section='duties' OR (pred->>'category'=gold->>'category' AND pred->>'importance'=gold->>'importance'
+  AND (gold->>'check_logic'='false' OR pred->>'logic'=gold->>'logic')))
+ AND (NOT gold ? 'position' OR pred->'position'=gold->'position')
+ AND (NOT gold ? 'kind' OR pred->'kind'=gold->'kind')
+ AND (NOT gold ? 'position_names' OR ((pred->'position_names') @> (gold->'position_names') AND (gold->'position_names') @> (pred->'position_names')))
+ -- For v2, quoting a broad passage alone cannot claim a label the extracted text omits.
+ AND (NOT pred ? 'evidence_ids' OR position(
+  btrim(regexp_replace(gold->>'quote','[[:space:]]+',' ','g')) in
+  btrim(regexp_replace(pred->>'text','[[:space:]]+',' ','g')))>0),false)
 $$;
 CREATE OR REPLACE VIEW enrichment.case_score AS
 SELECT r.batch_id,r.item_id,r.posting_id,r.gold_id,r.state,r.extraction_state,r.categorization_state,
@@ -123,7 +134,7 @@ WITH items AS (
 ), costs AS (
  SELECT batch_id,count(*) FILTER(WHERE reserved_at IS NOT NULL) AS requests,
   count(*) FILTER(WHERE reserved_at IS NOT NULL AND cost_usd IS NULL) AS unknown_cost_requests,
-  sum(cost_usd) AS reported_cost_usd,sum(greatest(reserved_usd,coalesce(cost_usd,0))) AS budget_accounted_usd,
+  sum(cost_usd) AS reported_cost_usd,sum(enrichment.accounted_cost(state,cost_usd,reserved_usd)) AS budget_accounted_usd,
   sum(prompt_tokens) AS prompt_tokens,sum(completion_tokens) AS completion_tokens
  FROM enrichment.attempt GROUP BY batch_id
 ), scores AS (

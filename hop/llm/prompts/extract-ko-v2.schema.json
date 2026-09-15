@@ -1,0 +1,201 @@
+{
+  "type": "object",
+  "properties": {
+    "positions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          },
+          "evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "maxItems": 100
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "evidence_ids"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 40
+    },
+    "duties": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "position_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "maxItems": 40
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8000
+          },
+          "evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "maxItems": 100
+          }
+        },
+        "required": [
+          "position_ids",
+          "text",
+          "evidence_ids"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 60
+    },
+    "requirements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "position_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "maxItems": 40
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "education",
+              "experience",
+              "qualification",
+              "skill",
+              "other"
+            ]
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "eligibility",
+              "preference",
+              "exclusion",
+              "unrestricted"
+            ]
+          },
+          "logic": {
+            "type": "string",
+            "enum": [
+              "single",
+              "all_of",
+              "any_of",
+              "conditional",
+              "unspecified"
+            ]
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8000
+          },
+          "evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "maxItems": 100
+          },
+          "expression": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "op": {
+                  "type": "string",
+                  "enum": [
+                    "atom",
+                    "all_of",
+                    "any_of",
+                    "if_then",
+                    "except"
+                  ]
+                },
+                "text": {
+                  "type": "string",
+                  "maxLength": 8000
+                },
+                "children": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 59
+                  },
+                  "maxItems": 60
+                }
+              },
+              "required": [
+                "op",
+                "text",
+                "children"
+              ],
+              "additionalProperties": false
+            },
+            "maxItems": 60
+          }
+        },
+        "required": [
+          "position_ids",
+          "category",
+          "kind",
+          "logic",
+          "text",
+          "evidence_ids",
+          "expression"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 100
+    },
+    "duties_status": {
+      "type": "string",
+      "enum": [
+        "explicit",
+        "not_stated",
+        "attachment_required"
+      ]
+    }
+  },
+  "required": [
+    "positions",
+    "duties",
+    "requirements",
+    "duties_status"
+  ],
+  "additionalProperties": false
+}

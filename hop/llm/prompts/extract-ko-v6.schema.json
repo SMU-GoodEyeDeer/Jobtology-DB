@@ -1,0 +1,266 @@
+{
+  "type": "object",
+  "properties": {
+    "positions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          },
+          "evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "maxItems": 100
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "evidence_ids"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 40
+    },
+    "duties": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "position_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "maxItems": 40
+          },
+          "evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "maxItems": 100
+          },
+          "text_parts": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000
+            },
+            "maxItems": 40
+          }
+        },
+        "required": [
+          "position_ids",
+          "text_parts",
+          "evidence_ids"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 60
+    },
+    "requirements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "position_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "maxItems": 40
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "education",
+              "experience",
+              "qualification",
+              "skill",
+              "other"
+            ]
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "eligibility",
+              "preference",
+              "exclusion",
+              "unrestricted"
+            ]
+          },
+          "logic": {
+            "type": "string",
+            "enum": [
+              "single",
+              "all_of",
+              "any_of",
+              "conditional",
+              "unspecified"
+            ]
+          },
+          "evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "maxItems": 100
+          },
+          "text_parts": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000
+            },
+            "maxItems": 40
+          },
+          "condition": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/condition"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "position_ids",
+          "category",
+          "kind",
+          "logic",
+          "text_parts",
+          "evidence_ids",
+          "condition"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 100
+    },
+    "duties_status": {
+      "type": "string",
+      "enum": [
+        "explicit",
+        "not_stated",
+        "attachment_required"
+      ]
+    },
+    "unhandled_passages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "evidence_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "disposition": {
+            "type": "string",
+            "enum": [
+              "heading",
+              "procedure",
+              "attachment_reference",
+              "no_condition",
+              "duplicate",
+              "unresolved"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          },
+          "duplicate_of": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 100
+          }
+        },
+        "required": [
+          "evidence_id",
+          "disposition",
+          "reason",
+          "duplicate_of"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 1000
+    }
+  },
+  "required": [
+    "positions",
+    "duties",
+    "requirements",
+    "duties_status",
+    "unhandled_passages"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "condition": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "type": "string",
+          "enum": [
+            "atom",
+            "all_of",
+            "any_of",
+            "if_then",
+            "except"
+          ]
+        },
+        "parts": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8000
+          },
+          "maxItems": 20
+        },
+        "children": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/condition"
+          },
+          "maxItems": 60
+        }
+      },
+      "required": [
+        "op",
+        "parts",
+        "children"
+      ],
+      "additionalProperties": false
+    }
+  }
+}
