@@ -1,0 +1,249 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>preview</name>
+    <description>Save an immutable candidate list; no source rows, raw files or graph data are deleted.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Options</from>
+      <to>New plan ID</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>New plan ID</from>
+      <to>Remember PLAN_ID</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Remember PLAN_ID</from>
+      <to>Save deletion preview</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Save deletion preview</from>
+      <to>Preview totals</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Preview totals</from>
+      <to>Plan summary</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Options</name>
+    <fields>
+      <field>
+        <name>source_id</name>
+        <variable>${SOURCE_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>selection_mode</name>
+        <variable>${SELECTION_MODE}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>amount</name>
+        <variable>${AMOUNT}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>keep_latest</name>
+        <variable>${KEEP_LATEST}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>raw_base</name>
+        <variable>${RAW_BASE}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>New plan ID</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT gen_random_uuid()::text AS plan_id</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter />
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>SetVariable</type>
+    <name>Remember PLAN_ID</name>
+    <use_formatting>Y</use_formatting>
+    <fields>
+      <field>
+        <field_name>plan_id</field_name>
+        <variable_name>PLAN_ID</variable_name>
+        <variable_type>PARENT_WORKFLOW</variable_type>
+        <default_value />
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>ExecSql</type>
+    <name>Save deletion preview</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT retention.preview(?,?,?,?::integer,?::integer,?)</sql>
+    <execute_each_row>Y</execute_each_row>
+    <single_statement>Y</single_statement>
+    <set_params>Y</set_params>
+    <replace_variables>N</replace_variables>
+    <quoteString>N</quoteString>
+    <arguments>
+      <argument>
+        <name>plan_id</name>
+      </argument>
+      <argument>
+        <name>source_id</name>
+      </argument>
+      <argument>
+        <name>selection_mode</name>
+      </argument>
+      <argument>
+        <name>amount</name>
+      </argument>
+      <argument>
+        <name>keep_latest</name>
+      </argument>
+      <argument>
+        <name>raw_base</name>
+      </argument>
+    </arguments>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>800</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Preview totals</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT state,selected_runs,skipped_runs,source_records_to_prune,raw_files_to_delete,raw_bytes_to_delete FROM retention.plan_report WHERE plan_id=?</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>plan_id</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>1040</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>WriteToLog</type>
+    <name>Plan summary</name>
+    <loglevel>Basic</loglevel>
+    <displayHeader>Y</displayHeader>
+    <logmessage>PREVIEW ONLY. Inspect this PLAN_ID before running execute.hwf.</logmessage>
+    <fields>
+      <field>
+        <name>plan_id</name>
+      </field>
+      <field>
+        <name>state</name>
+      </field>
+      <field>
+        <name>selected_runs</name>
+      </field>
+      <field>
+        <name>skipped_runs</name>
+      </field>
+      <field>
+        <name>source_records_to_prune</name>
+      </field>
+      <field>
+        <name>raw_files_to_delete</name>
+      </field>
+      <field>
+        <name>raw_bytes_to_delete</name>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>240</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

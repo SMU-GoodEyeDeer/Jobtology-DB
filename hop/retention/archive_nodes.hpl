@@ -1,0 +1,257 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>archive_nodes</name>
+    <description>Preserve and verify last-known graph source facts before removing historical batches.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Options</from>
+      <to>Archived facts</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Archived facts</from>
+      <to>Archive graph facts</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Archive graph facts</from>
+      <to>Verify</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Verify</from>
+      <to>Done</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Verify</from>
+      <to>Abort</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Options</name>
+    <fields>
+      <field>
+        <name>plan_id</name>
+        <variable>${PLAN_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>retention_owner_id</name>
+        <variable>${RETENTION_OWNER_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Archived facts</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT a.archive_id,a.source_id,a.source_record_id,a.run_id,a.archive_hash,
+ a.graph_payload-&gt;&gt;'kind' AS kind,a.graph_payload-&gt;&gt;'name' AS name,a.graph_payload-&gt;&gt;'facts_json' AS facts_json,
+ a.source_created_at::text AS source_created_at,jsonb_array_length(a.graph_references)::bigint AS expected_refs
+FROM retention.archive_record a JOIN retention.plan p USING(plan_id)
+WHERE a.plan_id=? AND p.state='ACTIVE' AND p.owner_id=? ORDER BY archive_id</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>plan_id</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>retention_owner_id</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Neo4jCypherOutput</type>
+    <name>Archive graph facts</name>
+    <connection>${NEO4J_CONNECTION}</connection>
+    <cypher>MERGE (a:archivedRecord {id:$archive_id})
+SET a.source_id=$source_id,a.source_record_id=$source_record_id,a.source_run_id=$run_id,a.archive_hash=$archive_hash,
+ a.kind=$kind,a.name=$name,a.facts_json=$facts_json,a.source_created_at=$source_created_at,a.state='LOADING'
+WITH a OPTIONAL MATCH (a)-[r:REFERS_TO]-&gt;() DELETE r
+RETURN count(DISTINCT a)=1 AS verified</cypher>
+    <batch_size>1</batch_size>
+    <read_only>N</read_only>
+    <retry>N</retry>
+    <nr_retries_on_error>0</nr_retries_on_error>
+    <cypher_from_field>N</cypher_from_field>
+    <unwind>N</unwind>
+    <returning_graph>N</returning_graph>
+    <mappings>
+      <mapping>
+        <parameter>archive_id</parameter>
+        <field>archive_id</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>source_id</parameter>
+        <field>source_id</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>source_record_id</parameter>
+        <field>source_record_id</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>run_id</parameter>
+        <field>run_id</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>archive_hash</parameter>
+        <field>archive_hash</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>kind</parameter>
+        <field>kind</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>name</parameter>
+        <field>name</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>facts_json</parameter>
+        <field>facts_json</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>source_created_at</parameter>
+        <field>source_created_at</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>expected_refs</parameter>
+        <field>expected_refs</field>
+        <type>Integer</type>
+      </mapping>
+    </mappings>
+    <returns>
+      <return>
+        <name>verified</name>
+        <type>Boolean</type>
+        <source_type>Boolean</source_type>
+      </return>
+    </returns>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>Verify</name>
+    <send_true_to>Done</send_true_to>
+    <send_false_to>Abort</send_false_to>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>verified</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Boolean</type>
+          <text>Y</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>800</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Dummy</type>
+    <name>Done</name>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>1040</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Abort</type>
+    <name>Abort</name>
+    <message>Retention verification failed. Source rows are retained; inspect the log and resume the same PLAN_ID.</message>
+    <always_log_rows>N</always_log_rows>
+    <abort_option>ABORT_WITH_ERROR</abort_option>
+    <row_threshold>0</row_threshold>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>240</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

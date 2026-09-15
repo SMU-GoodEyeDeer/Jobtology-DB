@@ -1,0 +1,138 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>inspect_plan</name>
+    <description>Preview the last transform for selected snapshots and protection reasons.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters>
+      <parameter>
+        <name>PLAN_ID</name>
+        <default_value />
+        <description>PLAN_ID</description>
+      </parameter>
+    </parameters>
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Options</from>
+      <to>Snapshot decisions</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Snapshot decisions</from>
+      <to>Snapshot decision</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Snapshot decision</from>
+      <to>Preview decisions here</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Options</name>
+    <fields>
+      <field>
+        <name>plan_id</name>
+        <variable>${PLAN_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Snapshot decisions</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT run_id,source_id,created_at,selected,reason,record_count,document_count,raw_bytes,graph_deleted FROM retention.plan_run WHERE plan_id=? ORDER BY created_at,run_id</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>plan_id</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>WriteToLog</type>
+    <name>Snapshot decision</name>
+    <loglevel>Basic</loglevel>
+    <displayHeader>Y</displayHeader>
+    <logmessage>Retention plan decision</logmessage>
+    <fields>
+      <field>
+        <name>run_id</name>
+      </field>
+      <field>
+        <name>created_at</name>
+      </field>
+      <field>
+        <name>selected</name>
+      </field>
+      <field>
+        <name>reason</name>
+      </field>
+      <field>
+        <name>record_count</name>
+      </field>
+      <field>
+        <name>raw_bytes</name>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Dummy</type>
+    <name>Preview decisions here</name>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>800</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

@@ -400,18 +400,96 @@
       <filename>${PROJECT_HOME}/graph/mark_failed.hpl</filename>
       <run_configuration>graph-local</run_configuration>
     </action>
+    <action>
+      <attributes />
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <create_parent_folder>N</create_parent_folder>
+      <set_logfile>N</set_logfile>
+      <set_append_logfile>N</set_append_logfile>
+      <add_date>N</add_date>
+      <add_time>N</add_time>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+      <attributes />
+      <name>Enter retention writer guard</name>
+      <type>PIPELINE</type>
+      <xloc>100</xloc>
+      <yloc>650</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <filename>${PROJECT_HOME}/retention/enter_graph_writer.hpl</filename>
+      <run_configuration>retention-local</run_configuration>
+    </action>
+    <action>
+      <attributes />
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <create_parent_folder>N</create_parent_folder>
+      <set_logfile>N</set_logfile>
+      <set_append_logfile>N</set_append_logfile>
+      <add_date>N</add_date>
+      <add_time>N</add_time>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+      <attributes />
+      <name>Leave retention writer guard</name>
+      <type>PIPELINE</type>
+      <xloc>100</xloc>
+      <yloc>650</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <filename>${PROJECT_HOME}/retention/leave_graph_writer.hpl</filename>
+      <run_configuration>retention-local</run_configuration>
+    </action>
+    <action>
+      <attributes />
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <create_parent_folder>N</create_parent_folder>
+      <set_logfile>N</set_logfile>
+      <set_append_logfile>N</set_append_logfile>
+      <add_date>N</add_date>
+      <add_time>N</add_time>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+      <attributes />
+      <name>Release failed graph writer</name>
+      <type>PIPELINE</type>
+      <xloc>100</xloc>
+      <yloc>650</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <filename>${PROJECT_HOME}/retention/leave_graph_writer.hpl</filename>
+      <run_configuration>retention-local</run_configuration>
+    </action>
   </actions>
   <hops>
     <hop>
       <from>Start</from>
-      <to>Validate PostgreSQL snapshot</to>
+      <to>Enter retention writer guard</to>
       <enabled>Y</enabled>
       <evaluation>Y</evaluation>
       <unconditional>Y</unconditional>
     </hop>
     <hop>
       <from>Validate PostgreSQL snapshot</from>
-      <to>Abort</to>
+      <to>Release failed graph writer</to>
       <enabled>Y</enabled>
       <evaluation>N</evaluation>
       <unconditional>N</unconditional>
@@ -572,20 +650,62 @@
     </hop>
     <hop>
       <from>Accept graph snapshot</from>
+      <to>Leave retention writer guard</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Record graph failure</from>
+      <to>Release failed graph writer</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Record graph failure</from>
+      <to>Release failed graph writer</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Enter retention writer guard</from>
+      <to>Validate PostgreSQL snapshot</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Enter retention writer guard</from>
+      <to>Release failed graph writer</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Leave retention writer guard</from>
       <to>Success</to>
       <enabled>Y</enabled>
       <evaluation>Y</evaluation>
       <unconditional>N</unconditional>
     </hop>
     <hop>
-      <from>Record graph failure</from>
+      <from>Leave retention writer guard</from>
+      <to>Abort</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Release failed graph writer</from>
       <to>Abort</to>
       <enabled>Y</enabled>
       <evaluation>Y</evaluation>
       <unconditional>N</unconditional>
     </hop>
     <hop>
-      <from>Record graph failure</from>
+      <from>Release failed graph writer</from>
       <to>Abort</to>
       <enabled>Y</enabled>
       <evaluation>N</evaluation>

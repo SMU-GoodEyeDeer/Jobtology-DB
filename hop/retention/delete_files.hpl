@@ -1,0 +1,487 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>delete_files</name>
+    <description>Remove exact manifest files only. Missing files are safe on retry; empty directories are retained.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Options</from>
+      <to>Approved manifest files</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Approved manifest files</from>
+      <to>Inspect exact file</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Inspect exact file</from>
+      <to>File present</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Regular file only</from>
+      <to>Rehash exact file</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Rehash exact file</from>
+      <to>Compare raw hash</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Compare raw hash</from>
+      <to>Original file only</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Original file only</from>
+      <to>Delete exact file</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Delete exact file</from>
+      <to>Deletion checkpoint fields</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Deletion checkpoint fields</from>
+      <to>Check file removed</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Check file removed</from>
+      <to>File absent</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>File present</from>
+      <to>Regular file only</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>File present</from>
+      <to>Deletion checkpoint fields</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Regular file only</from>
+      <to>Abort</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Original file only</from>
+      <to>Abort</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>File absent</from>
+      <to>Save file checkpoint</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>File absent</from>
+      <to>Abort</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Options</name>
+    <fields>
+      <field>
+        <name>plan_id</name>
+        <variable>${PLAN_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>retention_owner_id</name>
+        <variable>${RETENTION_OWNER_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Approved manifest files</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT f.run_id,f.document_id,f.raw_path,f.raw_sha256 FROM retention.plan_file f JOIN retention.plan p USING(plan_id)
+WHERE f.plan_id=? AND p.owner_id=? AND p.state='ACTIVE' AND f.deleted_at IS NULL
+AND NOT EXISTS(SELECT 1 FROM retention.plan_run r WHERE r.plan_id=p.plan_id AND r.selected AND NOT r.graph_deleted)
+ORDER BY f.run_id,f.document_id</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>plan_id</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>retention_owner_id</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>FileExists</type>
+    <name>Inspect exact file</name>
+    <filenamefield>raw_path</filenamefield>
+    <resultfieldname>file_exists</resultfieldname>
+    <includefiletype>Y</includefiletype>
+    <filetypefieldname>file_type</filetypefieldname>
+    <addresultfilenames>N</addresultfilenames>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>File present</name>
+    <send_true_to>Regular file only</send_true_to>
+    <send_false_to>Deletion checkpoint fields</send_false_to>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>file_exists</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Boolean</type>
+          <text>Y</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>800</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>Regular file only</name>
+    <send_true_to>Rehash exact file</send_true_to>
+    <send_false_to>Abort</send_false_to>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>file_type</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>String</type>
+          <text>file</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>1040</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Calculator</type>
+    <name>Rehash exact file</name>
+    <failIfNoFile>Y</failIfNoFile>
+    <calculation>
+      <field_name>actual_hash</field_name>
+      <calc_type>SHA256</calc_type>
+      <field_a>raw_path</field_a>
+      <value_type>String</value_type>
+      <value_length>-1</value_length>
+      <value_precision>-1</value_precision>
+      <remove>N</remove>
+    </calculation>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>240</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Compare raw hash</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT lower(?::text)=?::text AS same_hash</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>actual_hash</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>raw_sha256</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>240</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>Original file only</name>
+    <send_true_to>Delete exact file</send_true_to>
+    <send_false_to>Abort</send_false_to>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>same_hash</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Boolean</type>
+          <text>Y</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>240</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>ProcessFiles</type>
+    <name>Delete exact file</name>
+    <operation_type>delete</operation_type>
+    <sourcefilenamefield>raw_path</sourcefilenamefield>
+    <targetfilenamefield />
+    <simulate>N</simulate>
+    <createparentfolder>N</createparentfolder>
+    <overwritetargetfile>N</overwritetargetfile>
+    <addresultfilenames>N</addresultfilenames>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>800</xloc>
+      <yloc>240</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>SelectValues</type>
+    <name>Deletion checkpoint fields</name>
+    <fields>
+      <select_unspecified>N</select_unspecified>
+      <field>
+        <name>plan_id</name>
+      </field>
+      <field>
+        <name>retention_owner_id</name>
+      </field>
+      <field>
+        <name>run_id</name>
+      </field>
+      <field>
+        <name>document_id</name>
+      </field>
+      <field>
+        <name>raw_path</name>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>1040</xloc>
+      <yloc>240</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>FileExists</type>
+    <name>Check file removed</name>
+    <filenamefield>raw_path</filenamefield>
+    <resultfieldname>still_exists</resultfieldname>
+    <includefiletype>N</includefiletype>
+    <addresultfilenames>N</addresultfilenames>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>400</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>File absent</name>
+    <send_true_to>Save file checkpoint</send_true_to>
+    <send_false_to>Abort</send_false_to>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>still_exists</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Boolean</type>
+          <text>N</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>400</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>ExecSql</type>
+    <name>Save file checkpoint</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT retention.mark_file(?,?,?,?)</sql>
+    <execute_each_row>Y</execute_each_row>
+    <single_statement>Y</single_statement>
+    <set_params>Y</set_params>
+    <replace_variables>N</replace_variables>
+    <quoteString>N</quoteString>
+    <arguments>
+      <argument>
+        <name>plan_id</name>
+      </argument>
+      <argument>
+        <name>retention_owner_id</name>
+      </argument>
+      <argument>
+        <name>run_id</name>
+      </argument>
+      <argument>
+        <name>document_id</name>
+      </argument>
+    </arguments>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>400</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Abort</type>
+    <name>Abort</name>
+    <message>Expected an unchanged regular local snapshot file; hash or deletion verification failed.</message>
+    <always_log_rows>N</always_log_rows>
+    <abort_option>ABORT_WITH_ERROR</abort_option>
+    <row_threshold>0</row_threshold>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>800</xloc>
+      <yloc>400</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

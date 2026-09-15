@@ -1,0 +1,119 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>report</name>
+    <description>Log the durable retention result.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Options</from>
+      <to>Result</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Result</from>
+      <to>Retention result</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Options</name>
+    <fields>
+      <field>
+        <name>plan_id</name>
+        <variable>${PLAN_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Result</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT state,phase,owner_id,last_error,selected_runs,raw_files_to_delete,raw_bytes_to_delete FROM retention.plan_report WHERE plan_id=?</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>plan_id</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>WriteToLog</type>
+    <name>Retention result</name>
+    <loglevel>Basic</loglevel>
+    <displayHeader>Y</displayHeader>
+    <logmessage>Source snapshot retention result. Last-known records are in retention.last_known_record.</logmessage>
+    <fields>
+      <field>
+        <name>plan_id</name>
+      </field>
+      <field>
+        <name>state</name>
+      </field>
+      <field>
+        <name>phase</name>
+      </field>
+      <field>
+        <name>owner_id</name>
+      </field>
+      <field>
+        <name>last_error</name>
+      </field>
+      <field>
+        <name>selected_runs</name>
+      </field>
+      <field>
+        <name>raw_files_to_delete</name>
+      </field>
+      <field>
+        <name>raw_bytes_to_delete</name>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

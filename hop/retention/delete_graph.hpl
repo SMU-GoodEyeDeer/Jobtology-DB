@@ -1,0 +1,265 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>delete_graph</name>
+    <description>Delete only selected ingestionBatch and ingestionRecord nodes. Keep shared entities, enrichment and archives.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Options</from>
+      <to>Selected graph batches</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Selected graph batches</from>
+      <to>Check deletion ownership</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Check deletion ownership</from>
+      <to>Owned snapshot only</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Delete historical graph batch</from>
+      <to>Deletion submitted</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Owned snapshot only</from>
+      <to>Delete historical graph batch</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Owned snapshot only</from>
+      <to>Abort</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Options</name>
+    <fields>
+      <field>
+        <name>plan_id</name>
+        <variable>${PLAN_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>retention_owner_id</name>
+        <variable>${RETENTION_OWNER_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Selected graph batches</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT r.run_id,r.source_id,r.record_count FROM retention.plan_run r JOIN retention.plan p USING(plan_id)
+WHERE r.plan_id=? AND p.owner_id=? AND p.state='ACTIVE' AND r.selected AND NOT r.graph_deleted ORDER BY r.created_at,r.run_id</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>plan_id</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>retention_owner_id</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Neo4jCypherOutput</type>
+    <name>Check deletion ownership</name>
+    <connection>${NEO4J_CONNECTION}</connection>
+    <cypher>OPTIONAL MATCH (b:ingestionBatch {id:$run_id})
+OPTIONAL MATCH (b)-[:HAS_RECORD]-&gt;(r:ingestionRecord)
+WITH b,collect(r) AS records
+RETURN (b IS NULL OR (b.source_id=$source_id AND b.state='READY' AND b.serving_scope='STAGING' AND size(records)=$record_count
+AND all(r IN records WHERE r.id STARTS WITH 'hop:'+$run_id+':' AND NOT r:entity AND NOT r:jobEnrichment
+AND NOT EXISTS { MATCH (other:ingestionBatch)-[:HAS_RECORD]-&gt;(r) WHERE other&lt;&gt;b }))) AS verified</cypher>
+    <batch_size>1</batch_size>
+    <read_only>Y</read_only>
+    <retry>N</retry>
+    <nr_retries_on_error>0</nr_retries_on_error>
+    <cypher_from_field>N</cypher_from_field>
+    <unwind>N</unwind>
+    <returning_graph>N</returning_graph>
+    <mappings>
+      <mapping>
+        <parameter>run_id</parameter>
+        <field>run_id</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>source_id</parameter>
+        <field>source_id</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>record_count</parameter>
+        <field>record_count</field>
+        <type>Integer</type>
+      </mapping>
+    </mappings>
+    <returns>
+      <return>
+        <name>verified</name>
+        <type>Boolean</type>
+        <source_type>Boolean</source_type>
+      </return>
+    </returns>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>Owned snapshot only</name>
+    <send_true_to>Delete historical graph batch</send_true_to>
+    <send_false_to>Abort</send_false_to>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>verified</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Boolean</type>
+          <text>Y</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>800</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Neo4jCypherOutput</type>
+    <name>Delete historical graph batch</name>
+    <connection>${NEO4J_CONNECTION}</connection>
+    <cypher>OPTIONAL MATCH (b:ingestionBatch {id:$run_id})
+OPTIONAL MATCH (b)-[:HAS_RECORD]-&gt;(r:ingestionRecord)
+WITH b,collect(r) AS records FOREACH (r IN records | DETACH DELETE r)
+DETACH DELETE b RETURN true AS deleted</cypher>
+    <batch_size>1</batch_size>
+    <read_only>N</read_only>
+    <retry>N</retry>
+    <nr_retries_on_error>0</nr_retries_on_error>
+    <cypher_from_field>N</cypher_from_field>
+    <unwind>N</unwind>
+    <returning_graph>N</returning_graph>
+    <mappings>
+      <mapping>
+        <parameter>run_id</parameter>
+        <field>run_id</field>
+        <type>String</type>
+      </mapping>
+    </mappings>
+    <returns>
+      <return>
+        <name>deleted</name>
+        <type>Boolean</type>
+        <source_type>Boolean</source_type>
+      </return>
+    </returns>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>1040</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Dummy</type>
+    <name>Deletion submitted</name>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>240</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Abort</type>
+    <name>Abort</name>
+    <message>Graph ownership/count verification failed; nothing outside the selected source batch may be deleted.</message>
+    <always_log_rows>N</always_log_rows>
+    <abort_option>ABORT_WITH_ERROR</abort_option>
+    <row_threshold>0</row_threshold>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>240</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

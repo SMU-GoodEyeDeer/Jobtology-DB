@@ -1,0 +1,11 @@
+{
+  "name": "retention-local",
+  "description": "Manual retention; local native Hop, no sampling. Basic logging.",
+  "engineRunConfiguration": {
+    "Local": {
+      "safe_mode": false
+    }
+  },
+  "executionInfoLocationName": "",
+  "defaultSelection": false
+}
