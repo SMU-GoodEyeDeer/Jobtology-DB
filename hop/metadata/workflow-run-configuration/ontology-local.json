@@ -1,0 +1,11 @@
+{
+  "name": "ontology-local",
+  "description": "Native ontology assembly and publication. No execution-data sampling.",
+  "engineRunConfiguration": {
+    "Local": {
+      "safe_mode": false
+    }
+  },
+  "executionInfoLocationName": "",
+  "defaultSelection": false
+}

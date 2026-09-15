@@ -1,0 +1,141 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>assemble_sources</name>
+    <description>Assemble canonical source entities, revisions and grounded relationships.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Release</from>
+      <to>Assemble source backbone</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Assemble source backbone</from>
+      <to>Read completeness</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Read completeness</from>
+      <to>Source coverage</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Release</name>
+    <fields>
+      <field>
+        <name>release_id</name>
+        <variable>${ONTOLOGY_RELEASE_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>ExecSql</type>
+    <name>Assemble source backbone</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT ontology.assemble_sources(?)</sql>
+    <execute_each_row>Y</execute_each_row>
+    <single_statement>Y</single_statement>
+    <set_params>Y</set_params>
+    <replace_variables>N</replace_variables>
+    <quoteString>N</quoteString>
+    <arguments>
+      <argument>
+        <name>release_id</name>
+      </argument>
+    </arguments>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Read completeness</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT source_id,record_count,supported_records,unaccounted_records FROM ontology.source_coverage WHERE release_id=? ORDER BY source_id</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>release_id</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>WriteToLog</type>
+    <name>Source coverage</name>
+    <loglevel>Basic</loglevel>
+    <displayHeader>Y</displayHeader>
+    <logmessage>Source assembly complete; enrichment and publication checks remain separate.</logmessage>
+    <fields>
+      <field>
+        <name>release_id</name>
+      </field>
+      <field>
+        <name>source_id</name>
+      </field>
+      <field>
+        <name>record_count</name>
+      </field>
+      <field>
+        <name>supported_records</name>
+      </field>
+      <field>
+        <name>unaccounted_records</name>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>800</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

@@ -1,0 +1,164 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<workflow>
+  <name>Prepare ontology source backbone</name>
+  <description>Prepare ontology source backbone</description>
+  <workflow_version>1</workflow_version>
+  <workflow_status>0</workflow_status>
+  <parameters>
+    <parameter>
+      <name>RELEASE_ID</name>
+      <default_value />
+      <description>Blank creates a new release; repeat with the returned ID to resume the same immutable inputs.</description>
+    </parameter>
+    <parameter>
+      <name>ALIO_RUN_ID</name>
+      <default_value>LATEST</default_value>
+      <description>Exact READY FULL source run or LATEST.</description>
+    </parameter>
+    <parameter>
+      <name>JOB_RUN_ID</name>
+      <default_value>LATEST</default_value>
+      <description>Exact READY FULL source run or LATEST.</description>
+    </parameter>
+    <parameter>
+      <name>NCS_RUN_ID</name>
+      <default_value>LATEST</default_value>
+      <description>Exact READY FULL source run or LATEST.</description>
+    </parameter>
+    <parameter>
+      <name>QUALIFICATION_RUN_ID</name>
+      <default_value>LATEST</default_value>
+      <description>Exact READY FULL source run or LATEST.</description>
+    </parameter>
+    <parameter>
+      <name>QNET_RUN_ID</name>
+      <default_value>LATEST</default_value>
+      <description>Exact READY FULL source run or LATEST.</description>
+    </parameter>
+    <parameter>
+      <name>CAREER_RUN_ID</name>
+      <default_value>LATEST</default_value>
+      <description>Exact READY FULL source run or LATEST.</description>
+    </parameter>
+  </parameters>
+  <actions>
+    <action>
+      <name>Start</name>
+      <type>SPECIAL</type>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <attributes />
+      <start>Y</start>
+      <repeat>N</repeat>
+      <schedulerType>0</schedulerType>
+      <intervalSeconds>0</intervalSeconds>
+      <intervalMinutes>60</intervalMinutes>
+      <DayOfMonth>1</DayOfMonth>
+      <weekDay>1</weekDay>
+      <minutes>0</minutes>
+      <hour>12</hour>
+    </action>
+    <action>
+      <name>Freeze source inputs</name>
+      <type>PIPELINE</type>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <attributes />
+      <filename>${PROJECT_HOME}/ontology/prepare_release.hpl</filename>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <run_configuration>ontology-local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+    </action>
+    <action>
+      <name>Assemble source entities</name>
+      <type>PIPELINE</type>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <attributes />
+      <filename>${PROJECT_HOME}/ontology/assemble_sources.hpl</filename>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <run_configuration>ontology-local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+    </action>
+    <action>
+      <name>Success</name>
+      <type>SUCCESS</type>
+      <xloc>800</xloc>
+      <yloc>80</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <attributes />
+    </action>
+    <action>
+      <name>Abort</name>
+      <type>ABORT</type>
+      <xloc>80</xloc>
+      <yloc>240</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <attributes />
+      <message>Ontology workflow failed. Inspect this execution log and the release or graph-load report.</message>
+    </action>
+  </actions>
+  <hops>
+    <hop>
+      <from>Start</from>
+      <to>Freeze source inputs</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>Y</unconditional>
+    </hop>
+    <hop>
+      <from>Freeze source inputs</from>
+      <to>Abort</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Freeze source inputs</from>
+      <to>Assemble source entities</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Assemble source entities</from>
+      <to>Abort</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Assemble source entities</from>
+      <to>Success</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+  </hops>
+  <notepads />
+  <attributes />
+</workflow>

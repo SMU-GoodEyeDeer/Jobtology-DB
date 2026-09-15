@@ -1,0 +1,198 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>prepare_release</name>
+    <description>Freeze six source snapshots and their original record lineage.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Release choices</from>
+      <to>Freeze source inputs</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Freeze source inputs</from>
+      <to>Remember release</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Remember release</from>
+      <to>Release pinned</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Release choices</name>
+    <fields>
+      <field>
+        <name>release_choice</name>
+        <variable>${RELEASE_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>alio_run_id</name>
+        <variable>${ALIO_RUN_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>job_run_id</name>
+        <variable>${JOB_RUN_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>ncs_run_id</name>
+        <variable>${NCS_RUN_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>qualification_run_id</name>
+        <variable>${QUALIFICATION_RUN_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>qnet_run_id</name>
+        <variable>${QNET_RUN_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>career_run_id</name>
+        <variable>${CAREER_RUN_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Freeze source inputs</name>
+    <connection>jobtology-postgres</connection>
+    <sql>WITH input AS MATERIALIZED (SELECT coalesce(nullif(?::text,''),gen_random_uuid()::text) AS id,jsonb_build_object('alio_organization',?::text,'job_alio',?::text,'ncs_competency',?::text,'ncs_qualification',?::text,'qnet_schedule',?::text,'ncs_career_path',?::text) AS choices) SELECT id AS pinned_release_id,ontology.prepare_release(id,choices)::text AS prepared FROM input</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>release_choice</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>alio_run_id</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>job_run_id</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>ncs_run_id</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>qualification_run_id</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>qnet_run_id</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>career_run_id</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>SetVariable</type>
+    <name>Remember release</name>
+    <use_formatting>Y</use_formatting>
+    <fields>
+      <field>
+        <field_name>pinned_release_id</field_name>
+        <variable_name>ONTOLOGY_RELEASE_ID</variable_name>
+        <variable_type>PARENT_WORKFLOW</variable_type>
+        <default_value />
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>WriteToLog</type>
+    <name>Release pinned</name>
+    <loglevel>Basic</loglevel>
+    <displayHeader>Y</displayHeader>
+    <logmessage>Pinned source snapshots. PREPARING does not mean published.</logmessage>
+    <fields>
+      <field>
+        <name>pinned_release_id</name>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>800</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>
