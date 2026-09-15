@@ -1,0 +1,104 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>inspect_requirements</name>
+    <description>Inspect current proposals; these are live review work, not frozen published selections.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters>
+      <parameter>
+        <name>RELEASE_ID</name>
+        <default_value />
+        <description>RELEASE_ID</description>
+      </parameter>
+    </parameters>
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Release</from>
+      <to>Source atoms and current proposals</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Source atoms and current proposals</from>
+      <to>Preview source and typed conditions</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Release</name>
+    <fields>
+      <field>
+        <name>release_id</name>
+        <variable>${RELEASE_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Source atoms and current proposals</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT a.*,ontology.requirement_source_v1(a.source_claim_id,a.node_index)::text AS source_binding,
+ n.normalization_id,n.parent_id,n.condition::text AS condition,n.requirement_key,n.document-&gt;&gt;'actor' AS actor,
+ d.decision_id,d.decision,d.reviewer,d.reviewer_kind,d.notes,
+ s.outcome AS frozen_outcome,s.normalization_id AS frozen_normalization_id
+ FROM ontology.requirement_atom a
+ LEFT JOIN LATERAL (SELECT * FROM ontology.requirement_normalization p WHERE p.source_claim_id=a.source_claim_id AND p.node_index=a.node_index ORDER BY normalization_no DESC LIMIT 1) n ON true
+ LEFT JOIN LATERAL (SELECT * FROM ontology.requirement_decision r WHERE r.normalization_id=n.normalization_id ORDER BY decision_id DESC LIMIT 1) d ON true
+ LEFT JOIN ontology.requirement_selection s ON s.release_id=a.release_id AND s.source_claim_id=a.source_claim_id AND s.node_index=a.node_index
+ WHERE a.release_id=? ORDER BY a.entity_id,a.source_claim_id,a.node_index</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>release_id</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Dummy</type>
+    <name>Preview source and typed conditions</name>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

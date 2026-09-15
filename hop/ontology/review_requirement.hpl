@@ -1,0 +1,149 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>review_requirement</name>
+    <description>Record a separate review of a typed requirement interpretation.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Review choices</from>
+      <to>Append independent decision</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Append independent decision</from>
+      <to>Decision recorded</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Review choices</name>
+    <fields>
+      <field>
+        <name>normalization_id</name>
+        <variable>${NORMALIZATION_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>decision</name>
+        <variable>${DECISION}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>reviewer</name>
+        <variable>${REVIEWER}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>reviewer_kind</name>
+        <variable>${REVIEWER_KIND}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>notes</name>
+        <variable>${NOTES}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Append independent decision</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT ontology.decide_requirement_v1(?,?,?,?,?) AS decision_id</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>normalization_id</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>decision</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>reviewer</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>reviewer_kind</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>notes</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>WriteToLog</type>
+    <name>Decision recorded</name>
+    <loglevel>Basic</loglevel>
+    <displayHeader>Y</displayHeader>
+    <logmessage>Semantic review does not assign confidence or activate a release.</logmessage>
+    <fields>
+      <field>
+        <name>normalization_id</name>
+      </field>
+      <field>
+        <name>decision_id</name>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>
