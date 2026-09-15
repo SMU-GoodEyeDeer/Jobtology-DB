@@ -263,6 +263,10 @@ OPTIONAL MATCH (e)-[r:ALIGNS_WITH_NCS {accepted:true}]->(n:ncsCompetency)
 RETURN j.name, e.name, n.name, r.reason;
 ```
 
+For one visible line per enrichment/NCS endpoint, and the 2026-09-16
+ALIO retention preview, see the
+[graph display and protected-history record](graph-clutter-retention-20260916.md).
+
 ### Refresh and retention
 
 The existing host cron still checks source refresh due times every 15 minutes.

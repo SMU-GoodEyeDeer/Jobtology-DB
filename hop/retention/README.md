@@ -15,6 +15,9 @@ also protected as observation history. This preserves first/last-seen times and
 the evidence for absence counts. Such snapshots are currently retained
 indefinitely: history compaction/pruning is still pending, so a manual plan can
 select fewer JOB snapshots than requested, including zero.
+The [2026-09-16 live ALIO previews](../../docs/hop-migration/graph-clutter-retention-20260916.md)
+selected zero of five READY runs even with `KEEP_LATEST=1`; older runs were
+pinned by evaluation datasets, an ontology release or an LLM batch.
 
 ## Choose the snapshots
 
