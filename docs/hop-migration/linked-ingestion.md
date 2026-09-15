@@ -1,23 +1,33 @@
 # Complete source ingestion and NCS linking
 
-**Paused by the user on 2026-09-14 at 16:53 KST (07:53Z).** Do not launch more
-attachment processing, paid enrichment, corrections/reviews or graph publication
-until explicit resumption. All current jobs are terminal; zero RUNNING model
-batches, zero RESERVED requests and no native Hop runner were present at the
-pause check. The separate source refresh schedule is unchanged.
+Current endpoint (2026-09-15): the reviewed NCS projection is **READY** in both
+PostgreSQL and Neo4j under publication ID `reviewed-ncs-20260915-recovered`.
+It contains **112 accepted posting extractions and 299 accepted NCS links**,
+including the 11 extractions and 14 links approved before this review. The graph
+readback confirmed 112 current `reviewedNcsEnrichment` nodes and 299 accepted
+`ALIGNS_WITH_NCS` relationships. This is the reviewed subset, not a claim that
+every posting in the source corpus has completed enrichment.
 
-Current endpoint: documents/source data are loaded, **11 duty extractions and
-14 NCS links are independently accepted in PostgreSQL**, and **no publication
-through `llm/publish_links.hwf` has run yet**. This final linking phase remains
-incomplete; accepted links must not be represented as already loaded to Neo4j.
+For the recovered rejection-evaluation set, `llm/export_link_review.hwf` staged
+108 current validated postings and 453 model suggestions in 11 immutable packets.
+An assistant semantic review compared each cited Korean duty with the complete
+NCS definition and occupational context. The imported decisions accepted 101
+extractions and 285 links, and rejected 7 extractions and 168 links. Six rejected
+extractions pulled about 40 unrelated positions from a shared 한국교통안전공단
+integrated-recruitment notice into unit-specific ALIO postings (IDs `304569`,
+`304592`, `304596`, `304603`, `304606`, `304634`). Posting `304888` also imported
+a dispatch-position label into a postal-sorting record. These need position-scoped
+corrections before any links from those revisions can be published. The accepted
+new links cover 68 postings; other accepted extractions can correctly have no
+supported NCS match. Source runs were JOB-ALIO
+`4eae07ed-1b70-4146-8e4f-75291c6b6b13` and NCS
+`a32170ed-7485-4e31-82d3-ed48b3398946`.
 
-Pause receipt: `~/.local/state/jobtology-hop/linked-ingestion-pause-20260914T075331Z.json`.
-The current operational record is `linked-ingestion-pause.json`; the previous
-attachment-hold/resumption record was backed up before recording this new pause.
-
-Resumed by the user on 2026-09-14 KST, including attachments via the existing
-`../document-processor` library. This is the narrower ETL deliverable; the broader
-product ontology ledger is retained as history, not a list of prerequisites.
+The user resumed the narrower ETL deliverable on 2026-09-14, including attachment
+processing through the existing `../document-processor` library. The earlier
+2026-09-14 pause receipt remains historical at
+`~/.local/state/jobtology-hop/linked-ingestion-pause-20260914T075331Z.json`.
+The broader product ontology ledger is history, not a prerequisite for these links.
 
 ## Finish line
 
