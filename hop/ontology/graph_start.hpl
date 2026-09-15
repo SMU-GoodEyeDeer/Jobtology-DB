@@ -1,0 +1,167 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>graph_start</name>
+    <description>Register one writer for the exact Neo4j database and freeze the graph inventory.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Release</from>
+      <to>Read graph database</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Read graph database</from>
+      <to>Create load token</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Create load token</from>
+      <to>Remember load</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Remember load</from>
+      <to>Register graph writer</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Release</name>
+    <fields>
+      <field>
+        <name>release_id</name>
+        <variable>${RELEASE_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Neo4jCypherOutput</type>
+    <name>Read graph database</name>
+    <connection>${NEO4J_CONNECTION}</connection>
+    <cypher>CALL db.info() YIELD id RETURN id AS database_id</cypher>
+    <batch_size>1</batch_size>
+    <read_only>Y</read_only>
+    <retry>N</retry>
+    <nr_retries_on_error>0</nr_retries_on_error>
+    <cypher_from_field>N</cypher_from_field>
+    <unwind>N</unwind>
+    <returning_graph>N</returning_graph>
+    <mappings />
+    <returns>
+      <return>
+        <name>database_id</name>
+        <type>String</type>
+        <source_type>String</source_type>
+      </return>
+    </returns>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Create load token</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT gen_random_uuid()::text AS load_id</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter />
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>SetVariable</type>
+    <name>Remember load</name>
+    <use_formatting>Y</use_formatting>
+    <fields>
+      <field>
+        <field_name>load_id</field_name>
+        <variable_name>ONTOLOGY_LOAD_ID</variable_name>
+        <variable_type>PARENT_WORKFLOW</variable_type>
+        <default_value />
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>800</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>ExecSql</type>
+    <name>Register graph writer</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT ontology.begin_graph_load(?,?,?)</sql>
+    <execute_each_row>Y</execute_each_row>
+    <single_statement>Y</single_statement>
+    <set_params>Y</set_params>
+    <replace_variables>N</replace_variables>
+    <quoteString>N</quoteString>
+    <arguments>
+      <argument>
+        <name>release_id</name>
+      </argument>
+      <argument>
+        <name>database_id</name>
+      </argument>
+      <argument>
+        <name>load_id</name>
+      </argument>
+    </arguments>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>1040</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

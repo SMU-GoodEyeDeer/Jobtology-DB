@@ -1,0 +1,657 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<workflow>
+  <name>Load and verify a sealed ontology graph candidate</name>
+  <description>Load and verify a sealed ontology graph candidate</description>
+  <workflow_version>1</workflow_version>
+  <workflow_status>0</workflow_status>
+  <parameters>
+    <parameter>
+      <name>RELEASE_ID</name>
+      <default_value />
+      <description>Exact release with assembled and frozen independent reviews.</description>
+    </parameter>
+    <parameter>
+      <name>NEO4J_CONNECTION</name>
+      <default_value>jobtology-neo4j</default_value>
+      <description>Private native Hop Neo4j connection.</description>
+    </parameter>
+  </parameters>
+  <actions>
+    <action>
+      <name>Start</name>
+      <type>SPECIAL</type>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <attributes />
+      <start>Y</start>
+      <repeat>N</repeat>
+      <schedulerType>0</schedulerType>
+      <intervalSeconds>0</intervalSeconds>
+      <intervalMinutes>60</intervalMinutes>
+      <DayOfMonth>1</DayOfMonth>
+      <weekDay>1</weekDay>
+      <minutes>0</minutes>
+      <hour>12</hour>
+    </action>
+    <action>
+      <name>Register graph candidate</name>
+      <type>PIPELINE</type>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <attributes />
+      <filename>${PROJECT_HOME}/ontology/graph_start.hpl</filename>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <run_configuration>ontology-local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+    </action>
+    <action>
+      <name>Check uniqueness constraint</name>
+      <type>PIPELINE</type>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <attributes />
+      <filename>${PROJECT_HOME}/ontology/graph_constraint.hpl</filename>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <run_configuration>ontology-local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+    </action>
+    <action>
+      <name>Begin graph root</name>
+      <type>PIPELINE</type>
+      <xloc>800</xloc>
+      <yloc>80</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <attributes />
+      <filename>${PROJECT_HOME}/ontology/graph_root.hpl</filename>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <run_configuration>ontology-local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+    </action>
+    <action>
+      <name>Load graph objects</name>
+      <type>PIPELINE</type>
+      <xloc>1040</xloc>
+      <yloc>80</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <attributes />
+      <filename>${PROJECT_HOME}/ontology/graph_nodes.hpl</filename>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <run_configuration>ontology-local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+    </action>
+    <action>
+      <name>Load graph relationships</name>
+      <type>PIPELINE</type>
+      <xloc>80</xloc>
+      <yloc>240</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <attributes />
+      <filename>${PROJECT_HOME}/ontology/graph_edges.hpl</filename>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <run_configuration>ontology-local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+    </action>
+    <action>
+      <name>Write node_scalars</name>
+      <type>PIPELINE</type>
+      <xloc>320</xloc>
+      <yloc>240</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <attributes />
+      <filename>${PROJECT_HOME}/ontology/write_node_scalars.hpl</filename>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <run_configuration>ontology-local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+    </action>
+    <action>
+      <name>Write node_arrays</name>
+      <type>PIPELINE</type>
+      <xloc>560</xloc>
+      <yloc>240</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <attributes />
+      <filename>${PROJECT_HOME}/ontology/write_node_arrays.hpl</filename>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <run_configuration>ontology-local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+    </action>
+    <action>
+      <name>Write edge_scalars</name>
+      <type>PIPELINE</type>
+      <xloc>800</xloc>
+      <yloc>240</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <attributes />
+      <filename>${PROJECT_HOME}/ontology/write_edge_scalars.hpl</filename>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <run_configuration>ontology-local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+    </action>
+    <action>
+      <name>Write edge_arrays</name>
+      <type>PIPELINE</type>
+      <xloc>1040</xloc>
+      <yloc>240</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <attributes />
+      <filename>${PROJECT_HOME}/ontology/write_edge_arrays.hpl</filename>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <run_configuration>ontology-local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+    </action>
+    <action>
+      <name>Verify node_scalars</name>
+      <type>PIPELINE</type>
+      <xloc>80</xloc>
+      <yloc>400</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <attributes />
+      <filename>${PROJECT_HOME}/ontology/verify_node_scalars.hpl</filename>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <run_configuration>ontology-local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+    </action>
+    <action>
+      <name>Verify node_arrays</name>
+      <type>PIPELINE</type>
+      <xloc>320</xloc>
+      <yloc>400</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <attributes />
+      <filename>${PROJECT_HOME}/ontology/verify_node_arrays.hpl</filename>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <run_configuration>ontology-local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+    </action>
+    <action>
+      <name>Verify edge_scalars</name>
+      <type>PIPELINE</type>
+      <xloc>560</xloc>
+      <yloc>400</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <attributes />
+      <filename>${PROJECT_HOME}/ontology/verify_edge_scalars.hpl</filename>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <run_configuration>ontology-local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+    </action>
+    <action>
+      <name>Verify edge_arrays</name>
+      <type>PIPELINE</type>
+      <xloc>800</xloc>
+      <yloc>400</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <attributes />
+      <filename>${PROJECT_HOME}/ontology/verify_edge_arrays.hpl</filename>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <run_configuration>ontology-local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+    </action>
+    <action>
+      <name>Verify graph objects</name>
+      <type>PIPELINE</type>
+      <xloc>1040</xloc>
+      <yloc>400</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <attributes />
+      <filename>${PROJECT_HOME}/ontology/graph_verify_nodes.hpl</filename>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <run_configuration>ontology-local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+    </action>
+    <action>
+      <name>Verify graph relationships</name>
+      <type>PIPELINE</type>
+      <xloc>80</xloc>
+      <yloc>560</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <attributes />
+      <filename>${PROJECT_HOME}/ontology/graph_verify_edges.hpl</filename>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <run_configuration>ontology-local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+    </action>
+    <action>
+      <name>Verify total membership</name>
+      <type>PIPELINE</type>
+      <xloc>320</xloc>
+      <yloc>560</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <attributes />
+      <filename>${PROJECT_HOME}/ontology/graph_finish.hpl</filename>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <run_configuration>ontology-local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+    </action>
+    <action>
+      <name>Success</name>
+      <type>SUCCESS</type>
+      <xloc>560</xloc>
+      <yloc>560</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <attributes />
+    </action>
+    <action>
+      <name>Abort</name>
+      <type>ABORT</type>
+      <xloc>1040</xloc>
+      <yloc>560</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <attributes />
+      <message>Ontology workflow failed. Inspect this execution log and the release or graph-load report.</message>
+    </action>
+    <action>
+      <name>Record failed load</name>
+      <type>PIPELINE</type>
+      <xloc>80</xloc>
+      <yloc>720</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <attributes />
+      <filename>${PROJECT_HOME}/ontology/graph_fail.hpl</filename>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <run_configuration>ontology-local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+    </action>
+  </actions>
+  <hops>
+    <hop>
+      <from>Start</from>
+      <to>Register graph candidate</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>Y</unconditional>
+    </hop>
+    <hop>
+      <from>Register graph candidate</from>
+      <to>Record failed load</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Register graph candidate</from>
+      <to>Check uniqueness constraint</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Check uniqueness constraint</from>
+      <to>Record failed load</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Check uniqueness constraint</from>
+      <to>Begin graph root</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Begin graph root</from>
+      <to>Record failed load</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Begin graph root</from>
+      <to>Load graph objects</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Load graph objects</from>
+      <to>Record failed load</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Load graph objects</from>
+      <to>Load graph relationships</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Load graph relationships</from>
+      <to>Record failed load</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Load graph relationships</from>
+      <to>Write node_scalars</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Write node_scalars</from>
+      <to>Record failed load</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Write node_scalars</from>
+      <to>Write node_arrays</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Write node_arrays</from>
+      <to>Record failed load</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Write node_arrays</from>
+      <to>Write edge_scalars</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Write edge_scalars</from>
+      <to>Record failed load</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Write edge_scalars</from>
+      <to>Write edge_arrays</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Write edge_arrays</from>
+      <to>Record failed load</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Write edge_arrays</from>
+      <to>Verify node_scalars</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Verify node_scalars</from>
+      <to>Record failed load</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Verify node_scalars</from>
+      <to>Verify node_arrays</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Verify node_arrays</from>
+      <to>Record failed load</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Verify node_arrays</from>
+      <to>Verify edge_scalars</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Verify edge_scalars</from>
+      <to>Record failed load</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Verify edge_scalars</from>
+      <to>Verify edge_arrays</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Verify edge_arrays</from>
+      <to>Record failed load</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Verify edge_arrays</from>
+      <to>Verify graph objects</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Verify graph objects</from>
+      <to>Record failed load</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Verify graph objects</from>
+      <to>Verify graph relationships</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Verify graph relationships</from>
+      <to>Record failed load</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Verify graph relationships</from>
+      <to>Verify total membership</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Verify total membership</from>
+      <to>Record failed load</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Verify total membership</from>
+      <to>Success</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Record failed load</from>
+      <to>Abort</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>Y</unconditional>
+    </hop>
+  </hops>
+  <notepads />
+  <attributes />
+</workflow>

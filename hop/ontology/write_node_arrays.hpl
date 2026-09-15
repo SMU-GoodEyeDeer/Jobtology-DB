@@ -1,0 +1,248 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>write_node_arrays</name>
+    <description>Write typed ontology node_arrays properties.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Load token</from>
+      <to>Expected properties</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Expected properties</from>
+      <to>Property operation</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Property operation</from>
+      <to>Verify result</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Verify result</from>
+      <to>Verified</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Verify result</from>
+      <to>Graph mismatch</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Load token</name>
+    <fields>
+      <field>
+        <name>load_token</name>
+        <variable>${ONTOLOGY_LOAD_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>TableInput</type>
+    <name>Expected properties</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT l.load_id,l.release_id,l.database_id,l.manifest_hash,r.manifest-&gt;&gt;'data_as_of' AS data_as_of,(r.manifest-&gt;&gt;'nodes')::bigint AS expected_nodes,(r.manifest-&gt;&gt;'edges')::bigint AS expected_edges,p.owner_id,p.content_hash,p.key,p.ordinal,p.array_size,p.text_value,p.value_type,e.subject_id,e.predicate,e.object_id FROM ontology.graph_load l JOIN ontology.corpus_release r USING(release_id) JOIN ontology.graph_property p ON p.release_id=l.release_id LEFT JOIN ontology.graph_edge e ON e.release_id=p.release_id AND e.edge_id=p.owner_id AND p.owner_type='EDGE' WHERE l.load_id=? AND l.state='RUNNING' AND p.owner_type='NODE' AND p.is_array=true ORDER BY p.owner_id,p.key,p.ordinal</sql>
+    <limit>0</limit>
+    <lookup>Load token</lookup>
+    <execute_each_row>Y</execute_each_row>
+    <variables_active>N</variables_active>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Neo4jCypherOutput</type>
+    <name>Property operation</name>
+    <connection>${NEO4J_CONNECTION}</connection>
+    <cypher>CALL db.info() YIELD id AS actual_database_id
+UNWIND $rows AS row
+WITH row,actual_database_id WHERE row.database_id=actual_database_id
+MATCH (n:ontologyObject {id:row.owner_id})
+WITH row,n,CASE row.value_type WHEN 'integer' THEN toInteger(row.text_value) WHEN 'number' THEN toFloat(row.text_value) WHEN 'boolean' THEN toBoolean(row.text_value) WHEN 'date' THEN date(row.text_value) WHEN 'datetime' THEN datetime(row.text_value) WHEN 'string' THEN coalesce(row.text_value,'') ELSE row.text_value END AS expected WHERE n.content_hash=row.content_hash AND (n[row.key] IS NULL OR valueType(n[row.key]) STARTS WITH 'LIST&lt;') ORDER BY row.owner_id,row.key,row.ordinal
+FOREACH (_ IN CASE WHEN n[row.key] IS NULL THEN [1] ELSE [] END | SET n[row.key]=[])
+FOREACH (_ IN CASE WHEN row.ordinal&gt;=0 AND size(n[row.key])=row.ordinal THEN [1] ELSE [] END | SET n[row.key]=n[row.key]+expected)
+RETURN count(n)=size($rows) AND all(ok IN collect(coalesce(n.content_hash=row.content_hash AND CASE WHEN row.ordinal&lt;0 THEN n[row.key]=[] ELSE n[row.key][row.ordinal]=expected END,false)) WHERE ok) AS verified</cypher>
+    <batch_size>500</batch_size>
+    <read_only>N</read_only>
+    <retry>N</retry>
+    <nr_retries_on_error>0</nr_retries_on_error>
+    <cypher_from_field>N</cypher_from_field>
+    <unwind>Y</unwind>
+    <returning_graph>N</returning_graph>
+    <mappings>
+      <mapping>
+        <parameter>database_id</parameter>
+        <field>database_id</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>release_id</parameter>
+        <field>release_id</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>owner_id</parameter>
+        <field>owner_id</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>content_hash</parameter>
+        <field>content_hash</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>key</parameter>
+        <field>key</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>text_value</parameter>
+        <field>text_value</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>value_type</parameter>
+        <field>value_type</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>subject_id</parameter>
+        <field>subject_id</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>predicate</parameter>
+        <field>predicate</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>object_id</parameter>
+        <field>object_id</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>ordinal</parameter>
+        <field>ordinal</field>
+        <type>Integer</type>
+      </mapping>
+      <mapping>
+        <parameter>array_size</parameter>
+        <field>array_size</field>
+        <type>Integer</type>
+      </mapping>
+    </mappings>
+    <returns>
+      <return>
+        <name>verified</name>
+        <type>Boolean</type>
+        <source_type>Boolean</source_type>
+      </return>
+    </returns>
+    <unwind_map>rows</unwind_map>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>Verify result</name>
+    <send_true_to>Verified</send_true_to>
+    <send_false_to>Graph mismatch</send_false_to>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>verified</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Boolean</type>
+          <text>Y</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>800</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Dummy</type>
+    <name>Verified</name>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>1040</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Abort</type>
+    <name>Graph mismatch</name>
+    <message>Ontology graph verification failed. The PostgreSQL active release was not changed. Inspect the log and retry the same release.</message>
+    <always_log_rows>N</always_log_rows>
+    <abort_option>ABORT_WITH_ERROR</abort_option>
+    <row_threshold>0</row_threshold>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>240</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

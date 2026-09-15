@@ -1,0 +1,70 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>graph_fail</name>
+    <description>Release the writer after a caught workflow failure; preserve its failed execution record.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Load token</from>
+      <to>Fail this load</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Load token</name>
+    <fields>
+      <field>
+        <name>load_token</name>
+        <variable>${ONTOLOGY_LOAD_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>ExecSql</type>
+    <name>Fail this load</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT ontology.fail_graph_load(?)</sql>
+    <execute_each_row>Y</execute_each_row>
+    <single_statement>Y</single_statement>
+    <set_params>Y</set_params>
+    <replace_variables>N</replace_variables>
+    <quoteString>N</quoteString>
+    <arguments>
+      <argument>
+        <name>load_token</name>
+      </argument>
+    </arguments>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

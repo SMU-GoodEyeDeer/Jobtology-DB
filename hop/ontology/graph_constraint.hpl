@@ -1,0 +1,233 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>graph_constraint</name>
+    <description>Inspect and create the ontology object uniqueness constraint.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Load token</from>
+      <to>Inspect constraint</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Inspect constraint</from>
+      <to>Constraint exists</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Name available</from>
+      <to>Create constraint</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Create constraint</from>
+      <to>Done</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Constraint exists</from>
+      <to>Done</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Constraint exists</from>
+      <to>Name available</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Name available</from>
+      <to>Conflict</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Load token</name>
+    <fields>
+      <field>
+        <name>load_token</name>
+        <variable>${ONTOLOGY_LOAD_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Neo4jCypherOutput</type>
+    <name>Inspect constraint</name>
+    <connection>${NEO4J_CONNECTION}</connection>
+    <cypher>SHOW CONSTRAINTS YIELD name,entityType,type,labelsOrTypes,properties
+RETURN count(CASE WHEN entityType='NODE' AND type IN ['UNIQUENESS','NODE_KEY','NODE_PROPERTY_UNIQUENESS'] AND labelsOrTypes=['ontologyObject'] AND properties=['id'] THEN 1 END)&gt;0 AS correct,
+count(CASE WHEN name='jobtology_ontology_object_id' THEN 1 END) AS name_in_use</cypher>
+    <batch_size>1</batch_size>
+    <read_only>Y</read_only>
+    <retry>N</retry>
+    <nr_retries_on_error>0</nr_retries_on_error>
+    <cypher_from_field>N</cypher_from_field>
+    <unwind>N</unwind>
+    <returning_graph>N</returning_graph>
+    <mappings />
+    <returns>
+      <return>
+        <name>correct</name>
+        <type>Boolean</type>
+        <source_type>Boolean</source_type>
+      </return>
+      <return>
+        <name>name_in_use</name>
+        <type>Integer</type>
+        <source_type>Integer</source_type>
+      </return>
+    </returns>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>Constraint exists</name>
+    <send_true_to>Done</send_true_to>
+    <send_false_to>Name available</send_false_to>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>correct</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Boolean</type>
+          <text>Y</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>Name available</name>
+    <send_true_to>Create constraint</send_true_to>
+    <send_false_to>Conflict</send_false_to>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>name_in_use</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Integer</type>
+          <text>0</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>800</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Neo4jCypherOutput</type>
+    <name>Create constraint</name>
+    <connection>${NEO4J_CONNECTION}</connection>
+    <cypher>CREATE CONSTRAINT jobtology_ontology_object_id FOR (n:ontologyObject) REQUIRE n.id IS UNIQUE</cypher>
+    <batch_size>1</batch_size>
+    <read_only>N</read_only>
+    <retry>N</retry>
+    <nr_retries_on_error>0</nr_retries_on_error>
+    <cypher_from_field>N</cypher_from_field>
+    <unwind>N</unwind>
+    <returning_graph>N</returning_graph>
+    <mappings />
+    <returns />
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>1040</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Dummy</type>
+    <name>Done</name>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>240</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Abort</type>
+    <name>Conflict</name>
+    <message>The ontology constraint name is already used by an incompatible constraint.</message>
+    <always_log_rows>N</always_log_rows>
+    <abort_option>ABORT_WITH_ERROR</abort_option>
+    <row_threshold>0</row_threshold>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>240</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

@@ -1,0 +1,121 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>export_prepare</name>
+    <description>Allocate a unique export filename. This does not seal or publish a release.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Export request</from>
+      <to>New export ID</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>New export ID</from>
+      <to>Remember export</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Remember export</from>
+      <to>Export destination</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Export request</name>
+    <fields>
+      <field>
+        <name>release_id</name>
+        <variable>${RELEASE_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>New export ID</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT gen_random_uuid()::text AS export_id</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter />
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>SetVariable</type>
+    <name>Remember export</name>
+    <use_formatting>Y</use_formatting>
+    <fields>
+      <field>
+        <field_name>export_id</field_name>
+        <variable_name>ONTOLOGY_EXPORT_ID</variable_name>
+        <variable_type>PARENT_WORKFLOW</variable_type>
+        <default_value />
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>WriteToLog</type>
+    <name>Export destination</name>
+    <loglevel>Basic</loglevel>
+    <displayHeader>Y</displayHeader>
+    <logmessage>Output: ${PROJECT_HOME}/data/ontology-exports/${ONTOLOGY_EXPORT_ID}.jsonld. Consume only after workflow success and validation.</logmessage>
+    <fields>
+      <field>
+        <name>export_id</name>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>800</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

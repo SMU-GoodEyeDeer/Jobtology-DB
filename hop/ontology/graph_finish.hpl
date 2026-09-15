@@ -1,0 +1,279 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>graph_finish</name>
+    <description>Verify total membership and checkpoint the graph candidate without activating a serving release.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Load token</from>
+      <to>Expected totals</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Expected totals</from>
+      <to>Verify graph scope</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Verify graph scope</from>
+      <to>All totals verified</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>All totals verified</from>
+      <to>Checkpoint graph load</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Checkpoint graph load</from>
+      <to>Verified graph candidate</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>All totals verified</from>
+      <to>Graph mismatch</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Load token</name>
+    <fields>
+      <field>
+        <name>load_token</name>
+        <variable>${ONTOLOGY_LOAD_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>TableInput</type>
+    <name>Expected totals</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT l.load_id,l.release_id,l.database_id,l.manifest_hash,r.manifest-&gt;&gt;'data_as_of' AS data_as_of,(r.manifest-&gt;&gt;'nodes')::bigint AS expected_nodes,(r.manifest-&gt;&gt;'edges')::bigint AS expected_edges FROM ontology.graph_load l JOIN ontology.corpus_release r USING(release_id)  WHERE l.load_id=? AND l.state='RUNNING' </sql>
+    <limit>0</limit>
+    <lookup>Load token</lookup>
+    <execute_each_row>Y</execute_each_row>
+    <variables_active>N</variables_active>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Neo4jCypherOutput</type>
+    <name>Verify graph scope</name>
+    <connection>${NEO4J_CONNECTION}</connection>
+    <cypher>CALL db.info() YIELD id AS actual_database_id
+WITH actual_database_id WHERE actual_database_id=$database_id
+MATCH (r:ontologyObject:corpusRelease {id:'release/'+$release_id,manifest_hash:$manifest_hash,load_id:$load_id})
+OPTIONAL MATCH (r)-[member:INCLUDES {release_id:$release_id}]-&gt;(n)
+WITH r,count(member) AS member_count,count(DISTINCT n) AS node_count
+OPTIONAL MATCH ()-[edge]-&gt;() WHERE edge.release_id=$release_id
+WITH r,member_count,node_count,count(edge) AS edge_count
+WHERE member_count=$expected_nodes AND node_count=$expected_nodes AND edge_count=$expected_edges
+SET r.projection_state='VERIFIED',r.verified_at=datetime()
+RETURN count(r)=1 AS verified</cypher>
+    <batch_size>1</batch_size>
+    <read_only>N</read_only>
+    <retry>N</retry>
+    <nr_retries_on_error>0</nr_retries_on_error>
+    <cypher_from_field>N</cypher_from_field>
+    <unwind>N</unwind>
+    <returning_graph>N</returning_graph>
+    <mappings>
+      <mapping>
+        <parameter>database_id</parameter>
+        <field>database_id</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>release_id</parameter>
+        <field>release_id</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>manifest_hash</parameter>
+        <field>manifest_hash</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>load_id</parameter>
+        <field>load_id</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>expected_nodes</parameter>
+        <field>expected_nodes</field>
+        <type>Integer</type>
+      </mapping>
+      <mapping>
+        <parameter>expected_edges</parameter>
+        <field>expected_edges</field>
+        <type>Integer</type>
+      </mapping>
+    </mappings>
+    <returns>
+      <return>
+        <name>verified</name>
+        <type>Boolean</type>
+        <source_type>Boolean</source_type>
+      </return>
+    </returns>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>All totals verified</name>
+    <send_true_to>Checkpoint graph load</send_true_to>
+    <send_false_to>Graph mismatch</send_false_to>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>verified</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Boolean</type>
+          <text>Y</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>800</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>ExecSql</type>
+    <name>Checkpoint graph load</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT ontology.finish_graph_load(?,?,?,?)</sql>
+    <execute_each_row>Y</execute_each_row>
+    <single_statement>Y</single_statement>
+    <set_params>Y</set_params>
+    <replace_variables>N</replace_variables>
+    <quoteString>N</quoteString>
+    <arguments>
+      <argument>
+        <name>load_id</name>
+      </argument>
+      <argument>
+        <name>expected_nodes</name>
+      </argument>
+      <argument>
+        <name>expected_edges</name>
+      </argument>
+      <argument>
+        <name>verified</name>
+      </argument>
+    </arguments>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>1040</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>WriteToLog</type>
+    <name>Verified graph candidate</name>
+    <loglevel>Basic</loglevel>
+    <displayHeader>Y</displayHeader>
+    <logmessage>All graph values and memberships verified. Serving activation remains a separate release gate.</logmessage>
+    <fields>
+      <field>
+        <name>release_id</name>
+      </field>
+      <field>
+        <name>load_id</name>
+      </field>
+      <field>
+        <name>expected_nodes</name>
+      </field>
+      <field>
+        <name>expected_edges</name>
+      </field>
+      <field>
+        <name>manifest_hash</name>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>240</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Abort</type>
+    <name>Graph mismatch</name>
+    <message>Ontology membership totals differ; no PostgreSQL graph checkpoint was written.</message>
+    <always_log_rows>N</always_log_rows>
+    <abort_option>ABORT_WITH_ERROR</abort_option>
+    <row_threshold>0</row_threshold>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>240</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

@@ -1,0 +1,226 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>graph_verify_edges</name>
+    <description>Verify relationship endpoints, predicate, ownership and property cardinality.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Load token</from>
+      <to>Expected relationships</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Expected relationships</from>
+      <to>Verify edges</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Verify edges</from>
+      <to>Verify result</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Verify result</from>
+      <to>Verified</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Verify result</from>
+      <to>Graph mismatch</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Load token</name>
+    <fields>
+      <field>
+        <name>load_token</name>
+        <variable>${ONTOLOGY_LOAD_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>TableInput</type>
+    <name>Expected relationships</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT l.load_id,l.release_id,l.database_id,l.manifest_hash,r.manifest-&gt;&gt;'data_as_of' AS data_as_of,(r.manifest-&gt;&gt;'nodes')::bigint AS expected_nodes,(r.manifest-&gt;&gt;'edges')::bigint AS expected_edges,e.edge_id,e.subject_id,e.predicate,e.object_id,e.content_hash,(SELECT count(*) FROM jsonb_object_keys(e.properties))::bigint AS property_count FROM ontology.graph_load l JOIN ontology.corpus_release r USING(release_id) JOIN ontology.graph_edge e ON e.release_id=l.release_id WHERE l.load_id=? AND l.state='RUNNING' ORDER BY e.edge_id</sql>
+    <limit>0</limit>
+    <lookup>Load token</lookup>
+    <execute_each_row>Y</execute_each_row>
+    <variables_active>N</variables_active>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Neo4jCypherOutput</type>
+    <name>Verify edges</name>
+    <connection>${NEO4J_CONNECTION}</connection>
+    <cypher>CALL db.info() YIELD id AS actual_database_id
+UNWIND $rows AS row
+WITH row,actual_database_id WHERE row.database_id=actual_database_id
+OPTIONAL MATCH (a:ontologyObject {id:row.subject_id})-[e:$(row.predicate) {id:row.edge_id}]-&gt;(b:ontologyObject {id:row.object_id})
+RETURN count(e)=size($rows) AND all(ok IN collect(coalesce(e.release_id=row.release_id AND e.content_hash=row.content_hash
+ AND size(keys(e))=row.property_count+3,false)) WHERE ok) AS verified</cypher>
+    <batch_size>500</batch_size>
+    <read_only>Y</read_only>
+    <retry>N</retry>
+    <nr_retries_on_error>0</nr_retries_on_error>
+    <cypher_from_field>N</cypher_from_field>
+    <unwind>Y</unwind>
+    <returning_graph>N</returning_graph>
+    <mappings>
+      <mapping>
+        <parameter>database_id</parameter>
+        <field>database_id</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>release_id</parameter>
+        <field>release_id</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>edge_id</parameter>
+        <field>edge_id</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>subject_id</parameter>
+        <field>subject_id</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>predicate</parameter>
+        <field>predicate</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>object_id</parameter>
+        <field>object_id</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>content_hash</parameter>
+        <field>content_hash</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>property_count</parameter>
+        <field>property_count</field>
+        <type>Integer</type>
+      </mapping>
+    </mappings>
+    <returns>
+      <return>
+        <name>verified</name>
+        <type>Boolean</type>
+        <source_type>Boolean</source_type>
+      </return>
+    </returns>
+    <unwind_map>rows</unwind_map>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>Verify result</name>
+    <send_true_to>Verified</send_true_to>
+    <send_false_to>Graph mismatch</send_false_to>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>verified</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Boolean</type>
+          <text>Y</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>800</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Dummy</type>
+    <name>Verified</name>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>1040</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Abort</type>
+    <name>Graph mismatch</name>
+    <message>Ontology graph verification failed. The PostgreSQL active release was not changed. Inspect the log and retry the same release.</message>
+    <always_log_rows>N</always_log_rows>
+    <abort_option>ABORT_WITH_ERROR</abort_option>
+    <row_threshold>0</row_threshold>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>240</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

@@ -1,0 +1,211 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>graph_root</name>
+    <description>Begin an immutable-manifest graph candidate; retain the authoritative PostgreSQL publication state.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Load token</from>
+      <to>Sealed release</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Sealed release</from>
+      <to>Begin graph candidate</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Begin graph candidate</from>
+      <to>Verify result</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Verify result</from>
+      <to>Verified</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Verify result</from>
+      <to>Graph mismatch</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Load token</name>
+    <fields>
+      <field>
+        <name>load_token</name>
+        <variable>${ONTOLOGY_LOAD_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>TableInput</type>
+    <name>Sealed release</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT l.load_id,l.release_id,l.database_id,l.manifest_hash,r.manifest-&gt;&gt;'data_as_of' AS data_as_of,(r.manifest-&gt;&gt;'nodes')::bigint AS expected_nodes,(r.manifest-&gt;&gt;'edges')::bigint AS expected_edges FROM ontology.graph_load l JOIN ontology.corpus_release r USING(release_id)  WHERE l.load_id=? AND l.state='RUNNING' </sql>
+    <limit>0</limit>
+    <lookup>Load token</lookup>
+    <execute_each_row>Y</execute_each_row>
+    <variables_active>N</variables_active>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Neo4jCypherOutput</type>
+    <name>Begin graph candidate</name>
+    <connection>${NEO4J_CONNECTION}</connection>
+    <cypher>CALL db.info() YIELD id AS actual_database_id
+WITH actual_database_id WHERE actual_database_id=$database_id
+MERGE (r:ontologyObject:corpusRelease {id:'release/'+$release_id})
+ON CREATE SET r.release_id=$release_id,r.manifest_hash=$manifest_hash,r.data_as_of=$data_as_of,r.name=$release_id
+WITH r WHERE r.release_id=$release_id AND r.manifest_hash=$manifest_hash AND r.data_as_of=$data_as_of
+SET r.projection_state='LOADING',r.load_id=$load_id,r.database_id=$database_id
+RETURN count(r)=1 AS verified</cypher>
+    <batch_size>1</batch_size>
+    <read_only>N</read_only>
+    <retry>N</retry>
+    <nr_retries_on_error>0</nr_retries_on_error>
+    <cypher_from_field>N</cypher_from_field>
+    <unwind>N</unwind>
+    <returning_graph>N</returning_graph>
+    <mappings>
+      <mapping>
+        <parameter>database_id</parameter>
+        <field>database_id</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>release_id</parameter>
+        <field>release_id</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>manifest_hash</parameter>
+        <field>manifest_hash</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>data_as_of</parameter>
+        <field>data_as_of</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>load_id</parameter>
+        <field>load_id</field>
+        <type>String</type>
+      </mapping>
+    </mappings>
+    <returns>
+      <return>
+        <name>verified</name>
+        <type>Boolean</type>
+        <source_type>Boolean</source_type>
+      </return>
+    </returns>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>Verify result</name>
+    <send_true_to>Verified</send_true_to>
+    <send_false_to>Graph mismatch</send_false_to>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>verified</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Boolean</type>
+          <text>Y</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>800</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Dummy</type>
+    <name>Verified</name>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>1040</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Abort</type>
+    <name>Graph mismatch</name>
+    <message>Ontology graph verification failed. The PostgreSQL active release was not changed. Inspect the log and retry the same release.</message>
+    <always_log_rows>N</always_log_rows>
+    <abort_option>ABORT_WITH_ERROR</abort_option>
+    <row_threshold>0</row_threshold>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>240</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>
