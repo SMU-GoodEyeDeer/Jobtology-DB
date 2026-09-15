@@ -1,0 +1,1101 @@
+{
+  "version": "hop-ontology-interchange-v4",
+  "namespaces": {
+    "jt": "urn:jobtology:vocab:1:",
+    "jtf": "urn:jobtology:field:1:",
+    "schema": "https://schema.org/",
+    "rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
+    "rdfs": "http://www.w3.org/2000/01/rdf-schema#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "skos": "http://www.w3.org/2004/02/skos/core#",
+    "sh": "http://www.w3.org/ns/shacl#"
+  },
+  "classes": {
+    "ActionTemplate": {
+      "status": "EXPORTABLE"
+    },
+    "ActionTemplateRevision": {
+      "status": "EXPORTABLE"
+    },
+    "Assertion": {
+      "status": "EXPORTABLE"
+    },
+    "CareerRank": {
+      "status": "EXPORTABLE"
+    },
+    "CareerRankRevision": {
+      "status": "EXPORTABLE"
+    },
+    "CompetencyMappingClaim": {
+      "status": "EXPORTABLE"
+    },
+    "ConceptScheme": {
+      "status": "EXPORTABLE"
+    },
+    "ConceptSchemeRevision": {
+      "status": "EXPORTABLE"
+    },
+    "ConditionExpression": {
+      "status": "EXPORTABLE"
+    },
+    "CorpusRelease": {
+      "status": "EXPORTABLE"
+    },
+    "Course": {
+      "status": "EXPORTABLE"
+    },
+    "CourseInstance": {
+      "status": "EXPORTABLE"
+    },
+    "CourseInstanceRevision": {
+      "status": "EXPORTABLE"
+    },
+    "CourseRevision": {
+      "status": "EXPORTABLE"
+    },
+    "Credential": {
+      "status": "EXPORTABLE"
+    },
+    "CredentialRevision": {
+      "status": "EXPORTABLE"
+    },
+    "DocumentCell": {
+      "status": "EXPORTABLE"
+    },
+    "DocumentObservation": {
+      "status": "EXPORTABLE"
+    },
+    "DocumentSection": {
+      "status": "EXPORTABLE"
+    },
+    "DocumentTable": {
+      "status": "EXPORTABLE"
+    },
+    "DutyClaim": {
+      "status": "EXPORTABLE"
+    },
+    "Entity": {
+      "status": "EXPORTABLE"
+    },
+    "EntityRevision": {
+      "status": "EXPORTABLE"
+    },
+    "EvidenceSpan": {
+      "status": "EXPORTABLE"
+    },
+    "ExamSession": {
+      "status": "EXPORTABLE"
+    },
+    "ExamSessionRevision": {
+      "status": "EXPORTABLE"
+    },
+    "GuardedRule": {
+      "status": "EXPORTABLE"
+    },
+    "JobPosting": {
+      "status": "EXPORTABLE"
+    },
+    "JobPostingRevision": {
+      "status": "EXPORTABLE"
+    },
+    "LinkReviewSelection": {
+      "status": "EXPORTABLE"
+    },
+    "MajorConcept": {
+      "status": "EXPORTABLE"
+    },
+    "MajorConceptRevision": {
+      "status": "EXPORTABLE"
+    },
+    "NCSClass": {
+      "status": "EXPORTABLE"
+    },
+    "NCSClassRevision": {
+      "status": "EXPORTABLE"
+    },
+    "NCSCompetencyUnit": {
+      "status": "EXPORTABLE"
+    },
+    "NCSCompetencyUnitRevision": {
+      "status": "EXPORTABLE"
+    },
+    "NCSUnitFamily": {
+      "status": "EXPORTABLE"
+    },
+    "NCSUnitFamilyRevision": {
+      "status": "EXPORTABLE"
+    },
+    "Occupation": {
+      "status": "EXPORTABLE"
+    },
+    "OccupationRevision": {
+      "status": "EXPORTABLE"
+    },
+    "Organization": {
+      "status": "EXPORTABLE"
+    },
+    "OrganizationRevision": {
+      "status": "EXPORTABLE"
+    },
+    "Place": {
+      "status": "EXPORTABLE"
+    },
+    "PlaceRevision": {
+      "status": "EXPORTABLE"
+    },
+    "PositionClaim": {
+      "status": "EXPORTABLE"
+    },
+    "PostingInput": {
+      "status": "EXPORTABLE"
+    },
+    "PostingReviewSelection": {
+      "status": "EXPORTABLE"
+    },
+    "Relation": {
+      "status": "EXPORTABLE"
+    },
+    "RequirementClaim": {
+      "status": "EXPORTABLE"
+    },
+    "RuleContract": {
+      "status": "EXPORTABLE"
+    },
+    "RulePredicate": {
+      "status": "EXPORTABLE"
+    },
+    "RuleReviewSelection": {
+      "status": "EXPORTABLE"
+    },
+    "Skill": {
+      "status": "EXPORTABLE"
+    },
+    "SkillRevision": {
+      "status": "EXPORTABLE"
+    },
+    "Source": {
+      "status": "EXPORTABLE"
+    },
+    "SourceAssertion": {
+      "status": "EXPORTABLE"
+    },
+    "SourceAttachment": {
+      "status": "EXPORTABLE"
+    },
+    "SourceRecordEvidence": {
+      "status": "EXPORTABLE"
+    },
+    "SourceSnapshot": {
+      "status": "EXPORTABLE"
+    },
+    "TextArtifact": {
+      "status": "EXPORTABLE"
+    },
+    "EntityObservationState": {
+      "status": "EXPORTABLE"
+    },
+    "RequirementContract": {
+      "status": "EXPORTABLE"
+    },
+    "RequirementNormalization": {
+      "status": "EXPORTABLE"
+    },
+    "RequirementReviewSelection": {
+      "status": "EXPORTABLE"
+    },
+    "RequirementTargetBinding": {
+      "status": "EXPORTABLE"
+    },
+    "SourceRequirementGroup": {
+      "status": "EXPORTABLE",
+      "description": "Reviewed source text/expression; typed RequirementClaim is a separately reviewed interpretation of a leaf."
+    },
+    "TypedCondition": {
+      "status": "EXPORTABLE"
+    },
+    "UnresolvedCondition": {
+      "status": "EXPORTABLE"
+    },
+    "EditorialContract": {
+      "status": "EXPORTABLE"
+    },
+    "EditorialReleaseSelection": {
+      "status": "EXPORTABLE"
+    },
+    "EditorialReview": {
+      "status": "EXPORTABLE"
+    },
+    "EditorialSourceRecord": {
+      "status": "EXPORTABLE"
+    },
+    "EditorialSourceSnapshot": {
+      "status": "EXPORTABLE"
+    }
+  },
+  "reserved_classes": {
+    "ApplicationWindow": {
+      "status": "NOT_IMPLEMENTED_IN_THIS_EXPORT"
+    },
+    "ApplicationWindowRevision": {
+      "status": "NOT_IMPLEMENTED_IN_THIS_EXPORT"
+    },
+    "PostingCohort": {
+      "status": "NOT_IMPLEMENTED_IN_THIS_EXPORT"
+    },
+    "AggregateObservation": {
+      "status": "NOT_IMPLEMENTED_IN_THIS_EXPORT"
+    },
+    "LearningOutcomeClaim": {
+      "status": "NOT_IMPLEMENTED_IN_THIS_EXPORT"
+    },
+    "SkillMappingClaim": {
+      "status": "NOT_IMPLEMENTED_IN_THIS_EXPORT"
+    },
+    "Person": {
+      "status": "NOT_IMPLEMENTED_IN_THIS_EXPORT"
+    }
+  },
+  "properties": {
+    "acceptancePolicy": {
+      "native_key": "acceptance_policy"
+    },
+    "action": {
+      "native_key": "action"
+    },
+    "actor": {
+      "native_key": "actor"
+    },
+    "applicability": {
+      "native_key": "applicability"
+    },
+    "artifactId": {
+      "native_key": "artifact_id"
+    },
+    "assertionId": {
+      "native_key": "assertion_id"
+    },
+    "assertionKind": {
+      "native_key": "assertion_kind"
+    },
+    "baseCode": {
+      "native_key": "base_code"
+    },
+    "blockNo": {
+      "native_key": "block_no"
+    },
+    "bundleId": {
+      "native_key": "bundle_id"
+    },
+    "byteLength": {
+      "native_key": "byte_length"
+    },
+    "candidateId": {
+      "native_key": "candidate_id"
+    },
+    "category": {
+      "native_key": "category"
+    },
+    "categoryCode": {
+      "native_key": "category_code"
+    },
+    "cellNo": {
+      "native_key": "cell_no"
+    },
+    "claimId": {
+      "native_key": "claim_id"
+    },
+    "closingDate": {
+      "native_key": "closing_date"
+    },
+    "code": {
+      "native_key": "code"
+    },
+    "colNo": {
+      "native_key": "col_no"
+    },
+    "colSpan": {
+      "native_key": "col_span"
+    },
+    "cols": {
+      "native_key": "cols"
+    },
+    "conditionKind": {
+      "native_key": "condition_kind"
+    },
+    "contextRole": {
+      "native_key": "context_role"
+    },
+    "contract": {
+      "native_key": "contract"
+    },
+    "datePosted": {
+      "native_key": "date_posted"
+    },
+    "datePrecision": {
+      "native_key": "date_precision"
+    },
+    "decisionId": {
+      "native_key": "decision_id"
+    },
+    "depth": {
+      "native_key": "depth"
+    },
+    "description": {
+      "native_key": "description"
+    },
+    "documentCount": {
+      "native_key": "document_count"
+    },
+    "dutiesStatus": {
+      "native_key": "duties_status"
+    },
+    "dutyClaimId": {
+      "native_key": "duty_claim_id"
+    },
+    "encoding": {
+      "native_key": "encoding"
+    },
+    "endOffset": {
+      "native_key": "end_offset"
+    },
+    "entityId": {
+      "native_key": "entity_id"
+    },
+    "entryName": {
+      "native_key": "entry_name"
+    },
+    "establishedDate": {
+      "native_key": "established_date"
+    },
+    "evidenceId": {
+      "native_key": "evidence_id"
+    },
+    "excerpt": {
+      "native_key": "excerpt"
+    },
+    "excerptSha256": {
+      "native_key": "excerpt_sha256"
+    },
+    "extractionHash": {
+      "native_key": "extraction_hash"
+    },
+    "extractionRevisionId": {
+      "native_key": "extraction_revision_id"
+    },
+    "field": {
+      "native_key": "field"
+    },
+    "fields": {
+      "native_key": "fields"
+    },
+    "fileId": {
+      "native_key": "file_id"
+    },
+    "fileOrdinal": {
+      "native_key": "file_ordinal"
+    },
+    "fullCode": {
+      "native_key": "full_code"
+    },
+    "guardKind": {
+      "native_key": "guard_kind"
+    },
+    "inputSha256": {
+      "native_key": "input_sha256"
+    },
+    "interpretationId": {
+      "native_key": "interpretation_id"
+    },
+    "interpretationState": {
+      "native_key": "interpretation_state"
+    },
+    "isHeader": {
+      "native_key": "is_header"
+    },
+    "jobRunId": {
+      "native_key": "job_run_id"
+    },
+    "kind": {
+      "native_key": "kind"
+    },
+    "level": {
+      "native_key": "level"
+    },
+    "localId": {
+      "native_key": "local_id"
+    },
+    "locator": {
+      "native_key": "locator"
+    },
+    "locatorVersion": {
+      "native_key": "locator_version"
+    },
+    "logic": {
+      "native_key": "logic"
+    },
+    "mappingId": {
+      "native_key": "mapping_id"
+    },
+    "name": {
+      "native_key": "name"
+    },
+    "nodeIndex": {
+      "native_key": "node_index"
+    },
+    "nodePath": {
+      "native_key": "node_path"
+    },
+    "normalizationVersion": {
+      "native_key": "normalization_version"
+    },
+    "normalizedEnd": {
+      "native_key": "normalized_end"
+    },
+    "normalizedHash": {
+      "native_key": "normalized_hash"
+    },
+    "normalizedStart": {
+      "native_key": "normalized_start"
+    },
+    "objectId": {
+      "native_key": "object_id"
+    },
+    "offsetUnit": {
+      "native_key": "offset_unit"
+    },
+    "operator": {
+      "native_key": "operator"
+    },
+    "ordinal": {
+      "native_key": "ordinal"
+    },
+    "organizationId": {
+      "native_key": "organization_id"
+    },
+    "originalEnd": {
+      "native_key": "original_end"
+    },
+    "originalStart": {
+      "native_key": "original_start"
+    },
+    "outcome": {
+      "native_key": "outcome"
+    },
+    "paragraphNo": {
+      "native_key": "paragraph_no"
+    },
+    "parentCellNo": {
+      "native_key": "parent_cell_no"
+    },
+    "parentTableNo": {
+      "native_key": "parent_table_no"
+    },
+    "parsedHash": {
+      "native_key": "parsed_hash"
+    },
+    "parserVersion": {
+      "native_key": "parser_version"
+    },
+    "partIndex": {
+      "native_key": "part_index"
+    },
+    "parts": {
+      "native_key": "parts"
+    },
+    "payloadHash": {
+      "native_key": "payload_hash"
+    },
+    "positionId": {
+      "native_key": "position_id"
+    },
+    "positionIds": {
+      "native_key": "position_ids"
+    },
+    "postingId": {
+      "native_key": "posting_id"
+    },
+    "postingRevisionId": {
+      "native_key": "posting_revision_id"
+    },
+    "predicate": {
+      "native_key": "predicate"
+    },
+    "primaryOccupationId": {
+      "native_key": "primary_occupation_id"
+    },
+    "rawHash": {
+      "native_key": "raw_hash"
+    },
+    "rawSha256": {
+      "native_key": "raw_sha256"
+    },
+    "reason": {
+      "native_key": "reason"
+    },
+    "releaseId": {
+      "native_key": "release_id"
+    },
+    "requirementIndex": {
+      "native_key": "requirement_index"
+    },
+    "revisionId": {
+      "native_key": "revision_id"
+    },
+    "role": {
+      "native_key": "role"
+    },
+    "round": {
+      "native_key": "round"
+    },
+    "rowNo": {
+      "native_key": "row_no"
+    },
+    "rowSpan": {
+      "native_key": "row_span"
+    },
+    "rows": {
+      "native_key": "rows"
+    },
+    "ruleId": {
+      "native_key": "rule_id"
+    },
+    "schemaHash": {
+      "native_key": "schema_hash"
+    },
+    "schemaVersion": {
+      "native_key": "schema_version"
+    },
+    "schemeId": {
+      "native_key": "scheme_id"
+    },
+    "sectionIndex": {
+      "native_key": "section_index"
+    },
+    "sectionNo": {
+      "native_key": "section_no"
+    },
+    "sha256": {
+      "native_key": "sha256"
+    },
+    "sourceContentHash": {
+      "native_key": "source_content_hash"
+    },
+    "sourceField": {
+      "native_key": "source_field"
+    },
+    "sourceHash": {
+      "native_key": "source_hash"
+    },
+    "sourceId": {
+      "native_key": "source_id"
+    },
+    "sourceRecordId": {
+      "native_key": "source_record_id"
+    },
+    "sourceStatus": {
+      "native_key": "source_status"
+    },
+    "sourceUrl": {
+      "native_key": "source_url"
+    },
+    "startOffset": {
+      "native_key": "start_offset"
+    },
+    "statementParts": {
+      "native_key": "statement_parts"
+    },
+    "structureIssueCount": {
+      "native_key": "structure_issue_count"
+    },
+    "structureLayoutHash": {
+      "native_key": "structure_layout_hash"
+    },
+    "subjectId": {
+      "native_key": "subject_id"
+    },
+    "tableNo": {
+      "native_key": "table_no"
+    },
+    "targetRevisionId": {
+      "native_key": "target_revision_id"
+    },
+    "text": {
+      "native_key": "text"
+    },
+    "textHash": {
+      "native_key": "text_hash"
+    },
+    "textParts": {
+      "native_key": "text_parts"
+    },
+    "textSha256": {
+      "native_key": "text_sha256"
+    },
+    "title": {
+      "native_key": "title"
+    },
+    "version": {
+      "native_key": "version"
+    },
+    "versionSelection": {
+      "native_key": "version_selection"
+    },
+    "vocabularyVersion": {
+      "native_key": "vocabulary_version"
+    },
+    "year": {
+      "native_key": "year"
+    },
+    "observationStateId": {
+      "native_key": "observation_state_id"
+    },
+    "selectedRevisionId": {
+      "native_key": "selected_revision_id"
+    },
+    "entityType": {
+      "native_key": "entity_type"
+    },
+    "connectorRunId": {
+      "native_key": "connector_run_id"
+    },
+    "contentRunId": {
+      "native_key": "content_run_id"
+    },
+    "consecutiveAbsenceCount": {
+      "native_key": "consecutive_absence_count"
+    },
+    "servingState": {
+      "native_key": "serving_state"
+    },
+    "stateReason": {
+      "native_key": "state_reason"
+    },
+    "nativeEvaluatedAt": {
+      "native_key": "evaluated_at"
+    },
+    "nativeFirstSeenAt": {
+      "native_key": "first_seen_at"
+    },
+    "nativeLastSeenAt": {
+      "native_key": "last_seen_at"
+    },
+    "methodologyVersion": {
+      "native_key": "methodology_version"
+    },
+    "normalizationId": {
+      "native_key": "normalization_id"
+    },
+    "sourceClaimId": {
+      "native_key": "source_claim_id"
+    },
+    "sourceNodeIndex": {
+      "native_key": "source_node_index"
+    },
+    "typedClaimId": {
+      "native_key": "typed_claim_id"
+    },
+    "conditionId": {
+      "native_key": "condition_id"
+    },
+    "conditionFields": {
+      "native_key": "condition_fields"
+    },
+    "nullFields": {
+      "native_key": "null_fields"
+    },
+    "requirementKind": {
+      "native_key": "requirement_kind"
+    },
+    "requirementScope": {
+      "native_key": "requirement_scope"
+    },
+    "necessity": {
+      "native_key": "necessity"
+    },
+    "polarity": {
+      "native_key": "polarity"
+    },
+    "requirementKey": {
+      "native_key": "requirement_key"
+    },
+    "keyAlgorithm": {
+      "native_key": "key_algorithm"
+    },
+    "confidenceState": {
+      "native_key": "confidence_state"
+    },
+    "reviewStatus": {
+      "native_key": "review_status"
+    },
+    "resolverVersion": {
+      "native_key": "resolver_version"
+    },
+    "sourceBindingHash": {
+      "native_key": "source_binding_hash"
+    },
+    "targetBindingsHash": {
+      "native_key": "target_bindings_hash"
+    },
+    "targetSubkind": {
+      "native_key": "target_subkind"
+    },
+    "validTimeBasis": {
+      "native_key": "valid_time_basis"
+    },
+    "targetId": {
+      "native_key": "target_id"
+    },
+    "targetKind": {
+      "native_key": "target_kind"
+    },
+    "proficiencySchemeId": {
+      "native_key": "proficiency_scheme_id"
+    },
+    "minimumProficiency": {
+      "native_key": "minimum_proficiency"
+    },
+    "minimumDegree": {
+      "native_key": "minimum_degree"
+    },
+    "acceptedMajorGroups": {
+      "native_key": "accepted_major_groups"
+    },
+    "acceptsExpectedGraduate": {
+      "native_key": "accepts_expected_graduate"
+    },
+    "contextId": {
+      "native_key": "context_id"
+    },
+    "minimumMonths": {
+      "native_key": "minimum_months"
+    },
+    "maximumMonths": {
+      "native_key": "maximum_months"
+    },
+    "minimumCount": {
+      "native_key": "minimum_count"
+    },
+    "portfolioRequired": {
+      "native_key": "portfolio_required"
+    },
+    "capabilityIds": {
+      "native_key": "capability_ids"
+    },
+    "administrativeCodes": {
+      "native_key": "administrative_codes"
+    },
+    "workMode": {
+      "native_key": "work_mode"
+    },
+    "vocabularyId": {
+      "native_key": "vocabulary_id"
+    },
+    "sourceText": {
+      "native_key": "source_text"
+    },
+    "nativeEarliestStart": {
+      "native_key": "earliest_start"
+    },
+    "scheduleText": {
+      "native_key": "schedule_text"
+    },
+    "mention": {
+      "native_key": "mention"
+    },
+    "nativeCreatedAt": {
+      "native_key": "created_at"
+    },
+    "nativeReviewedAt": {
+      "native_key": "reviewed_at"
+    },
+    "snapshotId": {
+      "native_key": "snapshot_id"
+    },
+    "reviewId": {
+      "native_key": "review_id"
+    },
+    "reviewNo": {
+      "native_key": "review_no"
+    },
+    "catalogueId": {
+      "native_key": "catalogue_id"
+    },
+    "catalogueVersion": {
+      "native_key": "catalogue_version"
+    },
+    "gitBlobSha1": {
+      "native_key": "git_blob_sha1"
+    },
+    "sourceSnapshotId": {
+      "native_key": "source_snapshot_id"
+    },
+    "actorKind": {
+      "native_key": "actor_kind"
+    },
+    "boundaryNotes": {
+      "native_key": "boundary_notes"
+    },
+    "occupationCode": {
+      "native_key": "occupation_code"
+    },
+    "manifestHash": {
+      "native_key": "manifest_hash"
+    },
+    "decision": {
+      "native_key": "decision"
+    },
+    "reviewer": {
+      "native_key": "reviewer"
+    },
+    "reviewerKind": {
+      "native_key": "reviewer_kind"
+    },
+    "notes": {
+      "native_key": "notes"
+    },
+    "gitCommit": {
+      "native_key": "git_commit"
+    },
+    "mergeEvidence": {
+      "native_key": "merge_evidence"
+    },
+    "attestationKind": {
+      "native_key": "attestation_kind"
+    },
+    "repositoryVerification": {
+      "native_key": "repository_verification"
+    },
+    "schemeCode": {
+      "native_key": "scheme_code"
+    }
+  },
+  "predicates": {
+    "hasRevision": {
+      "native_predicate": "HAS_REVISION"
+    },
+    "derivedFrom": {
+      "native_predicate": "DERIVED_FROM"
+    },
+    "inSnapshot": {
+      "native_predicate": "IN_SNAPSHOT"
+    },
+    "fromSource": {
+      "native_predicate": "FROM_SOURCE"
+    },
+    "evidencedBy": {
+      "native_predicate": "EVIDENCED_BY"
+    },
+    "subject": {
+      "native_predicate": "SUBJECT"
+    },
+    "object": {
+      "native_predicate": "OBJECT"
+    },
+    "postedBy": {
+      "native_predicate": "POSTED_BY"
+    },
+    "belongsToOccupation": {
+      "native_predicate": "BELONGS_TO_OCCUPATION"
+    },
+    "versionOf": {
+      "native_predicate": "VERSION_OF"
+    },
+    "classifiedAs": {
+      "native_predicate": "CLASSIFIED_AS"
+    },
+    "broaderThan": {
+      "native_predicate": "BROADER_THAN"
+    },
+    "hasMember": {
+      "native_predicate": "HAS_MEMBER"
+    },
+    "curriculumReferences": {
+      "native_predicate": "CURRICULUM_REFERENCES"
+    },
+    "hasExamSession": {
+      "native_predicate": "HAS_EXAM_SESSION"
+    },
+    "hasCareerRank": {
+      "native_predicate": "HAS_CAREER_RANK"
+    },
+    "referencesUnitFamily": {
+      "native_predicate": "REFERENCES_UNIT_FAMILY"
+    },
+    "hasPosition": {
+      "native_predicate": "HAS_POSITION"
+    },
+    "hasDuty": {
+      "native_predicate": "HAS_DUTY"
+    },
+    "hasSourceRequirement": {
+      "native_predicate": "HAS_REQUIREMENT"
+    },
+    "appliesTo": {
+      "native_predicate": "APPLIES_TO"
+    },
+    "hasExpression": {
+      "native_predicate": "HAS_EXPRESSION"
+    },
+    "hasChild": {
+      "native_predicate": "HAS_CHILD"
+    },
+    "hasRule": {
+      "native_predicate": "HAS_RULE"
+    },
+    "usesContract": {
+      "native_predicate": "USES_CONTRACT"
+    },
+    "reviewedBy": {
+      "native_predicate": "REVIEWED_BY"
+    },
+    "disables": {
+      "native_predicate": "DISABLES"
+    },
+    "limits": {
+      "native_predicate": "LIMITS"
+    },
+    "guardedBy": {
+      "native_predicate": "GUARDED_BY"
+    },
+    "forExtraction": {
+      "native_predicate": "FOR_EXTRACTION"
+    },
+    "inArtifact": {
+      "native_predicate": "IN_ARTIFACT"
+    },
+    "usesInput": {
+      "native_predicate": "USES_INPUT"
+    },
+    "forPosting": {
+      "native_predicate": "FOR_POSTING"
+    },
+    "inInput": {
+      "native_predicate": "IN_INPUT"
+    },
+    "declaredIn": {
+      "native_predicate": "DECLARED_IN"
+    },
+    "hasObservation": {
+      "native_predicate": "HAS_OBSERVATION"
+    },
+    "overlapsSection": {
+      "native_predicate": "OVERLAPS_SECTION"
+    },
+    "inAttachment": {
+      "native_predicate": "IN_ATTACHMENT"
+    },
+    "nestedInCell": {
+      "native_predicate": "NESTED_IN_CELL"
+    },
+    "hasCell": {
+      "native_predicate": "HAS_CELL"
+    },
+    "inCell": {
+      "native_predicate": "IN_CELL"
+    },
+    "mapsDuty": {
+      "native_predicate": "MAPS_DUTY"
+    },
+    "mapsTarget": {
+      "native_predicate": "MAPS_TARGET"
+    },
+    "selectsRevision": {
+      "native_predicate": "SELECTS_REVISION"
+    },
+    "includes": {
+      "native_predicate": "INCLUDES"
+    },
+    "forEntity": {
+      "native_predicate": "FOR_ENTITY"
+    },
+    "forSourceAtom": {
+      "native_predicate": "FOR_SOURCE_ATOM"
+    },
+    "selectsNormalization": {
+      "native_predicate": "SELECTS_NORMALIZATION"
+    },
+    "hasProposedCondition": {
+      "native_predicate": "HAS_PROPOSED_CONDITION"
+    },
+    "forSourceGroup": {
+      "native_predicate": "FOR_SOURCE_GROUP"
+    },
+    "normalizedCondition": {
+      "native_predicate": "NORMALIZED_CONDITION"
+    },
+    "targets": {
+      "native_predicate": "TARGETS"
+    },
+    "usesTargetBinding": {
+      "native_predicate": "USES_TARGET_BINDING"
+    },
+    "hasSubject": {
+      "native_predicate": "HAS_SUBJECT"
+    },
+    "hasRequirement": {
+      "native_predicate": "HAS_TYPED_REQUIREMENT"
+    },
+    "selectsSnapshot": {
+      "native_predicate": "SELECTS_SNAPSHOT"
+    },
+    "forSnapshot": {
+      "native_predicate": "FOR_SNAPSHOT"
+    },
+    "inScheme": {
+      "native_predicate": "IN_SCHEME"
+    }
+  },
+  "structural_terms": [
+    "nativeNodeId",
+    "nativeEdgeId",
+    "nativeLabel",
+    "nativeLabelOrder",
+    "nativePropertyKey",
+    "nativeContentHash",
+    "nativePredicate",
+    "nativeSubjectId",
+    "nativeObjectId",
+    "nativeGraphManifestHash",
+    "exportReadMode",
+    "exportContractHash",
+    "exportContractVersion",
+    "selectedReleaseId",
+    "dataAsOf",
+    "pipelineVersion",
+    "methodologyVersion",
+    "releaseState",
+    "hasRelation",
+    "mappedPredicate",
+    "nativeGraphManifest"
+  ],
+  "reserved_properties": {
+    "forOccupation": {
+      "status": "PUBLICATION_REQUIREMENT_NOT_YET_ASSEMBLED"
+    },
+    "descriptionTextSha256": {
+      "status": "PUBLICATION_REQUIREMENT_NOT_YET_ASSEMBLED"
+    },
+    "confidence": {
+      "status": "PUBLICATION_REQUIREMENT_NOT_YET_ASSEMBLED"
+    },
+    "skillKind": {
+      "status": "PUBLICATION_REQUIREMENT_NOT_YET_ASSEMBLED"
+    }
+  },
+  "references": [
+    "https://www.w3.org/TR/json-ld11/",
+    "https://www.w3.org/TR/shacl/",
+    "https://schema.org/JobPosting",
+    "https://schema.org/EducationalOccupationalCredential"
+  ],
+  "datetime_aliases": {
+    "first_seen_at": "firstSeenAt",
+    "last_seen_at": "lastSeenAt",
+    "evaluated_at": "evaluatedAt",
+    "created_at": "createdAt",
+    "reviewed_at": "reviewedAt"
+  },
+  "date_aliases": {
+    "earliest_start": "earliestStart"
+  }
+}

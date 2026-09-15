@@ -1,0 +1,194 @@
+@prefix jt: <urn:jobtology:vocab:1:> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# Transport/evidence structure only. Passing this file is not publication approval.
+jt:NativeNodeShape a sh:NodeShape ;
+  sh:targetSubjectsOf jt:nativeNodeId ; sh:nodeKind sh:IRI ;
+  sh:property [ sh:path jt:nativeNodeId ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ; sh:minLength 1 ] ;
+  sh:property [ sh:path jt:nativeLabel ; sh:minCount 1 ; sh:datatype xsd:string ; sh:minLength 1 ] ;
+  sh:property [ sh:path jt:nativeContentHash ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ; sh:pattern "^[0-9a-f]{64}$" ] ;
+  sh:sparql [ sh:message "Native node IRI must hash its exact native identifier." ;
+    sh:select """PREFIX jt: <urn:jobtology:vocab:1:>
+      SELECT $this WHERE { $this jt:nativeNodeId ?id .
+        FILTER (STR($this) != CONCAT("urn:jobtology:node:", SHA256(STR(?id)))) }""" ] .
+
+jt:RelationShape a sh:NodeShape ; sh:targetClass jt:Relation ; sh:nodeKind sh:IRI ;
+  sh:property [ sh:path jt:nativeEdgeId ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ; sh:pattern "^[0-9a-f]{64}$" ] ;
+  sh:property [ sh:path jt:nativeContentHash ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ; sh:pattern "^[0-9a-f]{64}$" ] ;
+  sh:property [ sh:path jt:nativePredicate ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ; sh:pattern "^[A-Z][A-Z_]*$" ] ;
+  sh:property [ sh:path jt:nativeSubjectId ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ] ;
+  sh:property [ sh:path jt:nativeObjectId ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ] ;
+  sh:property [ sh:path rdf:subject ; sh:minCount 1 ; sh:maxCount 1 ; sh:nodeKind sh:IRI ] ;
+  sh:property [ sh:path rdf:predicate ; sh:minCount 1 ; sh:maxCount 1 ; sh:nodeKind sh:IRI ] ;
+  sh:property [ sh:path rdf:object ; sh:minCount 1 ; sh:maxCount 1 ; sh:nodeKind sh:IRI ] ;
+  sh:sparql [ sh:message "A reified relation must have matching in-graph endpoints and a direct triple." ;
+    sh:select """PREFIX jt: <urn:jobtology:vocab:1:>
+      PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+      SELECT $this WHERE { $this rdf:subject ?s ; rdf:predicate ?p ; rdf:object ?o ;
+        jt:nativeSubjectId ?sid ; jt:nativeObjectId ?oid ; jt:nativeEdgeId ?eid .
+        FILTER (STR($this) != CONCAT("urn:jobtology:edge:",STR(?eid)) ||
+          NOT EXISTS { ?s jt:nativeNodeId ?sid } || NOT EXISTS { ?o jt:nativeNodeId ?oid } ||
+          NOT EXISTS { ?s ?p ?o }) }""" ] .
+
+jt:EntityShape a sh:NodeShape ; sh:targetClass jt:Entity ;
+  sh:property [ sh:path jt:entityId ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ; sh:minLength 1 ] ;
+  sh:property [ sh:path jt:hasRevision ; sh:minCount 1 ; sh:maxCount 1 ; sh:class jt:EntityRevision ] ;
+  sh:sparql [ sh:message "A selected revision must belong to its identity shell." ;
+    sh:select """PREFIX jt: <urn:jobtology:vocab:1:>
+      SELECT $this WHERE { $this jt:entityId ?id ; jt:hasRevision ?revision .
+        FILTER NOT EXISTS { ?revision jt:entityId ?id } }""" ] .
+
+jt:RevisionShape a sh:NodeShape ; sh:targetClass jt:EntityRevision ;
+  sh:property [ sh:path jt:revisionId ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ; sh:pattern "^[0-9a-f]{64}$" ] ;
+  sh:property [ sh:path jt:entityId ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ; sh:minLength 1 ] ;
+  sh:property [ sh:path jt:payloadHash ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ; sh:pattern "^[0-9a-f]{64}$" ] .
+
+jt:SourceRecordShape a sh:NodeShape ; sh:targetClass jt:SourceRecordEvidence ;
+  sh:property [ sh:path jt:sourceId ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ; sh:minLength 1 ] ;
+  sh:property [ sh:path jt:sourceRecordId ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ; sh:minLength 1 ] ;
+  sh:property [ sh:path jt:rawSha256 ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ; sh:pattern "^[0-9a-f]{64}$" ] ;
+  sh:property [ sh:path jt:normalizedHash ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ; sh:pattern "^[0-9a-f]{64}$" ] ;
+  sh:property [ sh:path jt:locator ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ; sh:minLength 1 ] .
+
+jt:EvidenceShape a sh:NodeShape ; sh:targetClass jt:EvidenceSpan ;
+  sh:property [ sh:path jt:evidenceId ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ; sh:minLength 1 ] ;
+  sh:property [ sh:path jt:excerpt ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ; sh:minLength 1 ] ;
+  sh:property [ sh:path jt:excerptSha256 ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ; sh:pattern "^[0-9a-f]{64}$" ] ;
+  sh:property [ sh:path jt:startOffset ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:integer ; sh:minInclusive 0 ; sh:lessThan jt:endOffset ] ;
+  sh:property [ sh:path jt:endOffset ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:integer ; sh:minInclusive 1 ] ;
+  sh:property [ sh:path jt:offsetUnit ; sh:minCount 1 ; sh:maxCount 1 ; sh:hasValue "UNICODE_CODE_POINT" ] ;
+  sh:property [ sh:path jt:inArtifact ; sh:minCount 1 ; sh:maxCount 1 ; sh:class jt:TextArtifact ] ;
+  sh:sparql [ sh:message "The excerpt hash must match the exact exported Unicode text." ;
+    sh:select """PREFIX jt: <urn:jobtology:vocab:1:>
+      SELECT $this WHERE { $this jt:excerpt ?text ; jt:excerptSha256 ?hash .
+        FILTER(SHA256(STR(?text)) != STR(?hash)) }""" ] .
+
+jt:TextArtifactShape a sh:NodeShape ; sh:targetClass jt:TextArtifact ;
+  sh:property [ sh:path jt:artifactId ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ] ;
+  sh:property [ sh:path jt:textSha256 ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ; sh:pattern "^[0-9a-f]{64}$" ] ;
+  sh:property [ sh:path jt:sourceField ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ; sh:minLength 1 ] ;
+  sh:property [ sh:path jt:derivedFrom ; sh:minCount 1 ; sh:nodeKind sh:IRI ] .
+
+jt:ReviewedClaimShape a sh:NodeShape ; sh:targetClass jt:DutyClaim, jt:SourceRequirementGroup ;
+  sh:property [ sh:path jt:claimId ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ] ;
+  sh:property [ sh:path jt:postingRevisionId ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ; sh:pattern "^[0-9a-f]{64}$" ] ;
+  sh:property [ sh:path jt:evidencedBy ; sh:minCount 1 ; sh:class jt:EvidenceSpan ] ;
+  sh:property [ sh:path jt:reviewedBy ; sh:minCount 1 ; sh:maxCount 1 ; sh:class jt:PostingReviewSelection ] .
+
+jt:ConditionExpressionShape a sh:NodeShape ; sh:targetClass jt:ConditionExpression ;
+  sh:property [ sh:path jt:operator ; sh:minCount 1 ; sh:maxCount 1 ; sh:in ("atom" "all_of" "any_of" "if_then" "except") ] ;
+  sh:or (
+    [ sh:property [ sh:path jt:operator ; sh:hasValue "atom" ] ; sh:property [ sh:path jt:hasChild ; sh:maxCount 0 ] ]
+    [ sh:property [ sh:path jt:operator ; sh:in ("all_of" "any_of") ] ; sh:property [ sh:path jt:hasChild ; sh:minCount 2 ; sh:class jt:ConditionExpression ] ]
+    [ sh:property [ sh:path jt:operator ; sh:in ("if_then" "except") ] ; sh:property [ sh:path jt:hasChild ; sh:minCount 2 ; sh:maxCount 2 ; sh:class jt:ConditionExpression ] ]
+  ) .
+
+jt:ReleaseStructureShape a sh:NodeShape ; sh:targetClass jt:CorpusRelease ;
+  sh:property [ sh:path jt:selectedReleaseId ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ; sh:minLength 1 ] ;
+  sh:property [ sh:path jt:nativeGraphManifestHash ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ; sh:pattern "^[0-9a-f]{64}$" ] ;
+  sh:property [ sh:path jt:exportContractVersion ; sh:minCount 1 ; sh:maxCount 1 ; sh:hasValue "hop-ontology-interchange-v4" ] ;
+  sh:property [ sh:path jt:exportContractHash ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ; sh:pattern "^[0-9a-f]{64}$" ] ;
+  sh:property [ sh:path jt:exportReadMode ; sh:minCount 1 ; sh:maxCount 1 ; sh:in ("PREVIEW" "PUBLISHED") ] .
+
+
+# Observations are bound to the same entity and exact revision in this release.
+jt:ObservationShape a sh:NodeShape ; sh:targetClass jt:EntityObservationState ;
+ sh:property [ sh:path jt:observationStateId ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ; sh:pattern "^[0-9a-f]{64}$" ] ;
+ sh:property [ sh:path jt:forEntity ; sh:minCount 1 ; sh:maxCount 1 ; sh:class jt:JobPosting ] ;
+ sh:property [ sh:path jt:selectsRevision ; sh:minCount 1 ; sh:maxCount 1 ; sh:class jt:JobPostingRevision ] ;
+ sh:property [ sh:path jt:consecutiveAbsenceCount ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:integer ; sh:minInclusive 0 ] ;
+ sh:property [ sh:path jt:servingState ; sh:minCount 1 ; sh:maxCount 1 ; sh:in ("ACTIVE" "EXPIRED" "CLOSED" "NOT_SEEN") ] ;
+ sh:property [ sh:path jt:firstSeenAt ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:dateTime ; sh:lessThanOrEquals jt:lastSeenAt ] ;
+ sh:property [ sh:path jt:lastSeenAt ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:dateTime ; sh:lessThanOrEquals jt:evaluatedAt ] ;
+ sh:property [ sh:path jt:evaluatedAt ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:dateTime ] ;
+ sh:sparql [ sh:message "Observation identity/revision/release must match its selected endpoints and release root." ; sh:select """
+  PREFIX jt: <urn:jobtology:vocab:1:>
+  SELECT $this WHERE {
+   $this jt:forEntity ?entity ; jt:selectsRevision ?revision ; jt:entityId ?eid ; jt:selectedRevisionId ?rid ; jt:releaseId ?release .
+   FILTER (NOT EXISTS { ?entity jt:entityId ?eid ; jt:hasRevision ?revision } ||
+    NOT EXISTS { ?revision jt:revisionId ?rid ; jt:entityId ?eid } ||
+    NOT EXISTS { ?root a jt:CorpusRelease ; jt:selectedReleaseId ?release ; jt:includes $this, ?entity, ?revision })
+  }""" ] .
+
+
+jt:TypedClaimStructureShape a sh:NodeShape ; sh:targetClass jt:RequirementClaim ;
+ sh:property [ sh:path jt:claimId ; sh:minCount 1 ; sh:maxCount 1 ; sh:pattern "^[0-9a-f]{64}$" ] ;
+ sh:property [ sh:path jt:postingRevisionId ; sh:minCount 1 ; sh:maxCount 1 ; sh:pattern "^[0-9a-f]{64}$" ] ;
+ sh:property [ sh:path jt:evidencedBy ; sh:minCount 1 ; sh:class jt:EvidenceSpan ] ;
+ sh:property [ sh:path jt:reviewedBy ; sh:minCount 1 ; sh:maxCount 1 ; sh:class jt:RequirementReviewSelection ] ;
+ sh:property [ sh:path jt:derivedFrom ; sh:minCount 1 ; sh:maxCount 1 ; sh:class jt:RequirementNormalization ] ;
+ sh:property [ sh:path jt:forSourceGroup ; sh:minCount 1 ; sh:maxCount 1 ; sh:class jt:SourceRequirementGroup ] ;
+ sh:property [ sh:path jt:forSourceAtom ; sh:minCount 1 ; sh:maxCount 1 ; sh:or ([sh:class jt:ConditionExpression] [sh:class jt:SourceRequirementGroup]) ] ;
+ sh:property [ sh:path jt:hasSubject ; sh:minCount 1 ; sh:maxCount 1 ; sh:class jt:JobPostingRevision ] ;
+ sh:property [ sh:path [ sh:inversePath jt:hasRequirement ] ; sh:minCount 1 ; sh:maxCount 1 ; sh:class jt:JobPostingRevision ] ;
+ sh:property [ sh:path jt:polarity ; sh:minCount 1 ; sh:maxCount 1 ; sh:in ("POSITIVE" "NEGATED" "NO_CONSTRAINT") ] ;
+ sh:property [ sh:path jt:confidenceState ; sh:hasValue "UNASSESSED" ] .
+jt:RequirementSelectionShape a sh:NodeShape ; sh:targetClass jt:RequirementReviewSelection ;
+ sh:property [ sh:path jt:forSourceAtom ; sh:minCount 1 ; sh:maxCount 1 ; sh:or ([sh:class jt:ConditionExpression] [sh:class jt:SourceRequirementGroup]) ] ;
+ sh:property [ sh:path jt:outcome ; sh:minCount 1 ; sh:maxCount 1 ; sh:in ("NOT_PROPOSED" "PENDING" "UNRESOLVED" "REJECTED" "TARGET_REVISION_MISMATCH" "REVIEWED") ] ;
+ sh:property [ sh:path jt:selectsNormalization ; sh:maxCount 1 ; sh:class jt:RequirementNormalization ] .
+jt:RequirementProposalShape a sh:NodeShape ; sh:targetClass jt:RequirementNormalization ;
+ sh:property [ sh:path jt:normalizationId ; sh:minCount 1 ; sh:maxCount 1 ; sh:pattern "^[0-9a-f]{64}$" ] ;
+ sh:property [ sh:path jt:hasProposedCondition ; sh:minCount 1 ; sh:maxCount 1 ; sh:or ([sh:class jt:TypedCondition] [sh:class jt:UnresolvedCondition]) ] ;
+ sh:property [ sh:path jt:forSourceAtom ; sh:minCount 1 ; sh:maxCount 1 ] ;
+ sh:property [ sh:path jt:usesContract ; sh:minCount 1 ; sh:maxCount 1 ; sh:class jt:RequirementContract ] .
+jt:TypedConditionShape a sh:NodeShape ; sh:targetClass jt:TypedCondition ;
+ sh:property [ sh:path jt:conditionId ; sh:minCount 1 ; sh:maxCount 1 ; sh:pattern "^[0-9a-f]{64}$" ] ;
+ sh:property [ sh:path jt:kind ; sh:minCount 1 ; sh:maxCount 1 ; sh:in ("SKILL" "LANGUAGE" "CREDENTIAL" "EDUCATION" "EXPERIENCE" "PROJECT" "LOCATION" "ELIGIBILITY" "AVAILABILITY") ] .
+
+jt:TypedRequirementConditionShape a sh:NodeShape ; sh:targetClass jt:RequirementClaim ;
+  sh:property [ sh:path jt:requirementKind ; sh:minCount 1 ; sh:maxCount 1 ; sh:in ("SKILL" "CREDENTIAL" "EDUCATION" "EXPERIENCE" "LANGUAGE" "PROJECT" "LOCATION" "ELIGIBILITY" "AVAILABILITY") ] ;
+  sh:property [ sh:path jt:requirementScope ; sh:minCount 1 ; sh:maxCount 1 ; sh:in ("CAPABILITY" "POSTING_FILTER") ] ;
+  sh:property [ sh:path jt:necessity ; sh:minCount 1 ; sh:maxCount 1 ; sh:in ("REQUIRED" "PREFERRED" "OPTIONAL") ] ;
+  sh:property [ sh:path jt:requirementKey ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ; sh:pattern "^[0-9a-f]{64}$" ] ;
+  sh:xone (
+    [ sh:property [ sh:path jt:requirementKind ; sh:in ("SKILL" "CREDENTIAL" "LANGUAGE") ] ;
+      sh:property [ sh:path jt:targets ; sh:minCount 1 ; sh:maxCount 1 ; sh:or ([ sh:class jt:Skill ] [ sh:class jt:Credential ] [ sh:class jt:NCSCompetencyUnit ]) ] ;
+      sh:property [ sh:path jt:normalizedCondition ; sh:maxCount 0 ] ]
+    [ sh:property [ sh:path jt:requirementKind ; sh:in ("EDUCATION" "EXPERIENCE" "PROJECT" "LOCATION" "ELIGIBILITY" "AVAILABILITY") ] ;
+      sh:property [ sh:path jt:normalizedCondition ; sh:minCount 1 ; sh:maxCount 1 ; sh:class jt:TypedCondition ] ;
+      sh:property [ sh:path jt:targets ; sh:maxCount 0 ] ]
+  ) ;
+  sh:sparql [ sh:message "Posting filters must not be counted as capability coverage." ;
+    sh:select """PREFIX jt: <urn:jobtology:vocab:1:>
+      SELECT $this WHERE { $this jt:requirementKind ?kind ; jt:requirementScope ?scope .
+        FILTER ((?kind IN ("LOCATION","ELIGIBILITY","AVAILABILITY") && ?scope != "POSTING_FILTER") ||
+          (?kind NOT IN ("LOCATION","ELIGIBILITY","AVAILABILITY") && ?scope != "CAPABILITY")) }""" ] ;
+  sh:sparql [ sh:message "Credential/language requirements must target the matching concept type." ;
+    sh:select """PREFIX jt: <urn:jobtology:vocab:1:>
+      SELECT $this WHERE { $this jt:requirementKind ?kind ; jt:targets ?target .
+        FILTER ((?kind="SKILL" && NOT EXISTS { ?target a jt:Skill } && NOT EXISTS { ?target a jt:NCSCompetencyUnit }) ||
+          (?kind="CREDENTIAL" && NOT EXISTS { ?target a jt:Credential }) ||
+          (?kind="LANGUAGE" && NOT EXISTS { ?target a jt:Skill ; jt:hasRevision ?v . $this jt:usesTargetBinding ?b . ?b jt:role "target" ; jt:targetSubkind "LANGUAGE" ; jt:selectsRevision ?v })) }""" ] .
+
+
+
+jt:EditorialSnapshotShape a sh:NodeShape ; sh:targetClass jt:EditorialSourceSnapshot ;
+ sh:class jt:SourceSnapshot ;
+ sh:property [ sh:path jt:sourceId ; sh:hasValue "INTERNAL_EDITORIAL" ] ;
+ sh:property [ sh:path jt:sourceText ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ] ;
+ sh:property [ sh:path jt:snapshotId ; sh:minCount 1 ; sh:maxCount 1 ; sh:pattern "^[0-9a-f]{64}$" ] ;
+ sh:property [ sh:path jt:gitBlobSha1 ; sh:minCount 1 ; sh:maxCount 1 ; sh:pattern "^[0-9a-f]{40}$" ] ;
+ sh:property [ sh:path jt:fromSource ; sh:minCount 1 ; sh:maxCount 1 ; sh:class jt:Source ] ;
+ sh:property [ sh:path jt:usesContract ; sh:minCount 1 ; sh:maxCount 1 ; sh:class jt:EditorialContract ] .
+jt:EditorialRecordShape a sh:NodeShape ; sh:targetClass jt:EditorialSourceRecord ;
+ sh:class jt:SourceRecordEvidence ;
+ sh:property [ sh:path jt:inSnapshot ; sh:minCount 1 ; sh:maxCount 1 ; sh:class jt:EditorialSourceSnapshot ] ;
+ sh:property [ sh:path [ sh:inversePath jt:derivedFrom ] ; sh:minCount 1 ; sh:maxCount 1 ; sh:class jt:EntityRevision ] .
+jt:EditorialSelectionShape a sh:NodeShape ; sh:targetClass jt:EditorialReleaseSelection ;
+ sh:property [ sh:path jt:selectsSnapshot ; sh:minCount 1 ; sh:maxCount 1 ; sh:class jt:EditorialSourceSnapshot ] ;
+ sh:property [ sh:path jt:reviewedBy ; sh:minCount 1 ; sh:maxCount 1 ; sh:class jt:EditorialReview ] ;
+ sh:property [ sh:path jt:selectsRevision ; sh:minCount 5 ; sh:maxCount 5 ; sh:class jt:EntityRevision ] .
+jt:EditorialReviewShape a sh:NodeShape ; sh:targetClass jt:EditorialReview ;
+ sh:property [ sh:path jt:decision ; sh:hasValue "ACCEPT" ] ;
+ sh:property [ sh:path jt:reviewerKind ; sh:hasValue "human" ] ;
+ sh:property [ sh:path jt:reviewedAt ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:dateTime ] ;
+ sh:property [ sh:path jt:gitCommit ; sh:minCount 1 ; sh:maxCount 1 ; sh:pattern "^([0-9a-f]{40}|[0-9a-f]{64})$" ] ;
+ sh:property [ sh:path jt:mergeEvidence ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ; sh:minLength 1 ] ;
+ sh:property [ sh:path jt:attestationKind ; sh:hasValue "OPERATOR_REPORTED" ] ;
+ sh:property [ sh:path jt:repositoryVerification ; sh:hasValue "NOT_AUTOMATICALLY_VERIFIED" ] ;
+ sh:property [ sh:path jt:forSnapshot ; sh:minCount 1 ; sh:maxCount 1 ; sh:class jt:EditorialSourceSnapshot ] .
+jt:EditorialContractShape a sh:NodeShape ; sh:targetClass jt:EditorialContract ;
+ sh:property [ sh:path jt:schemaHash ; sh:minCount 1 ; sh:maxCount 1 ; sh:pattern "^[0-9a-f]{64}$" ] .
