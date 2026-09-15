@@ -57,6 +57,9 @@ SELECT run_id,'test','test',1,'synthetic.json',repeat('0',64),1,'UTF-8',200,now(
     for path in sorted((ROOT/'hop/llm/sql').glob('*.sql')): sql(path.read_text())
     # Reinstallation must preserve everything, including frozen prompt versions.
     for path in sorted((ROOT/'hop/llm/sql').glob('*.sql')): sql(path.read_text())
+    if (ROOT/'hop/retention/sql/001_retention.sql').exists():
+        sql((ROOT/'docs/hop-migration/operations.sql').read_text())
+        sql((ROOT/'hop/retention/sql/001_retention.sql').read_text())
 
 def extraction(source):
     if '담당 업무' not in source.get('eligibility_text',''):
@@ -102,7 +105,7 @@ def unit_checks():
     bad=copy.deepcopy(good);bad['requirements'][0]['evidence']=dict(field='preference_text',quote='우대: 데이터 분석 경력');bad['requirements'][0]['text']='데이터 분석 경력'
     assert 'PREFERENCE_AS_REQUIRED' in sql(f"SELECT enrichment.output_issues('extract',{js(bad)},{js(source)},NULL,'[]',8)")
     for bad in [[],{},good|dict(extra=True),good|dict(duties=None),good|dict(duties_status=4)]:
-        assert sql(f"SELECT enrichment.schema_issues({js(bad)},output_schema) FROM enrichment.prompt WHERE stage='extract'")!='[]'
+        assert sql(f"SELECT enrichment.schema_issues({js(bad)},output_schema) FROM enrichment.prompt WHERE version='ko-v1' AND stage='extract'")!='[]'
     outside=dict(matches=[dict(competency_code='invented',duty_index=4,reason='fake')],outcome='matched')
     issues=sql(f"SELECT enrichment.output_issues('categorize',{js(outside)},'{"{}"}',{js(good)},'[]',8)")
     assert 'UNKNOWN_DUTY' in issues and 'CODE_OUTSIDE_SHORTLIST' in issues
@@ -130,6 +133,25 @@ def response_checks(params):
     sql(f"SELECT enrichment.save_response({q(aid)},429,'{{\"error\":{{\"message\":\"rate limited\"}}}}',20)")
     assert sql(f'SELECT state FROM enrichment.attempt WHERE attempt_id={q(aid)}')=='ERROR'
     assert sql(f'SELECT cost_usd IS NULL AND reserved_usd>0 FROM enrichment.attempt WHERE attempt_id={q(aid)}')=='t'
+    pending=sql(f"SELECT attempt_id FROM enrichment.attempt WHERE batch_id={q(bid)} AND state='PLANNED' LIMIT 1")
+    sql(f'SELECT enrichment.reserve_request({q(pending)})')
+    assert sql(f"SELECT state='ERROR' AND reserved_at IS NULL AND reserved_usd=0 AND http_status IS NULL AND issues ? 'NOT_SENT_AFTER_PROVIDER_ERROR' FROM enrichment.attempt WHERE attempt_id={q(pending)}")=='t'
+    # Provider selection is validated, reaches the JSON request, and changes its cache key.
+    provider_keys=[]
+    for provider in (None,'deepinfra','fireworks'):
+        other=str(uuid.uuid4());options=settings.copy()
+        options.pop('provider_only',None)
+        if provider: options['provider_only']=provider
+        sql(f"SELECT enrichment.plan_batch({q(other)},'EVAL','test-ko','LATEST','LATEST',{js(options)}); SELECT enrichment.plan_stage({q(other)},'extract')")
+        request=json.loads(sql(f"SELECT request_body FROM enrichment.attempt WHERE batch_id={q(other)} LIMIT 1"))
+        assert request['provider']==dict(require_parameters=True,allow_fallbacks=False,**({'only':[provider]} if provider else {}))
+        provider_keys.append(sql(f"SELECT a.cache_key FROM enrichment.attempt a JOIN enrichment.item i USING(item_id) WHERE a.batch_id={q(other)} AND i.posting_id='001'"))
+    assert len(set(provider_keys))==3,'Provider changes must invalidate the output cache'
+    for invalid in ('','DeepInfra','deepinfra,fireworks','https://example.com',[],None):
+        try:
+            sql(f"SELECT enrichment.plan_batch({q(str(uuid.uuid4()))},'EVAL','test-ko','LATEST','LATEST',{js(settings|dict(provider_only=invalid))})")
+            raise AssertionError('Invalid provider slug accepted')
+        except RuntimeError as e: assert 'INVALID_PROVIDER_SLUG' in str(e)
     # Exercise malformed JSON, truncation, refusal, schema violations and duplicate keys
     # against independent response envelopes, without using the model/mock server.
     failures=[('not-json','INVALID_RESPONSE_JSON'),
@@ -204,20 +226,23 @@ def main():
         for name,image,args in [(PG,'postgres:17-alpine',['-e','POSTGRES_HOST_AUTH_METHOD=trust','-e','POSTGRES_DB=hoptest']), (HOP,'apache/hop:2.19.0',['--entrypoint','/bin/sleep']), (NEO,'neo4j:5.26-community',['-e','NEO4J_AUTH=none','-e','NEO4J_server_memory_heap_initial__size=256m','-e','NEO4J_server_memory_heap_max__size=512m','-e','NEO4J_server_memory_pagecache_size=128m'])]:
             if subprocess.run(['docker','inspect',name],capture_output=True).returncode:
                 cmd(['docker','run','-d','--name',name,'--network',PREFIX]+args+[image]+(['infinity'] if name==HOP else []))
-        for _ in range(30):
-            if subprocess.run(['docker','exec',PG,'pg_isready','-U','postgres','-d','hoptest'],capture_output=True).returncode==0:break
-            time.sleep(.2)
+        for _ in range(60):
+            if subprocess.run(['docker','exec',PG,'psql','-X','-qAt','-U','postgres','-d','hoptest','-c','SELECT 1'],capture_output=True).returncode==0:break
+            time.sleep(.25)
+        else:
+            raise RuntimeError('Disposable PostgreSQL did not finish creating hoptest')
         seed();endpoint=stage()
         neo('MATCH (n) DETACH DELETE n;') if subprocess.run(['docker','exec',NEO,'cypher-shell','--format','plain','RETURN 1;'],capture_output=True).returncode==0 else None
         run_hop('install.hwf',{},'native-installer')
         run_hop('prepare_evaluation.hwf',dict(DATASET_ID='test-ko',DATASET_SIZE=2),'prepare-dataset')
         unit_checks()
         gold_checks()
-        run_hop('evaluate.hwf',dict(DATASET_ID='test-ko',POSTING_LIMIT=2),'dry-run')
+        run_hop('evaluate.hwf',dict(DATASET_ID='test-ko',POSTING_LIMIT=2,PROMPT_VERSION='ko-v1'),'dry-run')
         assert request_count()==0 and sql('SELECT count(*) FROM enrichment.attempt WHERE reserved_at IS NOT NULL')=='0'
-        params=dict(DATASET_ID='test-ko',POSTING_LIMIT=2,EXECUTE_REQUESTS='Y',ENDPOINT=endpoint,API_KEY_FILE=REMOTE+'/key.csv',EXTRACT_MODEL='test/extractor',CATEGORIZE_MODEL='test/categorizer',REQUEST_DELAY_MS=1,READ_TIMEOUT_MS=5000)
+        params=dict(DATASET_ID='test-ko',POSTING_LIMIT=2,PROMPT_VERSION='ko-v1',EXECUTE_REQUESTS='Y',ENDPOINT=endpoint,API_KEY_FILE=REMOTE+'/key.csv',EXTRACT_MODEL='test/extractor',CATEGORIZE_MODEL='test/categorizer',PROVIDER_ONLY='deepinfra',REQUEST_DELAY_MS=1,READ_TIMEOUT_MS=5000)
         run_hop('evaluate.hwf',params,'native-two-stage')
         assert request_count()==3,f'Expected two extracts and one categorization, got {request_count()}'
+        assert all(json.loads(line)['provider']['only']==['deepinfra'] for line in (WORK/'requests.jsonl').read_text().splitlines())
         report=json.loads(sql("SELECT row_to_json(r) FROM enrichment.batch_report r ORDER BY created_at DESC LIMIT 1"))
         assert report['state']=='COMPLETE' and report['validated']==2 and report['requests']==3,report
         assert report['labeled_postings']==2 and report['requirement_recall']==1 and report['ncs_precision']==1 and report['correct_abstentions']==1,report
@@ -227,9 +252,45 @@ def main():
         run_hop('evaluate.hwf',params|dict(MAX_REQUESTS=1),'request-budget')
         assert request_count()==4,'Request cap did not stop calls'
         assert sql("SELECT state FROM enrichment.batch_report ORDER BY created_at DESC LIMIT 1")=='PARTIAL'
+        run_hop('evaluate.hwf',params|dict(EXTRACT_MODEL='test/rate-limited'),'rate-limit-stops-batch')
+        limited=[json.loads(line) for line in (WORK/'requests.jsonl').read_text().splitlines() if json.loads(line)['model']=='test/rate-limited']
+        assert {r['trace']['posting_id'] for r in limited}=={'001'},'Later postings were sent after a rate limit'
+        assert len({r['trace']['attempt_id'] for r in limited})==1
+        # Hop 2.19's HttpClient5 repeats HTTP 429 once below the transform's
+        # retryTimes=0 setting. This is an upstream transport limitation, not a
+        # second reserved attempt; retain this observable behavior in the test.
+        assert len(limited)==2,'Revisit the documented Hop 2.19 HTTP retry limitation'
+        assert sql("SELECT requests=1 AND state='PARTIAL' FROM enrichment.batch_report ORDER BY created_at DESC LIMIT 1")=='t'
+        assert sql("SELECT count(*) FROM enrichment.attempt WHERE batch_id=(SELECT batch_id FROM enrichment.batch ORDER BY created_at DESC LIMIT 1) AND reserved_at IS NULL AND issues ? 'NOT_SENT_AFTER_PROVIDER_ERROR'")=='1'
         response_checks(params)
         graph_checks(params)
         policy_and_export_checks(params)
+        from v2_checks import check_v2
+        check_v2(sql,js,q,run_hop,params,neo)
+        from v3_checks import check_v3
+        check_v3(sql,js,q,run_hop,params,neo)
+        from v4_checks import check_v4
+        check_v4(sql,js,q,run_hop,params,neo)
+        from budget_checks import check_budget
+        check_budget(sql,js,q)
+        from review_checks import check_review
+        check_review(sql,js,q,run_hop,params,cmd,HOP,REMOTE,WORK)
+        from v5_checks import check_v5
+        check_v5(sql,js,q,run_hop,params,request_count)
+        from v6_checks import check_v6_native
+        check_v6_native(sql,js,q,run_hop,params,request_count)
+        from revision_link_checks import check_revision_links
+        import sys
+        check_revision_links(sys.modules[__name__],params)
+        from repair_selection_checks import check_repair_selection, check_repair_selection_native
+        check_repair_selection(sql,js,q)
+        check_repair_selection_native(sys.modules[__name__])
+        from rule_interpretation_checks import check_rule_interpretation
+        check_rule_interpretation(sys.modules[__name__])
+        from v7_checks import check_v7_native
+        check_v7_native(sql,js,q,run_hop,params,request_count)
+        from busy_wait_checks import check_busy_wait
+        check_busy_wait(sys.modules[__name__])
         print('ALL CHECKS PASSED. Logs:',WORK,flush=True)
     finally:
         if not os.environ.get('KEEP_LLM_TEST_CONTAINERS'):
