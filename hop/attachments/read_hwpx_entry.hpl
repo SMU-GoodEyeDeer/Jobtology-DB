@@ -1,0 +1,300 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>read_hwpx_entry</name>
+    <description>Read one bounded archive entry without unpacking paths to the host.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters>
+      <parameter>
+        <name>STRUCTURE_ID</name>
+        <default_value />
+        <description>STRUCTURE_ID</description>
+      </parameter>
+      <parameter>
+        <name>ENTRY_NAME</name>
+        <default_value />
+        <description>ENTRY_NAME</description>
+      </parameter>
+    </parameters>
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Entry identity</from>
+      <to>Validate archive member name</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Validate archive member name</from>
+      <to>Pinned archive URI</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Pinned archive URI</from>
+      <to>Inspect member size</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Inspect member size</from>
+      <to>Bound member size</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Bound member size</from>
+      <to>Read exact member bytes</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Read exact member bytes</from>
+      <to>Retain original XML member</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Retain original XML member</from>
+      <to>Release XML buffer</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Entry identity</name>
+    <fields>
+      <field>
+        <name>structure_id</name>
+        <variable>${STRUCTURE_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>entry_name</name>
+        <variable>${ENTRY_NAME}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>ExecSql</type>
+    <name>Validate archive member name</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT attachment.hwpx_entry_limit(?,?,1)</sql>
+    <execute_each_row>Y</execute_each_row>
+    <single_statement>Y</single_statement>
+    <set_params>Y</set_params>
+    <replace_variables>N</replace_variables>
+    <quoteString>N</quoteString>
+    <arguments>
+      <argument>
+        <name>structure_id</name>
+      </argument>
+      <argument>
+        <name>entry_name</name>
+      </argument>
+    </arguments>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Pinned archive URI</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT 'zip:file://'||attachment.uri_path(a.raw_path)||'!/'||? AS entry_uri FROM attachment.hwpx_structure s JOIN attachment.attempt a USING(attempt_id) WHERE s.structure_id=? AND s.state='READING'</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>entry_name</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>structure_id</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>GetFileNames</type>
+    <name>Inspect member size</name>
+    <file>
+      <name>${PROJECT_HOME}</name>
+      <filemask />
+      <exclude_filemask />
+      <file_required>N</file_required>
+      <include_subfolders>N</include_subfolders>
+    </file>
+    <filter>
+      <filterfiletype>all_files</filterfiletype>
+    </filter>
+    <rownum>N</rownum>
+    <rownum_field />
+    <filename_Field>entry_uri</filename_Field>
+    <wildcard_Field />
+    <exclude_wildcard_Field />
+    <filefield>Y</filefield>
+    <dynamic_include_subfolders>N</dynamic_include_subfolders>
+    <isaddresult>N</isaddresult>
+    <limit>0</limit>
+    <doNotFailIfNoFile>N</doNotFailIfNoFile>
+    <raiseAnExceptionIfNoFile>Y</raiseAnExceptionIfNoFile>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <attributes />
+    <GUI>
+      <xloc>800</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>ExecSql</type>
+    <name>Bound member size</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT attachment.hwpx_entry_limit(?,?,?::bigint)</sql>
+    <execute_each_row>Y</execute_each_row>
+    <single_statement>Y</single_statement>
+    <set_params>Y</set_params>
+    <replace_variables>N</replace_variables>
+    <quoteString>N</quoteString>
+    <arguments>
+      <argument>
+        <name>structure_id</name>
+      </argument>
+      <argument>
+        <name>entry_name</name>
+      </argument>
+      <argument>
+        <name>size</name>
+      </argument>
+    </arguments>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>1040</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Calculator</type>
+    <name>Read exact member bytes</name>
+    <failIfNoFile>Y</failIfNoFile>
+    <calculation>
+      <field_name>entry_bytes</field_name>
+      <calc_type>LOAD_FILE_CONTENT_BINARY</calc_type>
+      <field_a>entry_uri</field_a>
+      <value_type>Binary</value_type>
+      <value_length>-1</value_length>
+      <value_precision>-1</value_precision>
+      <remove>N</remove>
+    </calculation>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>240</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>ExecSql</type>
+    <name>Retain original XML member</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT attachment.save_hwpx_entry(?,?,?::bytea,?::bigint)</sql>
+    <execute_each_row>Y</execute_each_row>
+    <single_statement>Y</single_statement>
+    <set_params>Y</set_params>
+    <replace_variables>N</replace_variables>
+    <quoteString>N</quoteString>
+    <arguments>
+      <argument>
+        <name>structure_id</name>
+      </argument>
+      <argument>
+        <name>entry_name</name>
+      </argument>
+      <argument>
+        <name>entry_bytes</name>
+      </argument>
+      <argument>
+        <name>size</name>
+      </argument>
+    </arguments>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>240</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>SelectValues</type>
+    <name>Release XML buffer</name>
+    <fields>
+      <select_unspecified>Y</select_unspecified>
+      <remove>
+        <name>entry_bytes</name>
+      </remove>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>240</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

@@ -1,0 +1,11 @@
+{
+  "name": "attachment-local",
+  "description": "Native attachment processing. No execution-data sampling.",
+  "engineRunConfiguration": {
+    "Local": {
+      "safe_mode": false
+    }
+  },
+  "executionInfoLocationName": "",
+  "defaultSelection": false
+}

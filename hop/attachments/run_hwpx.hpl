@@ -1,0 +1,268 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>run_hwpx</name>
+    <description>Reconstruct selected HWPX files sequentially and account for each child.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>HWPX batch</from>
+      <to>Pending HWPX structures</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Pending HWPX structures</from>
+      <to>Reserve structure</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Reserve structure</from>
+      <to>Reconstruct one HWPX</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Reconstruct one HWPX</from>
+      <to>Number structure results</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Reconstruct one HWPX</from>
+      <to>Original structure rows</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Original structure rows</from>
+      <to>Pair structure result</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Pair structure result</from>
+      <to>Finalize structure outcome</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Number structure results</from>
+      <to>Pair structure result</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>HWPX batch</name>
+    <fields>
+      <field>
+        <name>batch_id</name>
+        <variable>${HWPX_BATCH_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Pending HWPX structures</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT structure_id,row_number() OVER(ORDER BY structure_id) AS request_no FROM attachment.hwpx_structure WHERE batch_id=? AND state='PLANNED' ORDER BY structure_id</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>batch_id</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>ExecSql</type>
+    <name>Reserve structure</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT attachment.reserve_hwpx(?)</sql>
+    <execute_each_row>Y</execute_each_row>
+    <single_statement>Y</single_statement>
+    <set_params>Y</set_params>
+    <replace_variables>N</replace_variables>
+    <quoteString>N</quoteString>
+    <arguments>
+      <argument>
+        <name>structure_id</name>
+      </argument>
+    </arguments>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>PipelineExecutor</type>
+    <name>Reconstruct one HWPX</name>
+    <run_configuration>attachment-local</run_configuration>
+    <filenameInField>N</filenameInField>
+    <group_size>1</group_size>
+    <group_field />
+    <group_time />
+    <parameters>
+      <variable_mapping>
+        <variable>STRUCTURE_ID</variable>
+        <field>structure_id</field>
+        <input />
+      </variable_mapping>
+    </parameters>
+    <inherit_all_vars>Y</inherit_all_vars>
+    <execution_result_target_transform>Number structure results</execution_result_target_transform>
+    <execution_time_field>ExecutionTime</execution_time_field>
+    <execution_result_field>ExecutionResult</execution_result_field>
+    <execution_errors_field>ExecutionNrErrors</execution_errors_field>
+    <execution_lines_read_field>ExecutionLinesRead</execution_lines_read_field>
+    <execution_lines_written_field>ExecutionLinesWritten</execution_lines_written_field>
+    <execution_lines_input_field>ExecutionLinesInput</execution_lines_input_field>
+    <execution_lines_output_field>ExecutionLinesOutput</execution_lines_output_field>
+    <execution_lines_rejected_field>ExecutionLinesRejected</execution_lines_rejected_field>
+    <execution_lines_updated_field>ExecutionLinesUpdated</execution_lines_updated_field>
+    <execution_lines_deleted_field>ExecutionLinesDeleted</execution_lines_deleted_field>
+    <execution_files_retrieved_field>ExecutionFilesRetrieved</execution_files_retrieved_field>
+    <execution_exit_status_field>ExecutionExitStatus</execution_exit_status_field>
+    <execution_log_text_field />
+    <execution_log_channelid_field>ExecutionLogChannelId</execution_log_channelid_field>
+    <result_files_file_name_field>FileName</result_files_file_name_field>
+    <filename>${PROJECT_HOME}/attachments/process_hwpx.hpl</filename>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <attributes />
+    <executors_output_transform>Original structure rows</executors_output_transform>
+    <GUI>
+      <xloc>800</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Sequence</type>
+    <name>Number structure results</name>
+    <valuename>result_no</valuename>
+    <use_database>N</use_database>
+    <use_counter>Y</use_counter>
+    <counter_name />
+    <start_at>1</start_at>
+    <increment_by>1</increment_by>
+    <max_value>9223372036854775807</max_value>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>1040</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Dummy</type>
+    <name>Original structure rows</name>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>240</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>MergeJoin</type>
+    <name>Pair structure result</name>
+    <join_type>INNER</join_type>
+    <transform1>Original structure rows</transform1>
+    <transform2>Number structure results</transform2>
+    <keys_1>
+      <key>request_no</key>
+    </keys_1>
+    <keys_2>
+      <key>result_no</key>
+    </keys_2>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>240</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>ExecSql</type>
+    <name>Finalize structure outcome</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT attachment.finish_hwpx(?,?,?::bigint)</sql>
+    <execute_each_row>Y</execute_each_row>
+    <single_statement>Y</single_statement>
+    <set_params>Y</set_params>
+    <replace_variables>N</replace_variables>
+    <quoteString>N</quoteString>
+    <arguments>
+      <argument>
+        <name>structure_id</name>
+      </argument>
+      <argument>
+        <name>ExecutionResult</name>
+      </argument>
+      <argument>
+        <name>ExecutionNrErrors</name>
+      </argument>
+    </arguments>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>240</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

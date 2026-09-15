@@ -1,0 +1,174 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>prepare_hwpx</name>
+    <description>Freeze selected archived HWPX documents; no download requests.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>HWPX plan</from>
+      <to>Freeze HWPX plan</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Freeze HWPX plan</from>
+      <to>Remember attachment batch</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Remember attachment batch</from>
+      <to>HWPX plan saved</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>HWPX plan</name>
+    <fields>
+      <field>
+        <name>batch_id</name>
+        <variable>${BATCH_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>job_run_id</name>
+        <variable>${JOB_RUN_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>attachment_batch_ids</name>
+        <variable>${ATTACHMENT_BATCH_IDS}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>posting_ids</name>
+        <variable>${POSTING_IDS}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>max_documents</name>
+        <variable>${MAX_DOCUMENTS}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Freeze HWPX plan</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT attachment.prepare_hwpx(?,?,?,?,?::integer) AS planned_batch_id</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>batch_id</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>job_run_id</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>attachment_batch_ids</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>posting_ids</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>max_documents</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>SetVariable</type>
+    <name>Remember attachment batch</name>
+    <use_formatting>Y</use_formatting>
+    <fields>
+      <field>
+        <field_name>planned_batch_id</field_name>
+        <variable_name>HWPX_BATCH_ID</variable_name>
+        <variable_type>PARENT_WORKFLOW</variable_type>
+        <default_value />
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>WriteToLog</type>
+    <name>HWPX plan saved</name>
+    <loglevel>Basic</loglevel>
+    <displayHeader>Y</displayHeader>
+    <logmessage>Archived bytes are reused; original parser results remain intact.</logmessage>
+    <fields>
+      <field>
+        <name>planned_batch_id</name>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>800</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

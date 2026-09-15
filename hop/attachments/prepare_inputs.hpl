@@ -1,0 +1,158 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>prepare_inputs</name>
+    <description>Freeze attachment-aware model input and optional evaluation cases. No model calls.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Input selection</from>
+      <to>Freeze source bundles</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Freeze source bundles</from>
+      <to>Input bundles prepared</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Input selection</name>
+    <fields>
+      <field>
+        <name>job_run_id</name>
+        <variable>${JOB_RUN_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>attachment_batch_ids</name>
+        <variable>${ATTACHMENT_BATCH_IDS}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>posting_ids</name>
+        <variable>${POSTING_IDS}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>posting_limit</name>
+        <variable>${POSTING_LIMIT}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>dataset_id</name>
+        <variable>${DATASET_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>ncs_run_id</name>
+        <variable>${NCS_RUN_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Freeze source bundles</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT attachment.prepare_inputs(?,?,?,?::integer,?,?)::text AS prepared_inputs</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>job_run_id</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>attachment_batch_ids</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>posting_ids</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>posting_limit</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>dataset_id</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>ncs_run_id</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>WriteToLog</type>
+    <name>Input bundles prepared</name>
+    <loglevel>Basic</loglevel>
+    <displayHeader>Y</displayHeader>
+    <logmessage>Use DATASET_ID with llm/evaluate.hwf, or the exact bundle IDs with llm/enrich.hwf. Select ko-v6 and REVIEW.</logmessage>
+    <fields>
+      <field>
+        <name>prepared_inputs</name>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

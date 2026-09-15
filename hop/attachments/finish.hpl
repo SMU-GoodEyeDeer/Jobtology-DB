@@ -1,0 +1,155 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>finish</name>
+    <description>Report every selected posting; fail if a download batch is unfinished.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Batch completion</from>
+      <to>Verify terminal accounting</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Verify terminal accounting</from>
+      <to>Posting coverage</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Posting coverage</from>
+      <to>Attachment outcomes</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Batch completion</name>
+    <fields>
+      <field>
+        <name>batch_id</name>
+        <variable>${ATTACHMENT_BATCH_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>execute_downloads</name>
+        <variable>${EXECUTE_DOWNLOADS}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>ExecSql</type>
+    <name>Verify terminal accounting</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT CASE WHEN ?='Y' THEN attachment.verify_batch(?) END</sql>
+    <execute_each_row>Y</execute_each_row>
+    <single_statement>Y</single_statement>
+    <set_params>Y</set_params>
+    <replace_variables>N</replace_variables>
+    <quoteString>N</quoteString>
+    <arguments>
+      <argument>
+        <name>execute_downloads</name>
+      </argument>
+      <argument>
+        <name>batch_id</name>
+      </argument>
+    </arguments>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Posting coverage</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT * FROM attachment.report WHERE batch_id=? ORDER BY posting_id</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>batch_id</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>WriteToLog</type>
+    <name>Attachment outcomes</name>
+    <loglevel>Basic</loglevel>
+    <displayHeader>Y</displayHeader>
+    <logmessage>Parsed documents still require source review before LLM claims are accepted.</logmessage>
+    <fields>
+      <field>
+        <name>posting_id</name>
+      </field>
+      <field>
+        <name>attachment_count</name>
+      </field>
+      <field>
+        <name>pending</name>
+      </field>
+      <field>
+        <name>running</name>
+      </field>
+      <field>
+        <name>parsed</name>
+      </field>
+      <field>
+        <name>other_outcomes</name>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>800</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

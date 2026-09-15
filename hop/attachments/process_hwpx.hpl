@@ -1,0 +1,737 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>process_hwpx</name>
+    <description>Read package spine and XML members, then reconstruct ordered paragraph/table evidence.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters>
+      <parameter>
+        <name>STRUCTURE_ID</name>
+        <default_value />
+        <description>STRUCTURE_ID</description>
+      </parameter>
+    </parameters>
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Structure identity</from>
+      <to>Original archive</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Original archive</from>
+      <to>Hash original archive</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Hash original archive</from>
+      <to>Confirm pinned archive</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Confirm pinned archive</from>
+      <to>Package entry</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Package entry</from>
+      <to>Read package manifest</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Read package manifest</from>
+      <to>Read package manifest errors</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Read package manifest errors</from>
+      <to>Read package manifest result</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Read package manifest result</from>
+      <to>Read package manifest done</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Read package manifest errors</from>
+      <to>Read package manifest failed</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Read package manifest result</from>
+      <to>Read package manifest failed</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Read package manifest done</from>
+      <to>Body identity</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Body identity</from>
+      <to>Declared document members</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Declared document members</from>
+      <to>Read document members</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Read document members</from>
+      <to>Read document members errors</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Read document members errors</from>
+      <to>Read document members result</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Read document members result</from>
+      <to>Read document members done</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Read document members errors</from>
+      <to>Read document members failed</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Read document members result</from>
+      <to>Read document members failed</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Read document members done</from>
+      <to>Wait for all document members</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Wait for all document members</from>
+      <to>Final structure identity</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Final structure identity</from>
+      <to>Recheck original archive</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Recheck original archive</from>
+      <to>Verify archive after reads</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Verify archive after reads</from>
+      <to>Reconstruct document structure</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Structure identity</name>
+    <fields>
+      <field>
+        <name>structure_id</name>
+        <variable>${STRUCTURE_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Original archive</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT a.raw_path AS archive_filename FROM attachment.hwpx_structure s JOIN attachment.attempt a USING(attempt_id) WHERE s.structure_id=? AND s.state='READING'</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>structure_id</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Calculator</type>
+    <name>Hash original archive</name>
+    <failIfNoFile>Y</failIfNoFile>
+    <calculation>
+      <field_name>archive_hash</field_name>
+      <calc_type>SHA256</calc_type>
+      <field_a>archive_filename</field_a>
+      <value_type>String</value_type>
+      <value_length>-1</value_length>
+      <value_precision>-1</value_precision>
+      <remove>N</remove>
+    </calculation>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>ExecSql</type>
+    <name>Confirm pinned archive</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT attachment.hwpx_check_hash(?,?)</sql>
+    <execute_each_row>Y</execute_each_row>
+    <single_statement>Y</single_statement>
+    <set_params>Y</set_params>
+    <replace_variables>N</replace_variables>
+    <quoteString>N</quoteString>
+    <arguments>
+      <argument>
+        <name>structure_id</name>
+      </argument>
+      <argument>
+        <name>archive_hash</name>
+      </argument>
+    </arguments>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>800</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Package entry</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT 'Contents/content.hpf'::text AS entry_name</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter />
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>1040</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>PipelineExecutor</type>
+    <name>Read package manifest</name>
+    <run_configuration>attachment-local</run_configuration>
+    <filenameInField>N</filenameInField>
+    <group_size>1</group_size>
+    <group_field />
+    <group_time />
+    <parameters>
+      <variable_mapping>
+        <variable>STRUCTURE_ID</variable>
+        <field>structure_id</field>
+        <input />
+      </variable_mapping>
+      <variable_mapping>
+        <variable>ENTRY_NAME</variable>
+        <field>entry_name</field>
+        <input />
+      </variable_mapping>
+    </parameters>
+    <inherit_all_vars>Y</inherit_all_vars>
+    <execution_result_target_transform>Read package manifest errors</execution_result_target_transform>
+    <execution_time_field>ExecutionTime</execution_time_field>
+    <execution_result_field>ExecutionResult</execution_result_field>
+    <execution_errors_field>ExecutionNrErrors</execution_errors_field>
+    <execution_lines_read_field>ExecutionLinesRead</execution_lines_read_field>
+    <execution_lines_written_field>ExecutionLinesWritten</execution_lines_written_field>
+    <execution_lines_input_field>ExecutionLinesInput</execution_lines_input_field>
+    <execution_lines_output_field>ExecutionLinesOutput</execution_lines_output_field>
+    <execution_lines_rejected_field>ExecutionLinesRejected</execution_lines_rejected_field>
+    <execution_lines_updated_field>ExecutionLinesUpdated</execution_lines_updated_field>
+    <execution_lines_deleted_field>ExecutionLinesDeleted</execution_lines_deleted_field>
+    <execution_files_retrieved_field>ExecutionFilesRetrieved</execution_files_retrieved_field>
+    <execution_exit_status_field>ExecutionExitStatus</execution_exit_status_field>
+    <execution_log_text_field />
+    <execution_log_channelid_field>ExecutionLogChannelId</execution_log_channelid_field>
+    <result_files_file_name_field>FileName</result_files_file_name_field>
+    <filename>${PROJECT_HOME}/attachments/read_hwpx_entry.hpl</filename>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <attributes />
+    <executors_output_transform />
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>240</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>Read package manifest errors</name>
+    <send_true_to>Read package manifest result</send_true_to>
+    <send_false_to>Read package manifest failed</send_false_to>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>ExecutionNrErrors</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Integer</type>
+          <text>0</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>240</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>Read package manifest result</name>
+    <send_true_to>Read package manifest done</send_true_to>
+    <send_false_to>Read package manifest failed</send_false_to>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>ExecutionResult</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Boolean</type>
+          <text>Y</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>240</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Dummy</type>
+    <name>Read package manifest done</name>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>800</xloc>
+      <yloc>240</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Abort</type>
+    <name>Read package manifest failed</name>
+    <message>A native HWPX child failed. Its saved archive and entry ledger remain available.</message>
+    <always_log_rows>N</always_log_rows>
+    <abort_option>ABORT_WITH_ERROR</abort_option>
+    <row_threshold>0</row_threshold>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>1040</xloc>
+      <yloc>240</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>GetVariable</type>
+    <name>Body identity</name>
+    <fields>
+      <field>
+        <name>structure_id</name>
+        <variable>${STRUCTURE_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>400</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Declared document members</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT entry_name FROM attachment.hwpx_entries(?) ORDER BY section_no</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>structure_id</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>400</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>PipelineExecutor</type>
+    <name>Read document members</name>
+    <run_configuration>attachment-local</run_configuration>
+    <filenameInField>N</filenameInField>
+    <group_size>1</group_size>
+    <group_field />
+    <group_time />
+    <parameters>
+      <variable_mapping>
+        <variable>STRUCTURE_ID</variable>
+        <field>structure_id</field>
+        <input />
+      </variable_mapping>
+      <variable_mapping>
+        <variable>ENTRY_NAME</variable>
+        <field>entry_name</field>
+        <input />
+      </variable_mapping>
+    </parameters>
+    <inherit_all_vars>Y</inherit_all_vars>
+    <execution_result_target_transform>Read document members errors</execution_result_target_transform>
+    <execution_time_field>ExecutionTime</execution_time_field>
+    <execution_result_field>ExecutionResult</execution_result_field>
+    <execution_errors_field>ExecutionNrErrors</execution_errors_field>
+    <execution_lines_read_field>ExecutionLinesRead</execution_lines_read_field>
+    <execution_lines_written_field>ExecutionLinesWritten</execution_lines_written_field>
+    <execution_lines_input_field>ExecutionLinesInput</execution_lines_input_field>
+    <execution_lines_output_field>ExecutionLinesOutput</execution_lines_output_field>
+    <execution_lines_rejected_field>ExecutionLinesRejected</execution_lines_rejected_field>
+    <execution_lines_updated_field>ExecutionLinesUpdated</execution_lines_updated_field>
+    <execution_lines_deleted_field>ExecutionLinesDeleted</execution_lines_deleted_field>
+    <execution_files_retrieved_field>ExecutionFilesRetrieved</execution_files_retrieved_field>
+    <execution_exit_status_field>ExecutionExitStatus</execution_exit_status_field>
+    <execution_log_text_field />
+    <execution_log_channelid_field>ExecutionLogChannelId</execution_log_channelid_field>
+    <result_files_file_name_field>FileName</result_files_file_name_field>
+    <filename>${PROJECT_HOME}/attachments/read_hwpx_entry.hpl</filename>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <attributes />
+    <executors_output_transform />
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>400</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>Read document members errors</name>
+    <send_true_to>Read document members result</send_true_to>
+    <send_false_to>Read document members failed</send_false_to>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>ExecutionNrErrors</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Integer</type>
+          <text>0</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>800</xloc>
+      <yloc>400</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>Read document members result</name>
+    <send_true_to>Read document members done</send_true_to>
+    <send_false_to>Read document members failed</send_false_to>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>ExecutionResult</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Boolean</type>
+          <text>Y</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>1040</xloc>
+      <yloc>400</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Dummy</type>
+    <name>Read document members done</name>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>560</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Abort</type>
+    <name>Read document members failed</name>
+    <message>A native HWPX child failed. Its saved archive and entry ledger remain available.</message>
+    <always_log_rows>N</always_log_rows>
+    <abort_option>ABORT_WITH_ERROR</abort_option>
+    <row_threshold>0</row_threshold>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>560</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>GroupBy</type>
+    <name>Wait for all document members</name>
+    <all_rows>N</all_rows>
+    <give_back_row>Y</give_back_row>
+    <ignore_aggregate>N</ignore_aggregate>
+    <add_linenr>N</add_linenr>
+    <group />
+    <fields>
+      <field>
+        <aggregate>member_count</aggregate>
+        <subject>ExecutionResult</subject>
+        <type>COUNT_ANY</type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>560</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>GetVariable</type>
+    <name>Final structure identity</name>
+    <fields>
+      <field>
+        <name>structure_id</name>
+        <variable>${STRUCTURE_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>800</xloc>
+      <yloc>560</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Recheck original archive</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT a.raw_path AS archive_filename FROM attachment.hwpx_structure s JOIN attachment.attempt a USING(attempt_id) WHERE s.structure_id=? AND s.state='READING'</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>structure_id</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>1040</xloc>
+      <yloc>560</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Calculator</type>
+    <name>Verify archive after reads</name>
+    <failIfNoFile>Y</failIfNoFile>
+    <calculation>
+      <field_name>final_archive_hash</field_name>
+      <calc_type>SHA256</calc_type>
+      <field_a>archive_filename</field_a>
+      <value_type>String</value_type>
+      <value_length>-1</value_length>
+      <value_precision>-1</value_precision>
+      <remove>N</remove>
+    </calculation>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>720</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>ExecSql</type>
+    <name>Reconstruct document structure</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT attachment.build_hwpx_structure(?,?)</sql>
+    <execute_each_row>Y</execute_each_row>
+    <single_statement>Y</single_statement>
+    <set_params>Y</set_params>
+    <replace_variables>N</replace_variables>
+    <quoteString>N</quoteString>
+    <arguments>
+      <argument>
+        <name>structure_id</name>
+      </argument>
+      <argument>
+        <name>final_archive_hash</name>
+      </argument>
+    </arguments>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>720</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>
