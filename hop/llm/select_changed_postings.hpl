@@ -1,0 +1,177 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>select_changed_postings</name>
+    <description>Select pending current document inputs; successful unchanged outputs are skipped.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Selection options</from>
+      <to>Choose changed inputs</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Choose changed inputs</from>
+      <to>Remember changed inputs</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Remember changed inputs</from>
+      <to>Selection result</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Selection options</name>
+    <fields>
+      <field>
+        <name>cap</name>
+        <variable>${POSTING_LIMIT}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>retry_failed</name>
+        <variable>${RETRY_FAILED}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>request_workers</name>
+        <variable>${REQUEST_WORKERS}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Choose changed inputs</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT x-&gt;&gt;'job_run_id' AS job_run_id,x-&gt;&gt;'ncs_run_id' AS ncs_run_id,x-&gt;&gt;'posting_ids' AS posting_ids,x-&gt;&gt;'bundle_ids' AS bundle_ids,x-&gt;&gt;'run_needed' AS run_needed,x-&gt;&gt;'selected' AS selected,x-&gt;&gt;'pending_or_failed_total' AS pending_total FROM (SELECT enrichment.changed_linking_inputs(?::integer,?='Y') x WHERE enrichment.valid_request_workers(?::integer)) q</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>cap</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>retry_failed</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>request_workers</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>SetVariable</type>
+    <name>Remember changed inputs</name>
+    <use_formatting>Y</use_formatting>
+    <fields>
+      <field>
+        <field_name>job_run_id</field_name>
+        <variable_name>CHANGED_JOB_RUN_ID</variable_name>
+        <variable_type>PARENT_WORKFLOW</variable_type>
+        <default_value />
+      </field>
+      <field>
+        <field_name>ncs_run_id</field_name>
+        <variable_name>CHANGED_NCS_RUN_ID</variable_name>
+        <variable_type>PARENT_WORKFLOW</variable_type>
+        <default_value />
+      </field>
+      <field>
+        <field_name>posting_ids</field_name>
+        <variable_name>CHANGED_POSTING_IDS</variable_name>
+        <variable_type>PARENT_WORKFLOW</variable_type>
+        <default_value />
+      </field>
+      <field>
+        <field_name>bundle_ids</field_name>
+        <variable_name>CHANGED_BUNDLE_IDS</variable_name>
+        <variable_type>PARENT_WORKFLOW</variable_type>
+        <default_value />
+      </field>
+      <field>
+        <field_name>run_needed</field_name>
+        <variable_name>CHANGED_RUN_NEEDED</variable_name>
+        <variable_type>PARENT_WORKFLOW</variable_type>
+        <default_value />
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>WriteToLog</type>
+    <name>Selection result</name>
+    <loglevel>Basic</loglevel>
+    <displayHeader>Y</displayHeader>
+    <logmessage>Pending inputs require document preparation; failed extractions retry only with RETRY_FAILED=Y.</logmessage>
+    <fields>
+      <field>
+        <name>selected</name>
+      </field>
+      <field>
+        <name>pending_total</name>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>800</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

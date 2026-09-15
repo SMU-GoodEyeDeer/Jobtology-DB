@@ -1,0 +1,261 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>run_extract_workers</name>
+    <description>Execute planned extract requests sequentially; a dry run has no request rows.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Batch</from>
+      <to>Pending requests</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Pending requests</from>
+      <to>Run sequential request</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Run sequential request</from>
+      <to>Check child errors</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Check child errors</from>
+      <to>Check child result</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Check child result</from>
+      <to>Done</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Check child errors</from>
+      <to>Child error count failed</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Check child result</from>
+      <to>Child result failed</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Batch</name>
+    <fields>
+      <field>
+        <name>batch_id</name>
+        <variable>${LLM_BATCH_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Pending requests</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT a.attempt_id FROM enrichment.attempt a JOIN enrichment.batch b USING(batch_id) JOIN enrichment.item i ON i.item_id=a.item_id WHERE a.batch_id=? AND a.stage='extract' AND a.state='PLANNED' AND b.state='RUNNING' AND b.settings-&gt;&gt;'execute_requests'='Y' ORDER BY i.ordinal</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>batch_id</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>PipelineExecutor</type>
+    <name>Run sequential request</name>
+    <run_configuration>llm-local</run_configuration>
+    <filenameInField>N</filenameInField>
+    <group_size>1</group_size>
+    <group_field />
+    <group_time />
+    <parameters>
+      <variable_mapping>
+        <variable>ATTEMPT_ID</variable>
+        <field>attempt_id</field>
+        <input />
+      </variable_mapping>
+    </parameters>
+    <inherit_all_vars>Y</inherit_all_vars>
+    <execution_result_target_transform>Check child errors</execution_result_target_transform>
+    <execution_time_field>ExecutionTime</execution_time_field>
+    <execution_result_field>ExecutionResult</execution_result_field>
+    <execution_errors_field>ExecutionNrErrors</execution_errors_field>
+    <execution_lines_read_field>ExecutionLinesRead</execution_lines_read_field>
+    <execution_lines_written_field>ExecutionLinesWritten</execution_lines_written_field>
+    <execution_lines_input_field>ExecutionLinesInput</execution_lines_input_field>
+    <execution_lines_output_field>ExecutionLinesOutput</execution_lines_output_field>
+    <execution_lines_rejected_field>ExecutionLinesRejected</execution_lines_rejected_field>
+    <execution_lines_updated_field>ExecutionLinesUpdated</execution_lines_updated_field>
+    <execution_lines_deleted_field>ExecutionLinesDeleted</execution_lines_deleted_field>
+    <execution_files_retrieved_field>ExecutionFilesRetrieved</execution_files_retrieved_field>
+    <execution_exit_status_field>ExecutionExitStatus</execution_exit_status_field>
+    <execution_log_text_field />
+    <execution_log_channelid_field>ExecutionLogChannelId</execution_log_channelid_field>
+    <result_files_file_name_field>FileName</result_files_file_name_field>
+    <filename>${PROJECT_HOME}/llm/request.hpl</filename>
+    <distribute>Y</distribute>
+    <copies>${REQUEST_WORKERS}</copies>
+    <attributes />
+    <executors_output_transform />
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>Check child errors</name>
+    <send_true_to>Check child result</send_true_to>
+    <send_false_to>Child error count failed</send_false_to>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>ExecutionNrErrors</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Integer</type>
+          <text>0</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>800</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>Check child result</name>
+    <send_true_to>Done</send_true_to>
+    <send_false_to>Child result failed</send_false_to>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>ExecutionResult</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Boolean</type>
+          <text>Y</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>1040</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Dummy</type>
+    <name>Done</name>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>240</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Abort</type>
+    <name>Child error count failed</name>
+    <message>LLM request pipeline reported errors. Inspect enrichment.attempt before retrying.</message>
+    <always_log_rows>N</always_log_rows>
+    <abort_option>ABORT_WITH_ERROR</abort_option>
+    <row_threshold>0</row_threshold>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>240</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Abort</type>
+    <name>Child result failed</name>
+    <message>LLM request pipeline returned an unsuccessful result. Inspect enrichment.attempt before retrying.</message>
+    <always_log_rows>N</always_log_rows>
+    <abort_option>ABORT_WITH_ERROR</abort_option>
+    <row_threshold>0</row_threshold>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>240</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>
