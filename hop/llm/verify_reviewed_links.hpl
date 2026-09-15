@@ -66,6 +66,7 @@
     <sql>SELECT p.publication_id,p.enrichment_id,l-&gt;&gt;'candidate_id' AS candidate_id,
 'ncs:unit:'||(l-&gt;&gt;'competency_code') AS competency_identity,l::text AS evidence_json,
 l-&gt;&gt;'reason' AS reason,l#&gt;&gt;'{duty,text}' AS duty,l-&gt;&gt;'reviewer' AS reviewer,l-&gt;&gt;'reviewer_kind' AS reviewer_kind,
+(l-&gt;&gt;'candidate_origin') AS candidate_origin,(l-&gt;&gt;'candidate_actor') AS candidate_actor,
 (l-&gt;&gt;'decision_id')::bigint AS decision_id FROM enrichment.link_publication_item p
 CROSS JOIN LATERAL jsonb_array_elements(p.payload-&gt;'links') l WHERE p.publication_id=? ORDER BY p.posting_id,l-&gt;&gt;'candidate_id'</sql>
     <cache>N</cache>
@@ -97,7 +98,10 @@ CROSS JOIN LATERAL jsonb_array_elements(p.payload-&gt;'links') l WHERE p.publica
     <cypher>MATCH (e:reviewedNcsEnrichment {id:$enrichment_id,publication_id:$publication_id})
 -[r:ALIGNS_WITH_NCS {candidate_id:$candidate_id,accepted:true}]-&gt;(c:ncsCompetency {id:$competency_identity})
 WHERE r.evidence_json=$evidence_json AND r.reason=$reason AND r.duty=$duty AND r.reviewer=$reviewer
-AND r.reviewer_kind=$reviewer_kind AND r.decision_id=$decision_id AND r.origin='LLM_INFERENCE' AND r.publication_id=$publication_id
+AND r.reviewer_kind=$reviewer_kind AND r.decision_id=$decision_id
+AND r.candidate_origin=$candidate_origin AND r.candidate_actor=$candidate_actor
+AND r.origin=CASE $candidate_origin WHEN 'model' THEN 'LLM_INFERENCE' ELSE 'REVIEWER_INFERENCE' END
+AND r.publication_id=$publication_id
 RETURN count(r)=1 AS verified</cypher>
     <batch_size>1</batch_size>
     <read_only>Y</read_only>
@@ -150,6 +154,16 @@ RETURN count(r)=1 AS verified</cypher>
       <mapping>
         <parameter>reviewer_kind</parameter>
         <field>reviewer_kind</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>candidate_origin</parameter>
+        <field>candidate_origin</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>candidate_actor</parameter>
+        <field>candidate_actor</field>
         <type>String</type>
       </mapping>
       <mapping>

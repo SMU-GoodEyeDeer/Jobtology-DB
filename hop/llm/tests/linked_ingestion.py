@@ -117,8 +117,11 @@ def publication_checks():
  t.neo("CREATE (:jobPosting {id:'job-alio:posting:001'}),(:jobPosting {id:'job-alio:posting:002'}),(:ncsCompetency {id:'ncs:unit:2001020101_24v1'}),(:Person {id:'unrelated-fixture'});")
  run_module('llm','install_link_publication.hwf',{},'native-publication-install')
  assert sql("SELECT outcome FROM enrichment.linking_status WHERE posting_id='001'")=='ACCEPTED_LINKS'
+ assert sql("SELECT ncs_links->0->>'candidate_origin' FROM enrichment.linking_status WHERE posting_id='001'")=='reviewer'
  run_module('llm','publish_links.hwf',dict(PUBLICATION_ID='links-first'),'publish-independent-links')
  assert t.neo("MATCH (e:reviewedNcsEnrichment {current:true})-[r:ALIGNS_WITH_NCS {accepted:true}]->() RETURN count(r);").strip().endswith('1')
+ origin_output=t.neo("MATCH (e:reviewedNcsEnrichment {current:true})-[r:ALIGNS_WITH_NCS {accepted:true}]->() RETURN r.origin+':'+r.candidate_origin;")
+ assert origin_output.strip().splitlines()[-1].strip('"')=='REVIEWER_INFERENCE:reviewer',origin_output
  before=t.neo('MATCH (n) RETURN count(n);')+t.neo('MATCH ()-[r]->() RETURN count(r);')
  run_module('llm','publish_links.hwf',dict(PUBLICATION_ID='links-first'),'publication-replay')
  assert before==t.neo('MATCH (n) RETURN count(n);')+t.neo('MATCH ()-[r]->() RETURN count(r);')

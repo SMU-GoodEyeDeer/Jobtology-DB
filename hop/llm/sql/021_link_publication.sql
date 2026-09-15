@@ -75,6 +75,7 @@ LEFT JOIN LATERAL (
 LEFT JOIN LATERAL (
  SELECT jsonb_agg(jsonb_build_object('candidate_id',c.candidate_id,'competency_code',c.competency_code,
   'ncs_run_id',c.ncs_run_id,'duty_index',c.duty_index,'reason',c.reason,
+  'candidate_origin',c.origin,'candidate_actor',c.actor,
   'duty',r.extraction->'duties'->c.duty_index,'decision_id',d.decision_id,
   'reviewer_kind',d.reviewer_kind,'reviewer',d.reviewer,'review_notes',d.notes) ORDER BY c.candidate_id) AS matches
  FROM enrichment.link_candidate c JOIN enrichment.latest_link_decision d USING(candidate_id)

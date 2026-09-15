@@ -45,22 +45,29 @@ verify(p,'Merge reviewed extraction');p.save()
 link_query="""SELECT p.publication_id,p.enrichment_id,l->>'candidate_id' AS candidate_id,
 'ncs:unit:'||(l->>'competency_code') AS competency_identity,l::text AS evidence_json,
 l->>'reason' AS reason,l#>>'{duty,text}' AS duty,l->>'reviewer' AS reviewer,l->>'reviewer_kind' AS reviewer_kind,
+(l->>'candidate_origin') AS candidate_origin,(l->>'candidate_actor') AS candidate_actor,
 (l->>'decision_id')::bigint AS decision_id FROM enrichment.link_publication_item p
 CROSS JOIN LATERAL jsonb_array_elements(p.payload->'links') l WHERE p.publication_id=? ORDER BY p.posting_id,l->>'candidate_id'"""
-args=[(x,'String') for x in ['publication_id','enrichment_id','candidate_id','competency_identity','evidence_json','reason','duty','reviewer','reviewer_kind']]+[('decision_id','Integer')]
+args=[(x,'String') for x in ['publication_id','enrichment_id','candidate_id','competency_identity','evidence_json','reason','duty','reviewer','reviewer_kind','candidate_origin','candidate_actor']]+[('decision_id','Integer')]
 p=Pipe('load_reviewed_links','Merge only independently accepted links to existing versioned NCS units.')
 p.chain(identity(),db('Accepted link evidence',link_query,[('publication_id','String')]),cypher('Merge reviewed NCS link',"""MATCH (e:reviewedNcsEnrichment {id:$enrichment_id,publication_id:$publication_id})
 MATCH (c:ncsCompetency {id:$competency_identity})
 MERGE (e)-[r:ALIGNS_WITH_NCS {candidate_id:$candidate_id}]->(c)
 SET r.evidence_json=$evidence_json,r.reason=$reason,r.duty=$duty,r.reviewer=$reviewer,
-r.reviewer_kind=$reviewer_kind,r.decision_id=$decision_id,r.accepted=true,r.origin='LLM_INFERENCE',r.publication_id=$publication_id
+r.reviewer_kind=$reviewer_kind,r.decision_id=$decision_id,r.accepted=true,
+r.candidate_origin=$candidate_origin,r.candidate_actor=$candidate_actor,
+r.origin=CASE $candidate_origin WHEN 'model' THEN 'LLM_INFERENCE' ELSE 'REVIEWER_INFERENCE' END,
+r.publication_id=$publication_id
 RETURN count(r)=1 AS verified""",args,[('verified','Boolean')]))
 verify(p,'Merge reviewed NCS link');p.save()
 p=Pipe('verify_reviewed_links','Read back every accepted NCS endpoint and evidence property.')
 p.chain(identity(),db('Expected links',link_query,[('publication_id','String')]),cypher('Read back NCS evidence',"""MATCH (e:reviewedNcsEnrichment {id:$enrichment_id,publication_id:$publication_id})
 -[r:ALIGNS_WITH_NCS {candidate_id:$candidate_id,accepted:true}]->(c:ncsCompetency {id:$competency_identity})
 WHERE r.evidence_json=$evidence_json AND r.reason=$reason AND r.duty=$duty AND r.reviewer=$reviewer
-AND r.reviewer_kind=$reviewer_kind AND r.decision_id=$decision_id AND r.origin='LLM_INFERENCE' AND r.publication_id=$publication_id
+AND r.reviewer_kind=$reviewer_kind AND r.decision_id=$decision_id
+AND r.candidate_origin=$candidate_origin AND r.candidate_actor=$candidate_actor
+AND r.origin=CASE $candidate_origin WHEN 'model' THEN 'LLM_INFERENCE' ELSE 'REVIEWER_INFERENCE' END
+AND r.publication_id=$publication_id
 RETURN count(r)=1 AS verified""",args,[('verified','Boolean')],True))
 verify(p,'Read back NCS evidence');p.save()
 p=Pipe('verify_link_postings','Read back each extraction payload and exact accepted link count.')

@@ -66,6 +66,7 @@
     <sql>SELECT p.publication_id,p.enrichment_id,l-&gt;&gt;'candidate_id' AS candidate_id,
 'ncs:unit:'||(l-&gt;&gt;'competency_code') AS competency_identity,l::text AS evidence_json,
 l-&gt;&gt;'reason' AS reason,l#&gt;&gt;'{duty,text}' AS duty,l-&gt;&gt;'reviewer' AS reviewer,l-&gt;&gt;'reviewer_kind' AS reviewer_kind,
+(l-&gt;&gt;'candidate_origin') AS candidate_origin,(l-&gt;&gt;'candidate_actor') AS candidate_actor,
 (l-&gt;&gt;'decision_id')::bigint AS decision_id FROM enrichment.link_publication_item p
 CROSS JOIN LATERAL jsonb_array_elements(p.payload-&gt;'links') l WHERE p.publication_id=? ORDER BY p.posting_id,l-&gt;&gt;'candidate_id'</sql>
     <cache>N</cache>
@@ -98,7 +99,10 @@ CROSS JOIN LATERAL jsonb_array_elements(p.payload-&gt;'links') l WHERE p.publica
 MATCH (c:ncsCompetency {id:$competency_identity})
 MERGE (e)-[r:ALIGNS_WITH_NCS {candidate_id:$candidate_id}]-&gt;(c)
 SET r.evidence_json=$evidence_json,r.reason=$reason,r.duty=$duty,r.reviewer=$reviewer,
-r.reviewer_kind=$reviewer_kind,r.decision_id=$decision_id,r.accepted=true,r.origin='LLM_INFERENCE',r.publication_id=$publication_id
+r.reviewer_kind=$reviewer_kind,r.decision_id=$decision_id,r.accepted=true,
+r.candidate_origin=$candidate_origin,r.candidate_actor=$candidate_actor,
+r.origin=CASE $candidate_origin WHEN 'model' THEN 'LLM_INFERENCE' ELSE 'REVIEWER_INFERENCE' END,
+r.publication_id=$publication_id
 RETURN count(r)=1 AS verified</cypher>
     <batch_size>1</batch_size>
     <read_only>N</read_only>
@@ -151,6 +155,16 @@ RETURN count(r)=1 AS verified</cypher>
       <mapping>
         <parameter>reviewer_kind</parameter>
         <field>reviewer_kind</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>candidate_origin</parameter>
+        <field>candidate_origin</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>candidate_actor</parameter>
+        <field>candidate_actor</field>
         <type>String</type>
       </mapping>
       <mapping>
