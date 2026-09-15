@@ -5,6 +5,14 @@ source graph. They do not publish a canonical serving release or run LLM enrichm
 The [LLM workflows](../llm/README.md) are separate, manual entry points with configurable
 models, evaluation datasets and explicit request/spend limits.
 
+With the ontology extension installed, successful JOB-ALIO graph checkpoints
+also preserve an immutable census of the accepted full snapshot. This uses the
+stored API records and makes no additional provider/model calls. It enables the
+[posting observation history](../ontology/observations.md); release freezing and
+publication remain separate manual steps. Census capture and the graph checkpoint
+commit together, including graph-recovery runs. Attachment processing is still
+on hold and is not part of the scheduler.
+
 | Source | Refresh interval | Workflow for fetching and loading both databases |
 |---|---|---|
 | ALIO organizations | 30 days | `refresh_alio_organization.hwf` |
@@ -142,3 +150,7 @@ ENRICH results. They are not invoked by this source scheduler.
 
 The career CSV URL is pinned. Monthly checks can detect changes to that artifact,
 but they do not discover a newly published replacement download identifier.
+
+## Manual retention maintenance
+
+[Manual retention workflows](../retention/README.md) preview and prune eligible source snapshots. While a cleanup plan is ACTIVE, `ingestion.maintenance_active()` suppresses the refresh queue and write guards prevent races. A failed cleanup keeps this pause until its exact plan is resumed and completed. No scheduled deletion was added. See the [server runbook](../../docs/hop-migration/server-runbook.md) for container discovery and mounted paths.

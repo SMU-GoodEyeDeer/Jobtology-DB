@@ -48,7 +48,7 @@
   <transform>
     <type>ExecSql</type>
     <name>Record successful graph export</name>
-    <sql>INSERT INTO ingestion.graph_export(run_id,loader_version) SELECT run_id,'hop-graph-v2' FROM ingestion.run WHERE run_id=? AND state='READY' AND mode&lt;&gt;'SMOKE' ON CONFLICT(run_id) DO UPDATE SET exported_at=clock_timestamp(),loader_version=EXCLUDED.loader_version</sql>
+    <sql>SELECT ingestion.record_graph_export_v1(?)</sql>
     <execute_each_row>Y</execute_each_row>
     <single_statement>Y</single_statement>
     <replace_variables>N</replace_variables>
