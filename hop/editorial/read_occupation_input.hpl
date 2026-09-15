@@ -1,0 +1,130 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>read_occupation_input</name>
+    <description>Read product-role evidence and selections as JSON.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters>
+      <parameter>
+        <name>RELEASE_ID</name>
+        <default_value />
+        <description>RELEASE_ID</description>
+      </parameter>
+      <parameter>
+        <name>ENTITY_ID</name>
+        <default_value />
+        <description>ENTITY_ID</description>
+      </parameter>
+      <parameter>
+        <name>PREVIEW</name>
+        <default_value>N</default_value>
+        <description>PREVIEW</description>
+      </parameter>
+    </parameters>
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Read choices</from>
+      <to>Read JSON</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Read JSON</from>
+      <to>Preview JSON here</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Read choices</name>
+    <fields>
+      <field>
+        <name>release_id</name>
+        <variable>${RELEASE_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>entity_id</name>
+        <variable>${ENTITY_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>preview</name>
+        <variable>${PREVIEW}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Read JSON</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT ontology.query_occupation_input_v1(?::text,?::text,CASE ?::text WHEN 'Y' THEN true WHEN 'N' THEN false ELSE NULL END)::text AS result_json</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>release_id</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>entity_id</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>preview</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Dummy</type>
+    <name>Preview JSON here</name>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

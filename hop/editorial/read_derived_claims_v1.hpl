@@ -1,0 +1,181 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>read_derived_claims_v1</name>
+    <description>Read frozen derived claims with exact review and evidence provenance.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters>
+      <parameter>
+        <name>RELEASE_ID</name>
+        <default_value />
+        <description>RELEASE_ID</description>
+      </parameter>
+      <parameter>
+        <name>ENTITY_ID</name>
+        <default_value />
+        <description>ENTITY_ID</description>
+      </parameter>
+      <parameter>
+        <name>CLAIM_KIND</name>
+        <default_value />
+        <description>CLAIM_KIND</description>
+      </parameter>
+      <parameter>
+        <name>PAGE_SIZE</name>
+        <default_value>100</default_value>
+        <description>PAGE_SIZE</description>
+      </parameter>
+      <parameter>
+        <name>CURSOR</name>
+        <default_value />
+        <description>CURSOR</description>
+      </parameter>
+      <parameter>
+        <name>PREVIEW</name>
+        <default_value>N</default_value>
+        <description>PREVIEW</description>
+      </parameter>
+    </parameters>
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Read choices</from>
+      <to>Read versioned JSON</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Read versioned JSON</from>
+      <to>Preview JSON here</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Read choices</name>
+    <fields>
+      <field>
+        <name>release_id</name>
+        <variable>${RELEASE_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>entity_id</name>
+        <variable>${ENTITY_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>claim_kind</name>
+        <variable>${CLAIM_KIND}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>page_size</name>
+        <variable>${PAGE_SIZE}</variable>
+        <type>Integer</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>cursor_value</name>
+        <variable>${CURSOR}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>preview</name>
+        <variable>${PREVIEW}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Read versioned JSON</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT ontology.query_derived_claims_v1(?::text,nullif(?::text,''),nullif(?::text,''),?::integer,nullif(?::text,''),CASE ?::text WHEN 'Y' THEN true WHEN 'N' THEN false ELSE NULL END)::text AS result_json</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>release_id</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>entity_id</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>claim_kind</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>page_size</name>
+        <type>Integer</type>
+      </field>
+      <field>
+        <name>cursor_value</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>preview</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Dummy</type>
+    <name>Preview JSON here</name>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

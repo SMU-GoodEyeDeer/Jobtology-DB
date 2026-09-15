@@ -1,0 +1,124 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<workflow>
+  <name>Read ontology derived_claims v1</name>
+  <description>Read ontology derived_claims v1</description>
+  <workflow_version>1</workflow_version>
+  <workflow_status>0</workflow_status>
+  <parameters>
+    <parameter>
+      <name>RELEASE_ID</name>
+      <default_value />
+      <description>Exact release; blank selects only the active published release.</description>
+    </parameter>
+    <parameter>
+      <name>ENTITY_ID</name>
+      <default_value />
+      <description>Optional posting identity; filters subjects, not target occupations.</description>
+    </parameter>
+    <parameter>
+      <name>CLAIM_KIND</name>
+      <default_value />
+      <description>Optional NORMALIZED_REQUIREMENT or PRIMARY_OCCUPATION.</description>
+    </parameter>
+    <parameter>
+      <name>PAGE_SIZE</name>
+      <default_value>100</default_value>
+      <description>1 to 100 rows.</description>
+    </parameter>
+    <parameter>
+      <name>CURSOR</name>
+      <default_value />
+      <description>Cursor from the same release and filters; blank starts at the first row.</description>
+    </parameter>
+    <parameter>
+      <name>PREVIEW</name>
+      <default_value>N</default_value>
+      <description>Y explicitly reads a draft; failed and revoked releases remain unavailable.</description>
+    </parameter>
+  </parameters>
+  <actions>
+    <action>
+      <name>Start</name>
+      <type>SPECIAL</type>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <attributes />
+      <start>Y</start>
+      <repeat>N</repeat>
+      <schedulerType>0</schedulerType>
+      <intervalSeconds>0</intervalSeconds>
+      <intervalMinutes>60</intervalMinutes>
+      <DayOfMonth>1</DayOfMonth>
+      <weekDay>1</weekDay>
+      <minutes>0</minutes>
+      <hour>12</hour>
+    </action>
+    <action>
+      <name>Read derived_claims</name>
+      <type>PIPELINE</type>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <attributes />
+      <filename>${PROJECT_HOME}/editorial/read_derived_claims_v1.hpl</filename>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <run_configuration>ontology-local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+    </action>
+    <action>
+      <name>Success</name>
+      <type>SUCCESS</type>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <attributes />
+    </action>
+    <action>
+      <name>Abort</name>
+      <type>ABORT</type>
+      <xloc>1040</xloc>
+      <yloc>80</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <attributes />
+      <message>Editorial workflow failed. Inspect this execution log; no failed import is partially committed.</message>
+    </action>
+  </actions>
+  <hops>
+    <hop>
+      <from>Start</from>
+      <to>Read derived_claims</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>Y</unconditional>
+    </hop>
+    <hop>
+      <from>Read derived_claims</from>
+      <to>Abort</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Read derived_claims</from>
+      <to>Success</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+  </hops>
+  <notepads />
+  <attributes />
+</workflow>

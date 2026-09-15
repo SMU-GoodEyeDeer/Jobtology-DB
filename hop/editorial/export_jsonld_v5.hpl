@@ -1,0 +1,129 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>export_jsonld_v5</name>
+    <description>Serialize the exact sealed inventory as one JSON-LD named graph.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Export choices</from>
+      <to>Read JSON-LD lines</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Read JSON-LD lines</from>
+      <to>Write JSON-LD</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Export choices</name>
+    <fields>
+      <field>
+        <name>release_id</name>
+        <variable>${RELEASE_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>preview</name>
+        <variable>${PREVIEW}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>TableInput</type>
+    <name>Read JSON-LD lines</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT line FROM ontology.export_jsonld_v5(?::text,CASE ?::text WHEN 'Y' THEN true WHEN 'N' THEN false ELSE NULL END) ORDER BY line_no</sql>
+    <limit>0</limit>
+    <lookup>Export choices</lookup>
+    <execute_each_row>Y</execute_each_row>
+    <variables_active>N</variables_active>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>TextFileOutput</type>
+    <name>Write JSON-LD</name>
+    <separator />
+    <enclosure />
+    <enclosure_forced>N</enclosure_forced>
+    <enclosure_fix_disabled>Y</enclosure_fix_disabled>
+    <header>N</header>
+    <footer>N</footer>
+    <format>UNIX</format>
+    <encoding>UTF-8</encoding>
+    <compression>None</compression>
+    <create_parent_folder>Y</create_parent_folder>
+    <fileNameInField>N</fileNameInField>
+    <fileNameField />
+    <endedLine />
+    <ignore_fields>N</ignore_fields>
+    <file>
+      <name>${PROJECT_HOME}/data/ontology-exports/${ONTOLOGY_EXPORT_ID}</name>
+      <extension>jsonld</extension>
+      <do_not_open_new_file_init>Y</do_not_open_new_file_init>
+      <append>N</append>
+      <split>N</split>
+      <haspartno>N</haspartno>
+      <add_date>N</add_date>
+      <add_time>N</add_time>
+      <add_to_result_filenames>Y</add_to_result_filenames>
+      <pad>N</pad>
+      <fast_dump>N</fast_dump>
+      <splitevery>0</splitevery>
+    </file>
+    <fields>
+      <field>
+        <name>line</name>
+        <type>String</type>
+        <format />
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>
