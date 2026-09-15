@@ -128,7 +128,8 @@ def executor(name, filename, args, target):
         old = n.find(k)
         if old is not None: n.remove(old)
     for k, v in dict(name=name, filename='${PROJECT_HOME}/llm/' + filename, run_configuration='llm-local',
-                     inherit_all_vars='Y', group_size=1, execution_result_target_transform=target, execution_log_text_field='').items():
+                     inherit_all_vars='Y', group_size=1, execution_result_target_transform=target,
+                     executors_output_transform='',execution_log_text_field='').items():
         put(n, k, v)
     n.find('parameters').clear()
     for param, field in args: child(n.find('parameters'), 'variable_mapping', dict(variable=param, field=field, input=''))
@@ -136,10 +137,15 @@ def executor(name, filename, args, target):
 
 def child_checks(p, previous, filename, args):
     p.chain(previous, executor('Run sequential request', filename, args, 'Check child errors'),
-            filt('Check child errors', 'ExecutionNrErrors', 'Integer', '0', 'Check child result', 'Child failed'),
-            filt('Check child result', 'ExecutionResult', 'Boolean', 'Y', 'Done', 'Child failed'), node('Dummy', 'Done'))
-    p.add(abort('Child failed', 'LLM request pipeline failed. Inspect enrichment.attempt before retrying.'))
-    p.edges += [('Check child errors', 'Child failed'), ('Check child result', 'Child failed')]
+            filt('Check child errors', 'ExecutionNrErrors', 'Integer', '0', 'Check child result', 'Child error count failed'),
+            filt('Check child result', 'ExecutionResult', 'Boolean', 'Y', 'Done', 'Child result failed'), node('Dummy', 'Done'))
+    # Hop's Abort transform polls all input rowsets. Feeding both failure filters
+    # into one Abort makes that polling loop spin while both inputs are empty and
+    # the child request is still running. Each terminal branch therefore owns a
+    # single-input Abort transform.
+    p.add(abort('Child error count failed', 'LLM request pipeline reported errors. Inspect enrichment.attempt before retrying.'))
+    p.add(abort('Child result failed', 'LLM request pipeline returned an unsuccessful result. Inspect enrichment.attempt before retrying.'))
+    p.edges += [('Check child errors', 'Child error count failed'), ('Check child result', 'Child result failed')]
 
 def obj(properties):
     return dict(type='object', properties=properties, required=list(properties), additionalProperties=False)
@@ -158,15 +164,87 @@ extraction = obj(dict(
        importance=enum('required','preferred','unspecified'), logic=enum('single','all_of','any_of','unspecified'), text=string(), evidence=evidence)), 100),
     duties_status=enum('explicit','not_stated','attachment_required')))
 categorization = obj(dict(matches=array(obj(dict(competency_code=string(40), duty_index=dict(type='integer', minimum=0, maximum=59), reason=string(1500))),20), outcome=enum('matched','no_supported_match')))
+refs = array(string(100), 100)
+position_ids = array(string(40), 40)
+expression = array(obj(dict(op=enum('atom','all_of','any_of','if_then','except'),
+    text=dict(type='string', maxLength=8000), children=array(dict(type='integer', minimum=0, maximum=59),60))),60)
+extraction_v2 = obj(dict(
+    positions=array(obj(dict(id=string(40),name=string(1000),evidence_ids=refs)),40),
+    duties=array(obj(dict(position_ids=position_ids,text=string(),evidence_ids=refs)),60),
+    requirements=array(obj(dict(position_ids=position_ids,category=enum('education','experience','qualification','skill','other'),
+        kind=enum('eligibility','preference','exclusion','unrestricted'),
+        logic=enum('single','all_of','any_of','conditional','unspecified'),text=string(),evidence_ids=refs,expression=expression)),100),
+    duties_status=enum('explicit','not_stated','attachment_required')))
+extraction_v3 = copy.deepcopy(extraction_v2)
+for section in ('duties','requirements'):
+    item = extraction_v3['properties'][section]['items']
+    del item['properties']['text'];item['properties']['text_parts']=array(string(),40)
+    item['required']=[k if k!='text' else 'text_parts' for k in item['required']]
+atom_v3=extraction_v3['properties']['requirements']['items']['properties']['expression']['items']
+del atom_v3['properties']['text'];atom_v3['properties']['parts']=array(string(),20)
+atom_v3['required']=[k if k!='text' else 'parts' for k in atom_v3['required']]
+extraction_v6 = copy.deepcopy(extraction_v3)
+req_v6 = extraction_v6['properties']['requirements']['items']
+del req_v6['properties']['expression']
+req_v6['properties']['condition'] = {'anyOf':[{'$ref':'#/$defs/condition'}, {'type':'null'}]}
+req_v6['required'] = [k if k!='expression' else 'condition' for k in req_v6['required']]
+extraction_v6['$defs'] = {'condition': obj(dict(op=enum('atom','all_of','any_of','if_then','except'),
+    parts=array(string(),20), children=array({'$ref':'#/$defs/condition'},60)))}
+extraction_v6['properties']['unhandled_passages'] = array(obj(dict(evidence_id=string(100),
+    disposition=enum('heading','procedure','attachment_reference','no_condition','duplicate','unresolved'),
+    reason=string(1000), duplicate_of=dict(type=['string','null'],minLength=1,maxLength=100))),1000)
+extraction_v6['required'].append('unhandled_passages')
+extraction_v7 = copy.deepcopy(extraction_v6)
+del extraction_v7['properties']['unhandled_passages']
+extraction_v7['required'] = ['unhandled_ranges' if k=='unhandled_passages' else k for k in extraction_v7['required']]
+extraction_v7['properties']['unhandled_ranges'] = array(obj(dict(first_id=string(100),last_id=string(100),
+    disposition=enum('heading','procedure','attachment_reference','no_condition','duplicate','document_context','unresolved'),
+    context_kind=dict(type=['string','null'],enum=[None,'employment_terms','application_form','institution_background','job_profile','document_structure','privacy_notice']),
+    reason=string(1000),duplicate_of=dict(type=['string','null'],minLength=1,maxLength=100))),500)
+# Enforce the advertised logic/condition relationship in the provider schema.
+# A single condition cannot acquire a redundant or contradictory group tree.
+branches=[]
+for logic,operator in [(None,None),('all_of','all_of'),('any_of','any_of'),('conditional',None)]:
+    branch=copy.deepcopy(req_v6)
+    branch['properties']['logic']=enum('single','unspecified') if logic is None else enum(logic)
+    if logic is None:branch['properties']['condition']={'type':'null'}
+    else:
+        root_condition=copy.deepcopy(extraction_v6['$defs']['condition'])
+        root_condition['properties']['op']=enum('if_then','except') if logic=='conditional' else enum(operator)
+        root_condition['properties']['parts']=array(string(),0)
+        root_condition['properties']['children']['minItems']=2
+        if logic=='conditional':root_condition['properties']['children']['maxItems']=2
+        branch['properties']['condition']=root_condition
+    branches.append(branch)
+extraction_v7['properties']['requirements']['items']={'anyOf':branches}
+rule_schema=json.loads((OUT/'schemas/guarded-rules-v1.json').read_text())
+rule_schema_json=json.dumps(rule_schema,ensure_ascii=False,separators=(',',':'))
+rule_schema_hash=hashlib.sha256(rule_schema_json.encode()).hexdigest()
+(OUT/'sql/015_rule_contract.sql').write_text(f"""-- Generated immutable interpretation contract; no model prompt is changed.
+BEGIN;
+CREATE TABLE IF NOT EXISTS enrichment.rule_contract (
+ schema_version text PRIMARY KEY, output_schema jsonb NOT NULL, content_hash text NOT NULL
+);
+INSERT INTO enrichment.rule_contract VALUES('guarded-rules-v1',$schema${rule_schema_json}$schema$::jsonb,'{rule_schema_hash}') ON CONFLICT DO NOTHING;
+DO $$ BEGIN IF NOT EXISTS(SELECT 1 FROM enrichment.rule_contract WHERE schema_version='guarded-rules-v1' AND content_hash='{rule_schema_hash}')
+ THEN RAISE EXCEPTION 'RULE_CONTRACT_IS_IMMUTABLE'; END IF; END $$;
+COMMIT;
+""")
 prompt_sql = ['BEGIN;']
-for stage, schema in [('extract', extraction), ('categorize', categorization)]:
-    text = (OUT / 'prompts' / (stage + '-ko-v1.txt')).read_text()
+for version, stage, schema in [('ko-v1','extract',extraction),('ko-v1','categorize',categorization),
+                               ('ko-v2','extract',extraction_v2),('ko-v2','categorize',categorization),
+                               ('ko-v3','extract',extraction_v3),('ko-v3','categorize',categorization),
+                               ('ko-v4','extract',extraction_v3),('ko-v4','categorize',categorization),
+                               ('ko-v5','extract',extraction_v3),('ko-v5','categorize',categorization),
+                               ('ko-v6','extract',extraction_v6),('ko-v6','categorize',categorization),
+                               ('ko-v7','extract',extraction_v7),('ko-v7','categorize',categorization)]:
+    text = (OUT / 'prompts' / (stage + '-' + version + '.txt')).read_text()
     raw_schema = json.dumps(schema, ensure_ascii=False, separators=(',',':'))
     content_hash = hashlib.sha256((text + '\n' + raw_schema).encode()).hexdigest()
-    (OUT / 'prompts' / (stage + '-ko-v1.schema.json')).write_text(json.dumps(schema, ensure_ascii=False, indent=2) + '\n')
+    (OUT / 'prompts' / (stage + '-' + version + '.schema.json')).write_text(json.dumps(schema, ensure_ascii=False, indent=2) + '\n')
     prompt_sql.append(f"""INSERT INTO enrichment.prompt(version,stage,system_prompt,output_schema,content_hash)
-VALUES('ko-v1','{stage}',$prompt${text}$prompt$,$schema${raw_schema}$schema$::jsonb,'{content_hash}') ON CONFLICT DO NOTHING;
-DO $check$ BEGIN IF NOT EXISTS(SELECT 1 FROM enrichment.prompt WHERE version='ko-v1' AND stage='{stage}' AND content_hash='{content_hash}')
+VALUES('{version}','{stage}',$prompt${text}$prompt$,$schema${raw_schema}$schema$::jsonb,'{content_hash}') ON CONFLICT DO NOTHING;
+DO $check$ BEGIN IF NOT EXISTS(SELECT 1 FROM enrichment.prompt WHERE version='{version}' AND stage='{stage}' AND content_hash='{content_hash}')
 THEN RAISE EXCEPTION 'PROMPT_VERSION_IS_IMMUTABLE'; END IF; END $check$;""")
 prompt_sql.append('COMMIT;')
 (OUT / 'sql/002_prompts.sql').write_text('\n'.join(prompt_sql) + '\n')
@@ -176,10 +254,14 @@ PARAMS = [
  ('DATASET_ID','korean-jd-v1','Prepared frozen evaluation dataset; ignored for ENRICH.'),
  ('EXTRACT_MODEL','google/gemini-3.8-flash','OpenRouter model ID for evidence extraction.'),
  ('CATEGORIZE_MODEL','google/gemini-3.8-flash','OpenRouter model ID for NCS matching.'),
- ('PROMPT_VERSION','ko-v1','Installed immutable prompt/schema version.'),
+ ('PROVIDER_ONLY','','Optional OpenRouter provider slug, e.g. deepinfra. Blank allows compatible-provider routing.'),
+ ('PROMPT_VERSION','ko-v3','Installed immutable prompt/schema version; older versions remain available for replay.'),
  ('TEMPERATURE','','Optional 0..2; blank omits the parameter for models that do not support it.'),
  ('REASONING_EFFORT','','Optional none/minimal/low/medium/high/xhigh/max; blank uses provider default.'),
  ('EXTRA_PARAMS_JSON','{}','Optional numeric top_p, seed, frequency_penalty, presence_penalty JSON object.'),
+ ('POSTING_IDS','','Optional exact posting IDs separated by |; missing/ineligible IDs fail planning.'),
+ ('INPUT_BUNDLE_IDS','','Optional exact attachment input bundle IDs separated by | for ENRICH. EVAL uses its frozen dataset bindings.'),
+ ('REPAIR_BATCH_ID','','Optional terminal batch whose failed extractions should be retried. Original attempts remain unchanged.'),
  ('POSTING_LIMIT','20','Maximum postings in this batch. Raise explicitly for a complete source snapshot.'),
  ('CANDIDATE_LIMIT','40','NCS shortlist size per posting, 1..100.'), ('MAX_MATCHES','8','Maximum duty-to-NCS matches per posting.'),
  ('MAX_INPUT_CHARS','60000','Reject oversized complete requests; never silently truncate source text.'),
@@ -200,18 +282,37 @@ PARAMS = [
 p = Pipe('start_batch','Freeze inputs and settings. A planned run makes no paid calls.')
 fields = [('run_mode','${RUN_MODE}','String')] + [(k.lower(),'${'+k+'}','String') for k,_,_ in PARAMS]
 p.chain(variables('Workflow options', fields), db('Build immutable settings', """SELECT gen_random_uuid()::text AS batch_id,
-jsonb_strip_nulls(jsonb_build_object('extract_model',?::text,'categorize_model',?::text,'prompt_version',?::text,
+jsonb_strip_nulls(jsonb_build_object('extract_model',?::text,'categorize_model',?::text,'provider_only',nullif(?::text,''),'prompt_version',?::text,
 'temperature',nullif(?::text,''),'reasoning_effort',nullif(?::text,''),'extra_params',?::jsonb,
 'limit',?::integer,'candidate_limit',?::integer,'max_matches',?::integer,'max_input_chars',?::integer,
 'max_output_tokens',?::integer,'max_requests',?::integer,'request_reserve_usd',?::numeric,'max_cost_usd',?::numeric,
 'daily_budget_usd',?::numeric,'execute_requests',?::text,'reuse_cache',?::text,'endpoint',?::text,
-'request_delay_ms',?::integer,'read_timeout_ms',?::integer,'acceptance_policy',?::text))::text AS settings_json""",
-[(x,'String') for x in ['extract_model','categorize_model','prompt_version','temperature','reasoning_effort','extra_params_json',
+'request_delay_ms',?::integer,'read_timeout_ms',?::integer,'acceptance_policy',?::text,'posting_ids',nullif(?::text,''),'repair_batch_id',nullif(?::text,''),'input_bundle_ids',nullif(?::text,'')))::text AS settings_json""",
+[(x,'String') for x in ['extract_model','categorize_model','provider_only','prompt_version','temperature','reasoning_effort','extra_params_json',
  'posting_limit','candidate_limit','max_matches','max_input_chars','max_output_tokens','max_requests','request_reserve_usd',
- 'max_cost_usd','daily_budget_usd','execute_requests','reuse_cache','endpoint','request_delay_ms','read_timeout_ms','acceptance_policy']]), remember('batch_id','LLM_BATCH_ID'),
+ 'max_cost_usd','daily_budget_usd','execute_requests','reuse_cache','endpoint','request_delay_ms','read_timeout_ms','acceptance_policy','posting_ids','repair_batch_id','input_bundle_ids']]), remember('batch_id','LLM_BATCH_ID'),
  execute('Plan batch','SELECT enrichment.plan_batch(?,?,?, ?,?,?::jsonb)', ['batch_id','run_mode','dataset_id','job_run_id','ncs_run_id','settings_json']),
  log('Batch created',['batch_id','run_mode','execute_requests'],'LLM batch created; inspect enrichment.batch_report'))
 p.save()
+
+# Reuse the exact options builder; the new planner binds reviewed revisions and
+# creates no extraction attempts. Older workflow parameter contracts stay intact.
+revision_start = copy.deepcopy(p.root)
+put(revision_start.find('info'),'name','start_revision_batch')
+put(revision_start.find('info'),'description','Pin accepted extraction revisions for NCS-only requests.')
+for transform in revision_start.findall('transform'):
+    if transform.findtext('name')=='Workflow options':
+        for field in transform.find('fields').findall('field'):
+            if field.findtext('name')=='run_mode': put(field,'variable','ENRICH')
+            if field.findtext('name')=='extract_model': put(field,'variable','unused/reviewed-extraction')
+            if field.findtext('name') in ('dataset_id','posting_ids','repair_batch_id'): put(field,'variable','')
+        child(transform.find('fields'),'field',dict(name='revision_ids',variable='${REVISION_IDS}',type='String',length=-1,precision=-1,trim_type='none'))
+        child(transform.find('fields'),'field',dict(name='actor',variable='${ACTOR}',type='String',length=-1,precision=-1,trim_type='none'))
+    if transform.findtext('name')=='Plan batch':
+        put(transform,'sql',"SELECT enrichment.plan_revision_batch(?,?,?,?::jsonb||jsonb_build_object('actor',?::text),?)")
+        args=transform.find('arguments'); args.clear()
+        for f in ('batch_id','job_run_id','ncs_run_id','settings_json','actor','revision_ids'): child(args,'argument',dict(name=f))
+save(revision_start,OUT/'start_revision_batch.hpl')
 
 for step in ('extract','categorize'):
     p = Pipe('plan_'+step,'Build '+step+' requests and resolve reusable outputs.')
@@ -300,11 +401,64 @@ def workflow(filename,name,params,steps, failure=True):
     action('Abort','ABORT',len(steps)+3)
     E.SubElement(w,'notepads');E.SubElement(w,'attributes');save(w,OUT/filename)
 
+for filename,function,description,with_actor in [
+ ('audit_batch','audit_extractions','Audit terminal v4/v5 extraction results without model calls.',False),
+ ('capture_audited','capture_clean_audit','Prepare clean audited outputs for independent review; no acceptance.',True)]:
+ audit_params=[('BATCH_ID','','Exact terminal batch ID.'),('VALIDATOR_VERSION','ko-v5','Installed compatible audit policy.')]
+ if with_actor:audit_params += [('ACTOR','validation:clause-scope-v5','Actor recording revalidation; not a human acceptance decision.'),
+  ('REASON','Revalidated saved provider output; prepared for independent review.','Reason for the append-only extraction revision.')]
+ p=Pipe(filename,description)
+ args=[(k.lower(),'${'+k+'}','String') for k,_,_ in audit_params]
+ order=['batch_id','actor','reason','validator_version'] if with_actor else ['batch_id','validator_version']
+ p.chain(variables('Audit options',args),db('Record audit' if not with_actor else 'Capture review candidates',
+  'SELECT enrichment.'+function+'('+','.join('?' for _ in order)+') AS recorded',[(k,'String') for k in order]),
+  log('Audit result',['batch_id','validator_version','recorded'],description))
+ p.save();workflow(filename+'.hwf',description,audit_params,[('Record results',filename+'.hpl')],False)
+p=Pipe('inspect_audit','Preview audit outcomes and whether each output needs a model repair.',{'BATCH_ID':'','VALIDATOR_VERSION':'ko-v5'})
+p.chain(variables('Audit options',[('batch_id','${BATCH_ID}','String'),('version','${VALIDATOR_VERSION}','String')]),
+ db('Audit report',"SELECT i.posting_id,a.state AS original_state,d.issues AS audit_issues,d.checked_at,"
+ "EXISTS(SELECT 1 FROM enrichment.extraction_revision r WHERE r.item_id=i.item_id) AS has_review_revision "
+ "FROM enrichment.item i JOIN enrichment.attempt a ON a.attempt_id=i.extraction_id "
+ "LEFT JOIN enrichment.extraction_audit d ON d.attempt_id=a.attempt_id AND d.validator_version=? "
+ "WHERE i.batch_id=? ORDER BY i.ordinal",[('version','String'),('batch_id','String')]),node('Dummy','Preview audited results'))
+p.save()
+
 for mode,filename in [('EVAL','evaluate.hwf'),('ENRICH','enrich.hwf')]:
     params=[('RUN_MODE',mode,'EVAL stays separate from publishable enrichment.')] + [(k,('Y' if mode=='ENRICH' and k=='REUSE_CACHE' else v),d) for k,v,d in PARAMS]
     workflow(filename,'Evaluate Korean postings' if mode=='EVAL' else 'Enrich Korean postings and categorize NCS',params,
       [('Freeze inputs and options','start_batch.hpl'),('Plan extraction','plan_extract.hpl'),('Extract supported facts','run_extract.hpl'),
        ('Retrieve NCS and plan matches','plan_categorize.hpl'),('Categorize explicit duties','run_categorize.hpl'),('Validate and report','finish_batch.hpl')])
+
+p=Pipe('import_revision_links','Append model candidates and explicit no-match outcomes for the exact reviewed revision.')
+p.chain(variables('Import options',[('batch_id','${LLM_BATCH_ID}','String'),('actor','${ACTOR}','String')]),
+ db('Completed revision results',"SELECT i.item_id FROM enrichment.item i JOIN enrichment.batch b USING(batch_id) "
+    "JOIN enrichment.attempt a ON a.attempt_id=i.categorization_id WHERE i.batch_id=? "
+    "AND b.settings->>'execute_requests'='Y' AND a.state IN ('VALIDATED','SKIPPED') ORDER BY i.ordinal",[('batch_id','String')]),
+ db('Append revision candidates','SELECT enrichment.import_revision_links(?,?) AS candidate_count',[('item_id','String'),('actor','String')]),
+ log('Candidates imported',['item_id','candidate_count'],'Candidates require independent review; existing decisions are unchanged.'))
+p.save()
+revision_params=[(k,('ko-v6' if k=='PROMPT_VERSION' else v),d) for k,v,d in PARAMS
+ if k not in ('EXTRACT_MODEL','DATASET_ID','POSTING_IDS','REPAIR_BATCH_ID','ACCEPTANCE_POLICY')]
+workflow('categorize_reviewed.hwf','Categorize accepted extraction revisions without re-extraction',revision_params+[
+ ('ACCEPTANCE_POLICY','REVIEW','Independent per-link decisions remain required.'),
+ ('REVISION_IDS','','Exact accepted extraction revision IDs separated by |. Missing, superseded or changed revisions fail.'),
+ ('ACTOR','','Named actor importing candidates and no-match outcomes.')],
+ [('Freeze reviewed inputs','start_revision_batch.hpl'),('Retrieve NCS and plan matches','plan_categorize.hpl'),
+  ('Categorize reviewed duties','run_categorize.hpl'),('Capture candidate outcomes','import_revision_links.hpl'),('Validate and report','finish_batch.hpl')])
+
+p=Pipe('inspect_revision_links','Inspect revision-pinned categorization, source context, candidates and independent decisions.',{'BATCH_ID':''})
+p.chain(variables('Batch',[('batch_id','${BATCH_ID}','String')]),
+ db('Revision link details',"""SELECT i.posting_id,i.item_id,ri.revision_id,ri.decision_id AS extraction_decision_id,
+ b.ncs_run_id,a.attempt_id,a.state,a.issues::text AS issues,r.extraction::text AS extraction_json,
+ a.candidates::text AS shortlist_json,a.parsed_output::text AS response_json,result.outcome,
+ c.candidate_id,c.competency_code,c.duty_index,s.reason AS latest_proposal_reason,d.decision AS link_decision
+ FROM enrichment.item i JOIN enrichment.batch b USING(batch_id) JOIN enrichment.revision_input ri USING(item_id)
+ JOIN enrichment.extraction_revision r USING(revision_id) LEFT JOIN enrichment.attempt a ON a.attempt_id=i.categorization_id
+ LEFT JOIN enrichment.revision_link_result result ON result.item_id=i.item_id
+ LEFT JOIN enrichment.link_support s ON s.item_id=i.item_id LEFT JOIN enrichment.link_candidate c USING(candidate_id)
+ LEFT JOIN enrichment.latest_link_decision d USING(candidate_id) WHERE i.batch_id=? ORDER BY i.ordinal,c.duty_index,c.competency_code""",[('batch_id','String')]),
+ node('Dummy','Preview revision matches here'))
+p.save()
 workflow('prepare_evaluation.hwf','Prepare a frozen Korean evaluation dataset',
  [(k,v,d) for k,v,d in PARAMS if k in ('DATASET_ID','JOB_RUN_ID','NCS_RUN_ID')] + [('DATASET_SIZE','20','Sample size, stratified by Korean posting characteristics.'),('SAMPLE_SEED','ko-v1','Stable sampling seed.')],
  [('Freeze evaluation cases','prepare_dataset.hpl')],False)
@@ -330,6 +484,19 @@ for i,path in enumerate(sorted((OUT/'sql').glob('*.sql')),1):
 child(hops,'hop',{'from':previous,'to':'Success','enabled':'Y','evaluation':'Y','unconditional':'N'})
 save(w,OUT/'install.hwf')
 
+workflow('prepare_regression_v2.hwf','Freeze the 22 existing regression cases and import provisional source assertions',[
+ ('GOLD_FILE','${PROJECT_HOME}/llm/evaluation/korean-regression-v2-22.assertions.json','Assistant-authored provisional assertions; not human gold.')],
+ [('Import provisional assertions','import_gold.hpl')],False)
+w=E.parse(OUT/'prepare_regression_v2.hwf').getroot()
+child(w.find('actions'),'action',dict(name='Freeze exact regression inputs',type='SQL',connection='jobtology-postgres',sqlfromfile='Y',
+ sqlfilename='${PROJECT_HOME}/llm/evaluation/prepare-korean-regression-v2.sql',sqlfilename_encoding='UTF-8',useVariableSubstitution='N',sendOneStatement='Y',
+ xloc=320,yloc=240,draw='Y',parallel='N'))
+for edge in w.find('hops').findall('hop'):
+    if edge.findtext('from')=='Start':put(edge,'to','Freeze exact regression inputs')
+child(w.find('hops'),'hop',{'from':'Freeze exact regression inputs','to':'Import provisional assertions','enabled':'Y','evaluation':'Y','unconditional':'N'})
+child(w.find('hops'),'hop',{'from':'Freeze exact regression inputs','to':'Abort','enabled':'Y','evaluation':'N','unconditional':'N'})
+save(w,OUT/'prepare_regression_v2.hwf')
+
 p=Pipe('inspect_results','Preview the last transform to inspect source text, extraction, NCS candidates and validation issues.',{'BATCH_ID':''})
 p.chain(variables('Batch',[('batch_id','${BATCH_ID}','String')]),db('Review rows',"""SELECT item_id,posting_id,source_data->>'title' AS title,state,
 source_data::text AS source_json,extraction::text AS extraction_json,categorization::text AS categorization_json,candidates::text AS candidate_json,
@@ -346,6 +513,96 @@ p.chain(variables('Review',[(k.lower(),'${'+k+'}','String') for k in ('ITEM_ID',
 workflow('review_item.hwf','Accept or reject one enrichment',[
  ('ITEM_ID','','Copy the item_id from inspect_results.hpl.'),('DECISION','REJECT','ACCEPT or REJECT. Acceptance requires a validated ENRICH result.'),
  ('REVIEWER','','Your name or stable reviewer ID.'),('NOTES','','Review notes.')],[('Record review','review_item.hpl')],False)
+# Independent extraction revisions and per-link decisions. No publication side effect.
+p=Pipe('capture_extraction','Capture validated extraction independently of categorization.')
+p.chain(variables('Capture options',[(k.lower(),'${'+k+'}','String') for k in ('ITEM_ID','ACTOR','REASON')]),
+ db('Append extraction revision','SELECT enrichment.capture_extraction(?,?,?) AS revision_id',[(k,'String') for k in ('item_id','actor','reason')]),
+ log('Revision saved',['item_id','revision_id'],'Review extraction and NCS candidates separately.'))
+p.save()
+workflow('capture_extraction.hwf','Capture an extraction revision',[
+ ('ITEM_ID','','ENRICH item ID.'),('ACTOR','','Named person or automation identity.'),('REASON','','Why this revision is being captured.')],
+ [('Capture revision','capture_extraction.hpl')],False)
+
+p=Pipe('import_correction','Append a source-validated correction from a UTF-8 JSON file.')
+reader=node('JsonInput','Read correction JSON',IsInFields='Y',IsAFile='Y',valueField='correction_filename',removeSourceField='N',ignoreMissingPath='N',defaultPathLeafToNull='Y',doNotFailIfNoFile='N')
+child(E.SubElement(reader,'fields'),'field',dict(name='correction_json',path='$',type='String',length=-1,precision=-1,trim_type='none',repeat='N'))
+p.chain(variables('Correction file',[('correction_filename','${CORRECTION_FILE}','String')]),reader,
+ db('Append corrected revision',"""SELECT enrichment.capture_extraction(v->>'item_id',v->>'actor',v->>'reason',v->'output',v->>'parent_revision_id') AS revision_id FROM (SELECT ?::jsonb v) input""",[('correction_json','String')]),
+ log('Correction saved',['revision_id'],'Original attempts and earlier revisions remain unchanged.'))
+p.save()
+workflow('import_correction.hwf','Import a corrected extraction',[
+ ('CORRECTION_FILE','${PROJECT_HOME}/data/llm/correction.json','Object: item_id, parent_revision_id, actor, reason, output in the pinned raw schema.')],
+ [('Append correction','import_correction.hpl')],False)
+
+p=Pipe('import_rule_interpretation','Append source-grounded conditional meaning separately from the provider response.')
+reader=node('JsonInput','Read rule interpretation',IsInFields='Y',IsAFile='Y',valueField='interpretation_filename',removeSourceField='N',ignoreMissingPath='N',defaultPathLeafToNull='Y',doNotFailIfNoFile='N')
+child(E.SubElement(reader,'fields'),'field',dict(name='interpretation_json',path='$',type='String',length=-1,precision=-1,trim_type='none',repeat='N'))
+p.chain(variables('Interpretation file',[('interpretation_filename','${INTERPRETATION_FILE}','String')]),reader,
+ db('Append source interpretation',"""SELECT enrichment.capture_rule_interpretation(v->>'revision_id',(v->>'requirement_index')::integer,
+ v->>'actor',v->>'reason',v->'document',v->>'parent_id') AS interpretation_id FROM (SELECT ?::jsonb v) input""",[('interpretation_json','String')]),
+ log('Interpretation saved',['interpretation_id'],'Conditional interpretation remains pending independent review.'))
+p.save()
+workflow('import_rule_interpretation.hwf','Import a conditional interpretation',[
+ ('INTERPRETATION_FILE','${PROJECT_HOME}/data/llm/rule-interpretation.json','Object: revision_id, requirement_index, parent_id, actor, reason and guarded-rules-v1 document.')],
+ [('Append source-grounded interpretation','import_rule_interpretation.hpl')],False)
+
+p=Pipe('review_rule_interpretation','Append a separate decision about the interpretation of a requirement.')
+fields=('INTERPRETATION_ID','DECISION','REVIEWER','REVIEWER_KIND','NOTES')
+p.chain(variables('Interpretation decision',[(k.lower(),'${'+k+'}','String') for k in fields]),
+ execute('Append interpretation decision','SELECT enrichment.decide_rule_interpretation(?,?,?,?,?)',[k.lower() for k in fields]),
+ log('Interpretation reviewed',['interpretation_id','decision','reviewer_kind'],'Source extraction and individual NCS decisions remain separate.'))
+p.save()
+workflow('review_rule_interpretation.hwf','Review conditional meaning',[
+ ('INTERPRETATION_ID','','Exact interpretation hash.'),('DECISION','REJECT','ACCEPT or REJECT.'),
+ ('REVIEWER','','Stable reviewer identity.'),('REVIEWER_KIND','human','human, assistant or policy; never impersonate a human review.'),
+ ('NOTES','','Evidence-based rationale.')],[('Record independent interpretation review','review_rule_interpretation.hpl')],False)
+
+p=Pipe('inspect_rule_interpretation','Inspect source text and separately reviewed conditional meaning.',{'REVISION_ID':''})
+p.chain(variables('Revision',[('revision_id','${REVISION_ID}','String')]),
+ db('Rule interpretation detail',"""SELECT r.revision_id,ri.requirement_index,r.extraction->'requirements'->ri.requirement_index AS original_requirement,
+ ri.interpretation_id,ri.parent_id,ri.document::text AS rule_document,ri.decision,ri.reviewer,ri.reviewer_kind,ri.notes
+ FROM enrichment.extraction_revision r JOIN enrichment.current_rule_interpretation ri USING(revision_id)
+ WHERE r.revision_id=? ORDER BY ri.requirement_index""",[('revision_id','String')]),node('Dummy','Preview source and meaning'))
+p.save()
+p=Pipe('preview_rule_activation','Evaluate a reviewed interpretation under supplied hypothetical Boolean observations.',{'INTERPRETATION_ID':'','OBSERVATIONS_JSON':'{}'})
+p.chain(variables('Activation preview',[('interpretation_id','${INTERPRETATION_ID}','String'),('observations','${OBSERVATIONS_JSON}','String')]),
+ db('Rule activity','SELECT enrichment.rule_activation_preview(?,?::jsonb)::text AS activity_json',[('interpretation_id','String'),('observations','String')]),
+ node('Dummy','Preview activation only'))
+p.save()
+
+for stage,id_param,func in [('extraction','REVISION_ID','decide_extraction'),('link','CANDIDATE_ID','decide_link')]:
+ name='review_'+stage
+ p=Pipe(name,'Append an independent semantic decision. No graph publication.')
+ fields=(id_param,'DECISION','REVIEWER','REVIEWER_KIND','NOTES')
+ p.chain(variables('Decision',[(k.lower(),'${'+k+'}','String') for k in fields]),
+  execute('Append decision','SELECT enrichment.'+func+'(?,?,?,?,?)',[k.lower() for k in fields]),
+  log('Decision recorded',[id_param.lower(),'decision','reviewer','reviewer_kind'],'Decision recorded with explicit reviewer provenance.'))
+ p.save()
+ workflow(name+'.hwf','Review one '+stage,[
+  (id_param,'','Exact immutable revision/candidate ID.'),('DECISION','REJECT','ACCEPT or REJECT.'),
+  ('REVIEWER','','Stable reviewer identity.'),('REVIEWER_KIND','human','human, assistant or policy; automation must identify itself accurately.'),
+  ('NOTES','','Required evidence-based rationale.')],[('Record independent review',name+'.hpl')],False)
+
+p=Pipe('import_model_links','Import reviewed-output candidates without accepting any link.')
+p.chain(variables('Candidate options',[('revision_id','${REVISION_ID}','String'),('actor','${ACTOR}','String')]),
+ db('Import candidates','SELECT enrichment.import_model_links(?,?) AS candidate_count',[('revision_id','String'),('actor','String')]),
+ log('Candidates ready',['revision_id','candidate_count'],'Each candidate needs a separate decision.'))
+p.save()
+workflow('import_model_links.hwf','Import model NCS candidates',[
+ ('REVISION_ID','','Captured extraction revision.'),('ACTOR','','Named operator or automation.')],
+ [('Import independent candidates','import_model_links.hpl')],False)
+
+p=Pipe('inspect_independent_reviews','Preview extracted revisions and independently reviewed NCS links.',{'ITEM_ID':''})
+p.chain(variables('Item',[('item_id','${ITEM_ID}','String')]),
+ db('Review detail',"""SELECT r.revision_id,r.parent_revision_id,r.extraction::text AS extraction_json,r.decision AS extraction_decision,
+ r.reviewer_kind AS extraction_reviewer_kind,c.candidate_id,c.competency_code,c.duty_index,c.reason,
+ n.name AS competency_name,n.definition,n.occupation_name,d.decision AS link_decision,d.reviewer_kind AS link_reviewer_kind
+ FROM enrichment.extraction_review_state r LEFT JOIN enrichment.link_candidate c USING(revision_id)
+ LEFT JOIN enrichment.ncs_catalog n ON n.run_id=c.ncs_run_id AND n.code=c.competency_code
+ LEFT JOIN enrichment.latest_link_decision d USING(candidate_id)
+ WHERE r.item_id=? ORDER BY r.revision_no,c.duty_index,c.competency_code""",[('item_id','String')]),node('Dummy','Preview review detail here'))
+p.save()
+
 p=Pipe('import_gold','Import human labels from one JSON document; gold labels never enter model prompts.')
 reader=node('JsonInput','Read gold JSON',IsInFields='Y',IsAFile='Y',valueField='gold_filename',removeSourceField='N',ignoreMissingPath='N',defaultPathLeafToNull='Y',doNotFailIfNoFile='N')
 child(E.SubElement(reader,'fields'),'field',dict(name='gold_json',path='$',type='String',length=-1,precision=-1,trim_type='none',repeat='N'))
@@ -454,3 +711,9 @@ workflow('publish_reviewed.hwf','Publish reviewed job enrichment and NCS alignme
   ('Verify alignment evidence','graph_verify_matches.hpl'),('Verify totals and checkpoint','graph_finish.hpl')],False)
 
 print('Generated native Hop LLM workflows, pipelines, schemas and prompt SQL.')
+
+# Preserve the optional manual-retention writer guard when regenerating publication XML.
+if (ROOT / 'hop/retention/tools/build.py').exists():
+    import subprocess
+    import sys
+    subprocess.run([sys.executable, str(ROOT / 'hop/retention/tools/build.py')], check=True)

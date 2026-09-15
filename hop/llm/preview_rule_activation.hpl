@@ -1,0 +1,113 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>preview_rule_activation</name>
+    <description>Evaluate a reviewed interpretation under supplied hypothetical Boolean observations.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters>
+      <parameter>
+        <name>INTERPRETATION_ID</name>
+        <default_value />
+        <description>INTERPRETATION_ID</description>
+      </parameter>
+      <parameter>
+        <name>OBSERVATIONS_JSON</name>
+        <default_value>{}</default_value>
+        <description>OBSERVATIONS_JSON</description>
+      </parameter>
+    </parameters>
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Activation preview</from>
+      <to>Rule activity</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Rule activity</from>
+      <to>Preview activation only</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Activation preview</name>
+    <fields>
+      <field>
+        <name>interpretation_id</name>
+        <variable>${INTERPRETATION_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>observations</name>
+        <variable>${OBSERVATIONS_JSON}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Rule activity</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT enrichment.rule_activation_preview(?,?::jsonb)::text AS activity_json</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>interpretation_id</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>observations</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Dummy</type>
+    <name>Preview activation only</name>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

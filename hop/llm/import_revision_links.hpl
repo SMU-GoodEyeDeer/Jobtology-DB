@@ -1,0 +1,145 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>import_revision_links</name>
+    <description>Append model candidates and explicit no-match outcomes for the exact reviewed revision.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Import options</from>
+      <to>Completed revision results</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Completed revision results</from>
+      <to>Append revision candidates</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Append revision candidates</from>
+      <to>Candidates imported</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Import options</name>
+    <fields>
+      <field>
+        <name>batch_id</name>
+        <variable>${LLM_BATCH_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>actor</name>
+        <variable>${ACTOR}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Completed revision results</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT i.item_id FROM enrichment.item i JOIN enrichment.batch b USING(batch_id) JOIN enrichment.attempt a ON a.attempt_id=i.categorization_id WHERE i.batch_id=? AND b.settings-&gt;&gt;'execute_requests'='Y' AND a.state IN ('VALIDATED','SKIPPED') ORDER BY i.ordinal</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>batch_id</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Append revision candidates</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT enrichment.import_revision_links(?,?) AS candidate_count</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>item_id</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>actor</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>WriteToLog</type>
+    <name>Candidates imported</name>
+    <loglevel>Basic</loglevel>
+    <displayHeader>Y</displayHeader>
+    <logmessage>Candidates require independent review; existing decisions are unchanged.</logmessage>
+    <fields>
+      <field>
+        <name>item_id</name>
+      </field>
+      <field>
+        <name>candidate_count</name>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>800</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

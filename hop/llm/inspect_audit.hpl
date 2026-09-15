@@ -1,0 +1,113 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>inspect_audit</name>
+    <description>Preview audit outcomes and whether each output needs a model repair.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters>
+      <parameter>
+        <name>BATCH_ID</name>
+        <default_value />
+        <description>BATCH_ID</description>
+      </parameter>
+      <parameter>
+        <name>VALIDATOR_VERSION</name>
+        <default_value>ko-v5</default_value>
+        <description>VALIDATOR_VERSION</description>
+      </parameter>
+    </parameters>
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Audit options</from>
+      <to>Audit report</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Audit report</from>
+      <to>Preview audited results</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Audit options</name>
+    <fields>
+      <field>
+        <name>batch_id</name>
+        <variable>${BATCH_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>version</name>
+        <variable>${VALIDATOR_VERSION}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Audit report</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT i.posting_id,a.state AS original_state,d.issues AS audit_issues,d.checked_at,EXISTS(SELECT 1 FROM enrichment.extraction_revision r WHERE r.item_id=i.item_id) AS has_review_revision FROM enrichment.item i JOIN enrichment.attempt a ON a.attempt_id=i.extraction_id LEFT JOIN enrichment.extraction_audit d ON d.attempt_id=a.attempt_id AND d.validator_version=? WHERE i.batch_id=? ORDER BY i.ordinal</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>version</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>batch_id</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Dummy</type>
+    <name>Preview audited results</name>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

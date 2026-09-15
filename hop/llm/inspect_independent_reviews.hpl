@@ -1,0 +1,102 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>inspect_independent_reviews</name>
+    <description>Preview extracted revisions and independently reviewed NCS links.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters>
+      <parameter>
+        <name>ITEM_ID</name>
+        <default_value />
+        <description>ITEM_ID</description>
+      </parameter>
+    </parameters>
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Item</from>
+      <to>Review detail</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Review detail</from>
+      <to>Preview review detail here</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Item</name>
+    <fields>
+      <field>
+        <name>item_id</name>
+        <variable>${ITEM_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Review detail</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT r.revision_id,r.parent_revision_id,r.extraction::text AS extraction_json,r.decision AS extraction_decision,
+ r.reviewer_kind AS extraction_reviewer_kind,c.candidate_id,c.competency_code,c.duty_index,c.reason,
+ n.name AS competency_name,n.definition,n.occupation_name,d.decision AS link_decision,d.reviewer_kind AS link_reviewer_kind
+ FROM enrichment.extraction_review_state r LEFT JOIN enrichment.link_candidate c USING(revision_id)
+ LEFT JOIN enrichment.ncs_catalog n ON n.run_id=c.ncs_run_id AND n.code=c.competency_code
+ LEFT JOIN enrichment.latest_link_decision d USING(candidate_id)
+ WHERE r.item_id=? ORDER BY r.revision_no,c.duty_index,c.competency_code</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>item_id</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Dummy</type>
+    <name>Preview review detail here</name>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

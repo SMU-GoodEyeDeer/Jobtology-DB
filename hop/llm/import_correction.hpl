@@ -1,0 +1,135 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>import_correction</name>
+    <description>Append a source-validated correction from a UTF-8 JSON file.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Correction file</from>
+      <to>Read correction JSON</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Read correction JSON</from>
+      <to>Append corrected revision</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Append corrected revision</from>
+      <to>Correction saved</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Correction file</name>
+    <fields>
+      <field>
+        <name>correction_filename</name>
+        <variable>${CORRECTION_FILE}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>JsonInput</type>
+    <name>Read correction JSON</name>
+    <IsInFields>Y</IsInFields>
+    <IsAFile>Y</IsAFile>
+    <valueField>correction_filename</valueField>
+    <removeSourceField>N</removeSourceField>
+    <ignoreMissingPath>N</ignoreMissingPath>
+    <defaultPathLeafToNull>Y</defaultPathLeafToNull>
+    <doNotFailIfNoFile>N</doNotFailIfNoFile>
+    <fields>
+      <field>
+        <name>correction_json</name>
+        <path>$</path>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+        <repeat>N</repeat>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Append corrected revision</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT enrichment.capture_extraction(v-&gt;&gt;'item_id',v-&gt;&gt;'actor',v-&gt;&gt;'reason',v-&gt;'output',v-&gt;&gt;'parent_revision_id') AS revision_id FROM (SELECT ?::jsonb v) input</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>correction_json</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>WriteToLog</type>
+    <name>Correction saved</name>
+    <loglevel>Basic</loglevel>
+    <displayHeader>Y</displayHeader>
+    <logmessage>Original attempts and earlier revisions remain unchanged.</logmessage>
+    <fields>
+      <field>
+        <name>revision_id</name>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>800</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

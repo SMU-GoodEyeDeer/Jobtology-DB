@@ -36,9 +36,14 @@
       <description>OpenRouter model ID for NCS matching.</description>
     </parameter>
     <parameter>
+      <name>PROVIDER_ONLY</name>
+      <default_value />
+      <description>Optional OpenRouter provider slug, e.g. deepinfra. Blank allows compatible-provider routing.</description>
+    </parameter>
+    <parameter>
       <name>PROMPT_VERSION</name>
-      <default_value>ko-v1</default_value>
-      <description>Installed immutable prompt/schema version.</description>
+      <default_value>ko-v3</default_value>
+      <description>Installed immutable prompt/schema version; older versions remain available for replay.</description>
     </parameter>
     <parameter>
       <name>TEMPERATURE</name>
@@ -54,6 +59,21 @@
       <name>EXTRA_PARAMS_JSON</name>
       <default_value>{}</default_value>
       <description>Optional numeric top_p, seed, frequency_penalty, presence_penalty JSON object.</description>
+    </parameter>
+    <parameter>
+      <name>POSTING_IDS</name>
+      <default_value />
+      <description>Optional exact posting IDs separated by |; missing/ineligible IDs fail planning.</description>
+    </parameter>
+    <parameter>
+      <name>INPUT_BUNDLE_IDS</name>
+      <default_value />
+      <description>Optional exact attachment input bundle IDs separated by | for ENRICH. EVAL uses its frozen dataset bindings.</description>
+    </parameter>
+    <parameter>
+      <name>REPAIR_BATCH_ID</name>
+      <default_value />
+      <description>Optional terminal batch whose failed extractions should be retried. Original attempts remain unchanged.</description>
     </parameter>
     <parameter>
       <name>POSTING_LIMIT</name>

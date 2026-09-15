@@ -36,12 +36,12 @@
     </hop>
     <hop>
       <from>Check child errors</from>
-      <to>Child failed</to>
+      <to>Child error count failed</to>
       <enabled>Y</enabled>
     </hop>
     <hop>
       <from>Check child result</from>
-      <to>Child failed</to>
+      <to>Child result failed</to>
       <enabled>Y</enabled>
     </hop>
   </order>
@@ -132,6 +132,7 @@
     <distribute>Y</distribute>
     <copies>1</copies>
     <attributes />
+    <executors_output_transform />
     <GUI>
       <xloc>560</xloc>
       <yloc>80</yloc>
@@ -145,7 +146,7 @@
     <type>FilterRows</type>
     <name>Check child errors</name>
     <send_true_to>Check child result</send_true_to>
-    <send_false_to>Child failed</send_false_to>
+    <send_false_to>Child error count failed</send_false_to>
     <compare>
       <condition>
         <negated>N</negated>
@@ -177,7 +178,7 @@
     <type>FilterRows</type>
     <name>Check child result</name>
     <send_true_to>Done</send_true_to>
-    <send_false_to>Child failed</send_false_to>
+    <send_false_to>Child result failed</send_false_to>
     <compare>
       <condition>
         <negated>N</negated>
@@ -221,8 +222,8 @@
   </transform>
   <transform>
     <type>Abort</type>
-    <name>Child failed</name>
-    <message>LLM request pipeline failed. Inspect enrichment.attempt before retrying.</message>
+    <name>Child error count failed</name>
+    <message>LLM request pipeline reported errors. Inspect enrichment.attempt before retrying.</message>
     <always_log_rows>N</always_log_rows>
     <abort_option>ABORT_WITH_ERROR</abort_option>
     <row_threshold>0</row_threshold>
@@ -230,6 +231,24 @@
     <distribute>Y</distribute>
     <GUI>
       <xloc>320</xloc>
+      <yloc>240</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Abort</type>
+    <name>Child result failed</name>
+    <message>LLM request pipeline returned an unsuccessful result. Inspect enrichment.attempt before retrying.</message>
+    <always_log_rows>N</always_log_rows>
+    <abort_option>ABORT_WITH_ERROR</abort_option>
+    <row_threshold>0</row_threshold>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
       <yloc>240</yloc>
     </GUI>
     <partitioning>

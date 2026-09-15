@@ -1,0 +1,104 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>inspect_revision_links</name>
+    <description>Inspect revision-pinned categorization, source context, candidates and independent decisions.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters>
+      <parameter>
+        <name>BATCH_ID</name>
+        <default_value />
+        <description>BATCH_ID</description>
+      </parameter>
+    </parameters>
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Batch</from>
+      <to>Revision link details</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Revision link details</from>
+      <to>Preview revision matches here</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Batch</name>
+    <fields>
+      <field>
+        <name>batch_id</name>
+        <variable>${BATCH_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Revision link details</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT i.posting_id,i.item_id,ri.revision_id,ri.decision_id AS extraction_decision_id,
+ b.ncs_run_id,a.attempt_id,a.state,a.issues::text AS issues,r.extraction::text AS extraction_json,
+ a.candidates::text AS shortlist_json,a.parsed_output::text AS response_json,result.outcome,
+ c.candidate_id,c.competency_code,c.duty_index,s.reason AS latest_proposal_reason,d.decision AS link_decision
+ FROM enrichment.item i JOIN enrichment.batch b USING(batch_id) JOIN enrichment.revision_input ri USING(item_id)
+ JOIN enrichment.extraction_revision r USING(revision_id) LEFT JOIN enrichment.attempt a ON a.attempt_id=i.categorization_id
+ LEFT JOIN enrichment.revision_link_result result ON result.item_id=i.item_id
+ LEFT JOIN enrichment.link_support s ON s.item_id=i.item_id LEFT JOIN enrichment.link_candidate c USING(candidate_id)
+ LEFT JOIN enrichment.latest_link_decision d USING(candidate_id) WHERE i.batch_id=? ORDER BY i.ordinal,c.duty_index,c.competency_code</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>batch_id</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Dummy</type>
+    <name>Preview revision matches here</name>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

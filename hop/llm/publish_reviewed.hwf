@@ -159,18 +159,81 @@
       <attributes />
       <message>LLM workflow failed. Inspect enrichment.batch_report and enrichment.attempt.</message>
     </action>
+    <action>
+      <name>Enter retention writer guard</name>
+      <type>PIPELINE</type>
+      <xloc>320</xloc>
+      <yloc>650</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <attributes />
+      <filename>${PROJECT_HOME}/retention/enter_llm_graph_writer.hpl</filename>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <run_configuration>retention-local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+    </action>
+    <action>
+      <name>Leave retention writer guard</name>
+      <type>PIPELINE</type>
+      <xloc>320</xloc>
+      <yloc>650</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <attributes />
+      <filename>${PROJECT_HOME}/retention/leave_graph_writer.hpl</filename>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <run_configuration>retention-local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+    </action>
+    <action>
+      <name>Release failed graph writer</name>
+      <type>PIPELINE</type>
+      <xloc>320</xloc>
+      <yloc>650</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <attributes />
+      <filename>${PROJECT_HOME}/retention/leave_graph_writer.hpl</filename>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <run_configuration>retention-local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+    </action>
   </actions>
   <hops>
     <hop>
       <from>Start</from>
-      <to>Check batch and constraint</to>
+      <to>Enter retention writer guard</to>
       <enabled>Y</enabled>
       <evaluation>Y</evaluation>
       <unconditional>Y</unconditional>
     </hop>
     <hop>
       <from>Check batch and constraint</from>
-      <to>Abort</to>
+      <to>Release failed graph writer</to>
       <enabled>Y</enabled>
       <evaluation>N</evaluation>
       <unconditional>N</unconditional>
@@ -184,7 +247,7 @@
     </hop>
     <hop>
       <from>Load reviewed records</from>
-      <to>Abort</to>
+      <to>Release failed graph writer</to>
       <enabled>Y</enabled>
       <evaluation>N</evaluation>
       <unconditional>N</unconditional>
@@ -198,7 +261,7 @@
     </hop>
     <hop>
       <from>Load accepted NCS alignments</from>
-      <to>Abort</to>
+      <to>Release failed graph writer</to>
       <enabled>Y</enabled>
       <evaluation>N</evaluation>
       <unconditional>N</unconditional>
@@ -212,7 +275,7 @@
     </hop>
     <hop>
       <from>Verify alignment evidence</from>
-      <to>Abort</to>
+      <to>Release failed graph writer</to>
       <enabled>Y</enabled>
       <evaluation>N</evaluation>
       <unconditional>N</unconditional>
@@ -226,16 +289,58 @@
     </hop>
     <hop>
       <from>Verify totals and checkpoint</from>
-      <to>Abort</to>
+      <to>Release failed graph writer</to>
       <enabled>Y</enabled>
       <evaluation>N</evaluation>
       <unconditional>N</unconditional>
     </hop>
     <hop>
       <from>Verify totals and checkpoint</from>
+      <to>Leave retention writer guard</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Enter retention writer guard</from>
+      <to>Check batch and constraint</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Enter retention writer guard</from>
+      <to>Release failed graph writer</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Leave retention writer guard</from>
       <to>Success</to>
       <enabled>Y</enabled>
       <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Leave retention writer guard</from>
+      <to>Abort</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Release failed graph writer</from>
+      <to>Abort</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Release failed graph writer</from>
+      <to>Abort</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
       <unconditional>N</unconditional>
     </hop>
   </hops>

@@ -1,0 +1,99 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>inspect_rule_interpretation</name>
+    <description>Inspect source text and separately reviewed conditional meaning.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters>
+      <parameter>
+        <name>REVISION_ID</name>
+        <default_value />
+        <description>REVISION_ID</description>
+      </parameter>
+    </parameters>
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Revision</from>
+      <to>Rule interpretation detail</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Rule interpretation detail</from>
+      <to>Preview source and meaning</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Revision</name>
+    <fields>
+      <field>
+        <name>revision_id</name>
+        <variable>${REVISION_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Rule interpretation detail</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT r.revision_id,ri.requirement_index,r.extraction-&gt;'requirements'-&gt;ri.requirement_index AS original_requirement,
+ ri.interpretation_id,ri.parent_id,ri.document::text AS rule_document,ri.decision,ri.reviewer,ri.reviewer_kind,ri.notes
+ FROM enrichment.extraction_revision r JOIN enrichment.current_rule_interpretation ri USING(revision_id)
+ WHERE r.revision_id=? ORDER BY ri.requirement_index</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>revision_id</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Dummy</type>
+    <name>Preview source and meaning</name>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

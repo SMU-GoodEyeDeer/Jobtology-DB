@@ -1,0 +1,150 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>review_extraction</name>
+    <description>Append an independent semantic decision. No graph publication.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Decision</from>
+      <to>Append decision</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Append decision</from>
+      <to>Decision recorded</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Decision</name>
+    <fields>
+      <field>
+        <name>revision_id</name>
+        <variable>${REVISION_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>decision</name>
+        <variable>${DECISION}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>reviewer</name>
+        <variable>${REVIEWER}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>reviewer_kind</name>
+        <variable>${REVIEWER_KIND}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>notes</name>
+        <variable>${NOTES}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>ExecSql</type>
+    <name>Append decision</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT enrichment.decide_extraction(?,?,?,?,?)</sql>
+    <execute_each_row>Y</execute_each_row>
+    <single_statement>Y</single_statement>
+    <set_params>Y</set_params>
+    <replace_variables>N</replace_variables>
+    <quoteString>N</quoteString>
+    <arguments>
+      <argument>
+        <name>revision_id</name>
+      </argument>
+      <argument>
+        <name>decision</name>
+      </argument>
+      <argument>
+        <name>reviewer</name>
+      </argument>
+      <argument>
+        <name>reviewer_kind</name>
+      </argument>
+      <argument>
+        <name>notes</name>
+      </argument>
+    </arguments>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>WriteToLog</type>
+    <name>Decision recorded</name>
+    <loglevel>Basic</loglevel>
+    <displayHeader>Y</displayHeader>
+    <logmessage>Decision recorded with explicit reviewer provenance.</logmessage>
+    <fields>
+      <field>
+        <name>revision_id</name>
+      </field>
+      <field>
+        <name>decision</name>
+      </field>
+      <field>
+        <name>reviewer</name>
+      </field>
+      <field>
+        <name>reviewer_kind</name>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

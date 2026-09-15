@@ -1,15 +1,10 @@
 <?xml version='1.0' encoding='UTF-8'?>
 <workflow>
-  <name>Enrich Korean postings and categorize NCS</name>
-  <description>Enrich Korean postings and categorize NCS</description>
+  <name>Categorize accepted extraction revisions without re-extraction</name>
+  <description>Categorize accepted extraction revisions without re-extraction</description>
   <workflow_version>1</workflow_version>
   <workflow_status>0</workflow_status>
   <parameters>
-    <parameter>
-      <name>RUN_MODE</name>
-      <default_value>ENRICH</default_value>
-      <description>EVAL stays separate from publishable enrichment.</description>
-    </parameter>
     <parameter>
       <name>JOB_RUN_ID</name>
       <default_value>LATEST</default_value>
@@ -19,16 +14,6 @@
       <name>NCS_RUN_ID</name>
       <default_value>LATEST</default_value>
       <description>Pin one accepted NCS snapshot.</description>
-    </parameter>
-    <parameter>
-      <name>DATASET_ID</name>
-      <default_value>korean-jd-v1</default_value>
-      <description>Prepared frozen evaluation dataset; ignored for ENRICH.</description>
-    </parameter>
-    <parameter>
-      <name>EXTRACT_MODEL</name>
-      <default_value>google/gemini-3.8-flash</default_value>
-      <description>OpenRouter model ID for evidence extraction.</description>
     </parameter>
     <parameter>
       <name>CATEGORIZE_MODEL</name>
@@ -42,7 +27,7 @@
     </parameter>
     <parameter>
       <name>PROMPT_VERSION</name>
-      <default_value>ko-v3</default_value>
+      <default_value>ko-v6</default_value>
       <description>Installed immutable prompt/schema version; older versions remain available for replay.</description>
     </parameter>
     <parameter>
@@ -61,19 +46,9 @@
       <description>Optional numeric top_p, seed, frequency_penalty, presence_penalty JSON object.</description>
     </parameter>
     <parameter>
-      <name>POSTING_IDS</name>
-      <default_value />
-      <description>Optional exact posting IDs separated by |; missing/ineligible IDs fail planning.</description>
-    </parameter>
-    <parameter>
       <name>INPUT_BUNDLE_IDS</name>
       <default_value />
       <description>Optional exact attachment input bundle IDs separated by | for ENRICH. EVAL uses its frozen dataset bindings.</description>
-    </parameter>
-    <parameter>
-      <name>REPAIR_BATCH_ID</name>
-      <default_value />
-      <description>Optional terminal batch whose failed extractions should be retried. Original attempts remain unchanged.</description>
     </parameter>
     <parameter>
       <name>POSTING_LIMIT</name>
@@ -127,13 +102,8 @@
     </parameter>
     <parameter>
       <name>REUSE_CACHE</name>
-      <default_value>Y</default_value>
+      <default_value>N</default_value>
       <description>Y reuses valid outputs with identical content/prompt/model/options; N repeats an evaluation.</description>
-    </parameter>
-    <parameter>
-      <name>ACCEPTANCE_POLICY</name>
-      <default_value>REVIEW</default_value>
-      <description>REVIEW waits for a review; VALIDATED automatically accepts checked ENRICH items. EVAL remains isolated.</description>
     </parameter>
     <parameter>
       <name>ENDPOINT</name>
@@ -154,6 +124,21 @@
       <name>READ_TIMEOUT_MS</name>
       <default_value>180000</default_value>
       <description>Finite HTTP read timeout in milliseconds.</description>
+    </parameter>
+    <parameter>
+      <name>ACCEPTANCE_POLICY</name>
+      <default_value>REVIEW</default_value>
+      <description>Independent per-link decisions remain required.</description>
+    </parameter>
+    <parameter>
+      <name>REVISION_IDS</name>
+      <default_value />
+      <description>Exact accepted extraction revision IDs separated by |. Missing, superseded or changed revisions fail.</description>
+    </parameter>
+    <parameter>
+      <name>ACTOR</name>
+      <default_value />
+      <description>Named actor importing candidates and no-match outcomes.</description>
     </parameter>
   </parameters>
   <actions>
@@ -176,56 +161,14 @@
       <hour>12</hour>
     </action>
     <action>
-      <name>Freeze inputs and options</name>
+      <name>Freeze reviewed inputs</name>
       <type>PIPELINE</type>
       <xloc>320</xloc>
       <yloc>80</yloc>
       <draw>Y</draw>
       <parallel>N</parallel>
       <attributes />
-      <filename>${PROJECT_HOME}/llm/start_batch.hpl</filename>
-      <params_from_previous>N</params_from_previous>
-      <exec_per_row>N</exec_per_row>
-      <clear_rows>N</clear_rows>
-      <clear_files>N</clear_files>
-      <set_logfile>N</set_logfile>
-      <loglevel>Basic</loglevel>
-      <wait_until_finished>Y</wait_until_finished>
-      <run_configuration>llm-local</run_configuration>
-      <parameters>
-        <pass_all_parameters>Y</pass_all_parameters>
-      </parameters>
-    </action>
-    <action>
-      <name>Plan extraction</name>
-      <type>PIPELINE</type>
-      <xloc>560</xloc>
-      <yloc>80</yloc>
-      <draw>Y</draw>
-      <parallel>N</parallel>
-      <attributes />
-      <filename>${PROJECT_HOME}/llm/plan_extract.hpl</filename>
-      <params_from_previous>N</params_from_previous>
-      <exec_per_row>N</exec_per_row>
-      <clear_rows>N</clear_rows>
-      <clear_files>N</clear_files>
-      <set_logfile>N</set_logfile>
-      <loglevel>Basic</loglevel>
-      <wait_until_finished>Y</wait_until_finished>
-      <run_configuration>llm-local</run_configuration>
-      <parameters>
-        <pass_all_parameters>Y</pass_all_parameters>
-      </parameters>
-    </action>
-    <action>
-      <name>Extract supported facts</name>
-      <type>PIPELINE</type>
-      <xloc>800</xloc>
-      <yloc>80</yloc>
-      <draw>Y</draw>
-      <parallel>N</parallel>
-      <attributes />
-      <filename>${PROJECT_HOME}/llm/run_extract.hpl</filename>
+      <filename>${PROJECT_HOME}/llm/start_revision_batch.hpl</filename>
       <params_from_previous>N</params_from_previous>
       <exec_per_row>N</exec_per_row>
       <clear_rows>N</clear_rows>
@@ -241,7 +184,7 @@
     <action>
       <name>Retrieve NCS and plan matches</name>
       <type>PIPELINE</type>
-      <xloc>1040</xloc>
+      <xloc>560</xloc>
       <yloc>80</yloc>
       <draw>Y</draw>
       <parallel>N</parallel>
@@ -260,10 +203,10 @@
       </parameters>
     </action>
     <action>
-      <name>Categorize explicit duties</name>
+      <name>Categorize reviewed duties</name>
       <type>PIPELINE</type>
-      <xloc>80</xloc>
-      <yloc>240</yloc>
+      <xloc>800</xloc>
+      <yloc>80</yloc>
       <draw>Y</draw>
       <parallel>N</parallel>
       <attributes />
@@ -281,9 +224,30 @@
       </parameters>
     </action>
     <action>
+      <name>Capture candidate outcomes</name>
+      <type>PIPELINE</type>
+      <xloc>1040</xloc>
+      <yloc>80</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <attributes />
+      <filename>${PROJECT_HOME}/llm/import_revision_links.hpl</filename>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <run_configuration>llm-local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+    </action>
+    <action>
       <name>Validate and report</name>
       <type>PIPELINE</type>
-      <xloc>320</xloc>
+      <xloc>80</xloc>
       <yloc>240</yloc>
       <draw>Y</draw>
       <parallel>N</parallel>
@@ -304,7 +268,7 @@
     <action>
       <name>Success</name>
       <type>SUCCESS</type>
-      <xloc>560</xloc>
+      <xloc>320</xloc>
       <yloc>240</yloc>
       <draw>Y</draw>
       <parallel>N</parallel>
@@ -313,7 +277,7 @@
     <action>
       <name>Record failure</name>
       <type>PIPELINE</type>
-      <xloc>800</xloc>
+      <xloc>560</xloc>
       <yloc>240</yloc>
       <draw>Y</draw>
       <parallel>N</parallel>
@@ -334,7 +298,7 @@
     <action>
       <name>Abort</name>
       <type>ABORT</type>
-      <xloc>1040</xloc>
+      <xloc>800</xloc>
       <yloc>240</yloc>
       <draw>Y</draw>
       <parallel>N</parallel>
@@ -345,48 +309,20 @@
   <hops>
     <hop>
       <from>Start</from>
-      <to>Freeze inputs and options</to>
+      <to>Freeze reviewed inputs</to>
       <enabled>Y</enabled>
       <evaluation>Y</evaluation>
       <unconditional>Y</unconditional>
     </hop>
     <hop>
-      <from>Freeze inputs and options</from>
+      <from>Freeze reviewed inputs</from>
       <to>Record failure</to>
       <enabled>Y</enabled>
       <evaluation>N</evaluation>
       <unconditional>N</unconditional>
     </hop>
     <hop>
-      <from>Freeze inputs and options</from>
-      <to>Plan extraction</to>
-      <enabled>Y</enabled>
-      <evaluation>Y</evaluation>
-      <unconditional>N</unconditional>
-    </hop>
-    <hop>
-      <from>Plan extraction</from>
-      <to>Record failure</to>
-      <enabled>Y</enabled>
-      <evaluation>N</evaluation>
-      <unconditional>N</unconditional>
-    </hop>
-    <hop>
-      <from>Plan extraction</from>
-      <to>Extract supported facts</to>
-      <enabled>Y</enabled>
-      <evaluation>Y</evaluation>
-      <unconditional>N</unconditional>
-    </hop>
-    <hop>
-      <from>Extract supported facts</from>
-      <to>Record failure</to>
-      <enabled>Y</enabled>
-      <evaluation>N</evaluation>
-      <unconditional>N</unconditional>
-    </hop>
-    <hop>
-      <from>Extract supported facts</from>
+      <from>Freeze reviewed inputs</from>
       <to>Retrieve NCS and plan matches</to>
       <enabled>Y</enabled>
       <evaluation>Y</evaluation>
@@ -401,20 +337,34 @@
     </hop>
     <hop>
       <from>Retrieve NCS and plan matches</from>
-      <to>Categorize explicit duties</to>
+      <to>Categorize reviewed duties</to>
       <enabled>Y</enabled>
       <evaluation>Y</evaluation>
       <unconditional>N</unconditional>
     </hop>
     <hop>
-      <from>Categorize explicit duties</from>
+      <from>Categorize reviewed duties</from>
       <to>Record failure</to>
       <enabled>Y</enabled>
       <evaluation>N</evaluation>
       <unconditional>N</unconditional>
     </hop>
     <hop>
-      <from>Categorize explicit duties</from>
+      <from>Categorize reviewed duties</from>
+      <to>Capture candidate outcomes</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Capture candidate outcomes</from>
+      <to>Record failure</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Capture candidate outcomes</from>
       <to>Validate and report</to>
       <enabled>Y</enabled>
       <evaluation>Y</evaluation>
