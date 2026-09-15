@@ -10,6 +10,11 @@ against the existing Neo4j 2026.06.0 Community instance through `jobtology-neo4j
 
 ## Run the organization and posting graph
 
+The guarded loader requires [retention support](../retention/README.md), already
+installed on Goldship. For a fresh installation, run `llm/install.hwf` to create
+the enrichment metadata schema, then `retention/install.hwf`. Neither installer
+reads an API key or calls a model.
+
 1. Use the saved **Neo4j Connection** named `jobtology-neo4j`. For another installation, configure
    this metadata with its target host, database and credentials, or override `NEO4J_CONNECTION`.
    Keep the private connection metadata out of Git. The existing `jobtology-postgres` connection
@@ -307,3 +312,7 @@ V2 execution logs are in `${PROJECT_HOME}/data/graph-logs/`:
 - `20260911-v2-pair-first.log`
 - `20260911-v2-ncs-first.log`
 - `20260911-v2-ncs-repeat.log`
+
+## Manual retention and graph writers
+
+`load_snapshot.hwf` now registers/releases a PostgreSQL retention writer lease. Install [retention support](../retention/README.md) before using this guarded workflow. Retention preserves shared entity nodes and last-known facts as `archivedRecord` nodes, then removes only selected historical batches and source records. Always run the workflow entry point so its writer guard applies.
