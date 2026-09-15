@@ -1,7 +1,7 @@
 # Current graph display and protected ALIO history, 2026-09-16
 
-The latest reviewed Neo4j marker is `cs-reviewed-20260916-final-b` READY.
-Its readback has 145 current `reviewedNcsEnrichment` nodes and 385 accepted
+The marker at the time of this clutter audit was `cs-reviewed-20260916-final-b`
+READY. Its readback had 145 current `reviewedNcsEnrichment` nodes and 385 accepted
 `ALIGNS_WITH_NCS` relationships. Those relationships record independently
 accepted *duty candidates*, so several duties can align with one NCS unit.
 They are not copies of source snapshots.
@@ -17,8 +17,14 @@ checking, and quality-record status. The publisher merges each relationship by
 decision. `r.duty_index` is not currently a Neo4j relationship property; the
 index is in PostgreSQL's frozen link payload and the relationship's
 `evidence_json`.
-The grouped query below was checked live: 385 accepted duty links collapse to
+The grouped query below was checked live at that checkpoint: 385 accepted duty links collapse to
 291 distinct enrichment/NCS endpoint groups for display.
+
+The later evidence-tail publication `cs-reviewed-20260916-tail-reviewed-c` is
+READY with 146 current accepted extractions and the same 385 accepted duty
+links. The extra `304822/p1` AI imaging-research role has no asserted NCS unit;
+the representative-link query below therefore remains a view of linked roles
+only.
 
 For a less crowded **Graph view**, return one representative relationship per
 enrichment/NCS endpoint and retain the count of accepted duty matches:

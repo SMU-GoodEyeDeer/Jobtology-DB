@@ -11,7 +11,9 @@ contract are in `hop/cs/`.
 The next bounded pass source-screened 62 previously unextracted notices. It
 confirmed two CS notices, `304933` (one information-security vacancy) and
 `304922` (two hires in one IT position), and excluded six using source-specific
-evidence. Ten still need roster/JD review; 44 are provisional non-CS screens.
+evidence. Ten then needed roster/JD review; the later official A/C source audit
+excluded all ten under the current policy. Forty-four remain provisional non-CS
+screens.
 The two confirmed notices were archived, parsed, frozen into exact input
 bundles and accepted as source-bound position extractions. One paid Luna
 extraction request per notice reported $0.0284467 and $0.0184406; the first
@@ -26,7 +28,7 @@ Together with the earlier $0.14888355 pilot, this rollout reported
 **$0.19577085** in new model calls. Cached-response review and manual NCS
 decisions added no paid calls.
 
-The final reviewed graph checkpoint is `cs-reviewed-20260916-final-b` READY
+The previous reviewed graph checkpoint was `cs-reviewed-20260916-final-b` READY
 at 2026-09-15 15:20:43 UTC, with **145 accepted extractions and 385 accepted
 NCS links** across all published postings. No-cost review accepted cached,
 source-bound extractions for `304387/p1`, `304387/p2` and `304687/p1`.
@@ -42,7 +44,7 @@ readback verified its evidence and origin. The audit abstains for the other
 four roles. A link coverage target does not justify asserting work the
 employer did not describe.
 
-The final read-only `cs.role_completion` check counted **66 selected positions
+That checkpoint's read-only `cs.role_completion` check counted **66 selected positions
 across 45 ALIO postings**, 54 with accepted position-bound NCS links and 12
 without. Nine other roles remain `NEEDS_REVIEW`; 93 are explicit exclusions
 and 1,754 are cheap-screen exclusion candidates. The 12 link gaps are
@@ -55,6 +57,29 @@ summary reports one accepted link, zero related credentials and one
 uncertain new-notice source screens are the explicit review tail. Do not
 equate this tail with 530 fully enriched postings: the 530 are fetched source
 records, while publication contains only independently accepted derivatives.
+
+The 2026-09-16 tail pass reused the saved, validated `304822/p1` AI CBCT
+imaging-research extraction. Native capture and independent review accepted
+revision `0934a9e248fe00702867983266d83a34ab10b8c0d10b1bdb698a2d5a0fe66be0`;
+native scope receipt `b0752a66226a8bc06abcd88d2da8c9c10e19edbc974182d14d717d97e020d7c1`
+selected the single advertised AI hire. The
+[current full NCS-unit audit](cs-ncs-tail-audit-20260916.md) abstained rather
+than turn its imaging-research phrase into a model-development unit. Five
+other source-backed exclusions reduced `NEEDS_REVIEW` from nine to four. The
+[ten-notice A/C audit](cs-notice-tail-audit-20260916.md) excluded ten
+source-only candidate notices; 17 supported attachments were archived and
+parsed, while two image notices were manually inspected.
+
+The current checkpoint `cs-reviewed-20260916-tail-reviewed-c` is READY at
+2026-09-15 16:24:49 UTC. Its graph verification counted **146 accepted
+extractions and 385 reviewed NCS links**. Live `cs.role_completion` now counts
+**67 selected positions across 46 ALIO postings**, 54 with accepted
+position-bound links and **13 source/catalogue gaps**. Four roles remain
+`NEEDS_REVIEW`, 108 have explicit `OUT_OF_SCOPE` decisions and 1,743 remain
+cheap-screen `OUT_OF_SCOPE_CANDIDATE` roles. No paid model calls were made in
+this tail pass. Neo4j's READY marker and current `HAS_ENRICHMENT` readback
+show `job-alio:posting:304822` with its accepted extraction and zero
+`ALIGNS_WITH_NCS` links, matching the abstention above.
 
 At the initial 2026-09-15 live check, **59 positions across 40 ALIO postings** were
 reviewed `IN_SCOPE`. Forty-seven had at least one accepted category-20

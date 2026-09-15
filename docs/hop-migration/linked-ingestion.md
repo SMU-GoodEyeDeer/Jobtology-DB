@@ -5,14 +5,25 @@ The [IT/AI/data completion plan](cs-posting-completion-plan.md) and
 selection, paid-output reuse, qualification joins and remaining evidence gaps.
 
 Current endpoint (2026-09-16 KST): the reviewed NCS projection is **READY** in both
-PostgreSQL and Neo4j under publication ID `cs-reviewed-20260916-final-b`.
-Its frozen graph readback confirmed **145 accepted posting extractions and 385
-accepted NCS links**. These counts cover all current accepted extractions;
-66 selected CS positions in 45 postings are a separate role-level scope:
-54 have an accepted position-bound NCS link and 12 remain explicit
-source/catalogue gaps. Nine additional roles still need scope review. The
-projection is the reviewed subset, not a claim that every source posting has
+PostgreSQL and Neo4j under publication ID `cs-reviewed-20260916-tail-reviewed-c`
+(completed 2026-09-15 16:24:49 UTC). Its frozen graph readback confirmed
+**146 accepted posting extractions and 385 accepted NCS links**. These counts
+cover all current accepted extractions; 67 selected CS positions in 46 postings
+are a separate role-level scope: 54 have an accepted position-bound NCS link
+and 13 remain explicit source/catalogue gaps. Four additional roles still need
+scope review. The projection is the reviewed subset, not a claim that every source posting has
 completed enrichment.
+
+The final source tail reviewed ten uncertain ALIO notices using their official
+A/C attachments; all ten are `OUT_OF_SCOPE` under `cs-it-ai-data-v1`. Seventeen
+supported files are archived and parsed in native attachment batches
+`cs-tail-docs-20260916-a` and `cs-tail-parse-20260916-a` (two image notices were
+inspected manually). A saved source-bound extraction for `304822/p1` was
+accepted and selected as AI work without another model call; its CBCT imaging
+research has no complete current NCS ability unit to assert. See the
+[notice audit](cs-notice-tail-audit-20260916.md),
+[scope audit](cs-scope-tail-audit-20260916.md), and
+[NCS gap audit](cs-ncs-tail-audit-20260916.md).
 
 For the recovered rejection-evaluation set, `llm/export_link_review.hwf` staged
 108 current validated postings and 453 model suggestions in 11 immutable packets.

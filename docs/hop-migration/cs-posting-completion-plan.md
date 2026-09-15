@@ -1,9 +1,9 @@
 # Plan: IT, AI and data postings with NCS links
 
-Status: bounded first ALIO rollout complete at graph checkpoint
-`cs-reviewed-20260916-final-b`, 2026-09-16 KST. The live work and its measured
-limits are recorded in [the execution report](cs-execution-20260915.md): 66
-selected positions, 54 with position-bound NCS links and 12 explicit gaps.
+Status: bounded first ALIO rollout and evidence tail complete at graph checkpoint
+`cs-reviewed-20260916-tail-reviewed-c`, 2026-09-16 KST. The live work and its
+measured limits are recorded in [the execution report](cs-execution-20260915.md):
+67 selected positions, 54 with position-bound NCS links and 13 explicit gaps.
 The remaining source-evidence and review cases are explicit; this plan does not
 authorize an unbounded model run.
 
