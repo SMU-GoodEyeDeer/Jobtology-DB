@@ -51,6 +51,14 @@
         <trim_type>none</trim_type>
       </field>
       <field>
+        <name>job_source_id</name>
+        <variable>${JOB_SOURCE_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
         <name>ncs_run_id</name>
         <variable>${NCS_RUN_ID}</variable>
         <type>String</type>
@@ -307,7 +315,7 @@
     <name>Build immutable settings</name>
     <connection>jobtology-postgres</connection>
     <sql>SELECT gen_random_uuid()::text AS batch_id,
-jsonb_strip_nulls(jsonb_build_object('extract_model',?::text,'categorize_model',?::text,'provider_only',nullif(?::text,''),'prompt_version',?::text,
+jsonb_strip_nulls(jsonb_build_object('job_source_id',?::text,'extract_model',?::text,'categorize_model',?::text,'provider_only',nullif(?::text,''),'prompt_version',?::text,
 'temperature',nullif(?::text,''),'reasoning_effort',nullif(?::text,''),'extra_params',?::jsonb,
 'limit',?::integer,'candidate_limit',?::integer,'max_matches',?::integer,'max_input_chars',?::integer,
 'max_output_tokens',?::integer,'max_requests',?::integer,'request_reserve_usd',?::numeric,'max_cost_usd',?::numeric,
@@ -319,6 +327,10 @@ jsonb_strip_nulls(jsonb_build_object('extract_model',?::text,'categorize_model',
     <outer_join>N</outer_join>
     <replace_vars>N</replace_vars>
     <parameter>
+      <field>
+        <name>job_source_id</name>
+        <type>String</type>
+      </field>
       <field>
         <name>extract_model</name>
         <type>String</type>

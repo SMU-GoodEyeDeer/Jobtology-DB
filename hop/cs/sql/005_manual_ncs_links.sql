@@ -77,8 +77,8 @@ RETURNS jsonb LANGUAGE sql STABLE AS $$
       jsonb_build_array(r.revision_id,n.code,chosen_duty)::text)
  LEFT JOIN enrichment.latest_link_decision ld ON ld.candidate_id=c.candidate_id
  WHERE s.posting_identity=identity AND s.role_id=role
-   AND s.source_id='job_alio' AND s.scope_status='IN_SCOPE'
-   AND s.content_hash=i.source_hash AND b.mode='ENRICH'
+   AND s.scope_status='IN_SCOPE'
+   AND s.content_hash=i.source_hash AND b.job_run_id=s.snapshot_run_id AND b.mode='ENRICH'
    AND b.ncs_run_id=ready_ncs.run_id
    AND nullif(btrim(coalesce(n.definition,'')),'') IS NOT NULL
    AND chosen_duty>=0

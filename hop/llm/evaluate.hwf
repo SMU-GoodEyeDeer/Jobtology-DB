@@ -13,7 +13,12 @@
     <parameter>
       <name>JOB_RUN_ID</name>
       <default_value>LATEST</default_value>
-      <description>Pin one accepted JOB-ALIO snapshot.</description>
+      <description>Pin one accepted job snapshot.</description>
+    </parameter>
+    <parameter>
+      <name>JOB_SOURCE_ID</name>
+      <default_value>job_alio</default_value>
+      <description>Posting provider: job_alio or nara_job. EVAL remains pinned to JOB-ALIO.</description>
     </parameter>
     <parameter>
       <name>NCS_RUN_ID</name>

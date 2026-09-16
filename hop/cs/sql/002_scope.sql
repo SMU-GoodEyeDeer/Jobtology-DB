@@ -59,14 +59,19 @@ SELECT p.source_id,p.source_posting_id,p.posting_id,p.posting_identity,p.snapsho
  p.title,p.categories,p.content_hash,p.employer,
  coalesce(x.revision_id,'') AS revision_id,x.review_decision,x.extraction_state,
  role->>'id' AS role_id,role->>'name' AS role_name,
- cs.scope_duty_text_v1(x.extraction,role->>'id') AS duty_text,
+ CASE WHEN x.extraction IS NOT NULL THEN cs.scope_duty_text_v1(x.extraction,role->>'id')
+      ELSE coalesce(p.source_data->>'description_text',p.source_data->>'duties_text','') END AS duty_text,
  coalesce(role->'evidence_ids','[]'::jsonb) AS role_evidence_ids,
- CASE WHEN x.extraction IS NULL OR jsonb_array_length(coalesce(x.extraction->'positions','[]'::jsonb))=0
-   THEN 'SOURCE_TITLE' ELSE 'MODEL_EXTRACTION' END AS role_origin
+ CASE WHEN jsonb_array_length(coalesce(x.extraction->'positions','[]'::jsonb))>0 THEN 'MODEL_EXTRACTION'
+      WHEN jsonb_array_length(coalesce(p.normalized->'positions','[]'::jsonb))>0 THEN 'SOURCE_POSITION'
+      ELSE 'SOURCE_TITLE' END AS role_origin
 FROM cs.common_posting p
 JOIN (
  SELECT 'job_alio'::text AS source_id,run_id AS snapshot_run_id
  FROM ingestion.latest_ready_run WHERE source_id='job_alio'
+ UNION ALL
+ SELECT 'nara_job'::text AS source_id,run_id AS snapshot_run_id
+ FROM ingestion.latest_ready_run WHERE source_id='nara_job'
  UNION ALL
  SELECT selected.source_id,selected.snapshot_run_id FROM (
   SELECT DISTINCT ON (source_id) source_id,snapshot_run_id
@@ -79,7 +84,7 @@ LEFT JOIN LATERAL (
    'REVIEWED'::text AS extraction_state
  FROM enrichment.extraction_review_state r
  JOIN enrichment.item i USING(item_id) JOIN enrichment.batch b USING(batch_id)
- WHERE p.source_id='job_alio' AND b.mode='ENRICH' AND i.posting_id=p.posting_id
+ WHERE b.job_run_id=p.snapshot_run_id AND b.mode='ENRICH' AND i.posting_id=p.posting_id
    AND i.source_hash=p.content_hash AND r.decision='ACCEPT'
  ORDER BY r.revision_no DESC LIMIT 1
 ) reviewed ON true
@@ -87,7 +92,7 @@ LEFT JOIN LATERAL (
  SELECT a.parsed_output AS extraction
  FROM enrichment.item i JOIN enrichment.batch b USING(batch_id)
  JOIN enrichment.attempt a ON a.attempt_id=i.extraction_id
- WHERE p.source_id='job_alio' AND b.mode='ENRICH' AND i.posting_id=p.posting_id
+ WHERE b.job_run_id=p.snapshot_run_id AND b.mode='ENRICH' AND i.posting_id=p.posting_id
    AND i.source_hash=p.content_hash AND a.state='VALIDATED'
  ORDER BY b.created_at DESC,i.item_id DESC LIMIT 1
 ) attempt ON reviewed.revision_id IS NULL
@@ -97,10 +102,19 @@ CROSS JOIN LATERAL (
         WHEN attempt.extraction IS NOT NULL THEN 'VALIDATED_UNREVIEWED' ELSE 'SOURCE_ONLY' END AS extraction_state,
    coalesce(reviewed.extraction,attempt.extraction) AS extraction
 ) x
-CROSS JOIN LATERAL jsonb_array_elements(CASE
- WHEN jsonb_array_length(coalesce(x.extraction->'positions','[]'::jsonb))>0
- THEN x.extraction->'positions'
- ELSE jsonb_build_array(jsonb_build_object('id','posting','name',p.title,'evidence_ids','[]'::jsonb)) END) role;
+CROSS JOIN LATERAL (
+ SELECT value AS role FROM jsonb_array_elements(coalesce(x.extraction->'positions','[]'::jsonb)) model_role(value)
+ WHERE jsonb_array_length(coalesce(x.extraction->'positions','[]'::jsonb))>0
+ UNION ALL
+ SELECT jsonb_build_object('id','source-'||ordinality,'name',coalesce(value->>'name',value->>'code',p.title),
+   'evidence_ids','[]'::jsonb)
+ FROM jsonb_array_elements(coalesce(p.normalized->'positions','[]'::jsonb)) WITH ORDINALITY source_role(value,ordinality)
+ WHERE jsonb_array_length(coalesce(x.extraction->'positions','[]'::jsonb))=0
+ UNION ALL
+ SELECT jsonb_build_object('id','posting','name',p.title,'evidence_ids','[]'::jsonb)
+ WHERE jsonb_array_length(coalesce(x.extraction->'positions','[]'::jsonb))=0
+   AND jsonb_array_length(coalesce(p.normalized->'positions','[]'::jsonb))=0
+) roles(role);
 
 CREATE TABLE IF NOT EXISTS cs.scope_decision (
  decision_id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,

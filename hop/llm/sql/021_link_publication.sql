@@ -4,19 +4,17 @@ BEGIN;
 -- queries. A single posting lookup can use the exact accepted list/detail IDs.
 CREATE OR REPLACE FUNCTION enrichment.inline_posting_source(jobs text,posting text) RETURNS jsonb
 LANGUAGE plpgsql STABLE AS $$ DECLARE value jsonb; BEGIN
- SELECT enrichment.source_fields((l.normalized||jsonb_strip_nulls(d.normalized))-'representation') INTO STRICT value
- FROM ingestion.ready_record l JOIN ingestion.ready_record d ON d.run_id=l.run_id
- WHERE l.run_id=jobs AND l.source_id='job_alio' AND d.source_id='job_alio'
- AND l.source_record_id=posting||':list' AND d.source_record_id=posting||':detail'
- AND l.normalized->>'posting_id'=posting AND d.normalized->>'posting_id'=posting;
+ SELECT enrichment.source_fields(p.normalized) INTO STRICT value
+ FROM ingestion.llm_posting p WHERE p.run_id=jobs AND p.posting_id=posting;
  RETURN value;
 END $$;
 CREATE OR REPLACE FUNCTION enrichment.linking_input_hash(jobs text,posting text) RETURNS text
 LANGUAGE plpgsql STABLE AS $$
 DECLARE inline_hash text; current_files jsonb; chosen text; BEGIN
  inline_hash:=enrichment.hash(enrichment.inline_posting_source(jobs,posting)::text);
- SELECT source_payload->'files' INTO current_files FROM ingestion.ready_record
- WHERE run_id=jobs AND source_record_id=posting||':detail';
+ SELECT source_payload->'files' INTO current_files FROM ingestion.ready_record r
+ JOIN ingestion.run u USING(run_id) WHERE r.run_id=jobs AND u.source_id='job_alio'
+ AND source_record_id=posting||':detail';
  -- Identical content can reuse a reviewed parse across daily source snapshots.
  -- A new prepared document input supersedes inline-only or older parser inputs.
  IF to_regclass('attachment.posting') IS NOT NULL THEN
@@ -57,19 +55,22 @@ SELECT p.run_id AS job_run_id,p.posting_id,p.normalized->>'title' AS title,
     AND x.parsed_output->'duties'=r.extraction->'duties'
     AND (c.parsed_output->>'outcome'='no_supported_match' OR c.issues->>0='NO_RETRIEVAL_CANDIDATES'))
     THEN 'NO_SUPPORTED_MATCH'
-  ELSE 'PENDING_CATEGORIZATION' END AS outcome
-FROM ingestion.job_posting p JOIN ingestion.latest_ready_run j ON j.run_id=p.run_id AND j.source_id='job_alio'
+  ELSE 'PENDING_CATEGORIZATION' END AS outcome,
+ p.source_id,p.normalized->>'posting_id' AS source_posting_id
+FROM ingestion.llm_posting p JOIN ingestion.latest_ready_run j ON j.run_id=p.run_id AND j.source_id=p.source_id
+ AND j.source_id IN('job_alio','nara_job')
 CROSS JOIN (SELECT run_id FROM ingestion.latest_ready_run WHERE source_id='ncs_competency') n
 CROSS JOIN LATERAL (SELECT enrichment.linking_input_hash(p.run_id,p.posting_id) AS source_hash) h
 LEFT JOIN LATERAL (
  SELECT s.* FROM enrichment.extraction_review_state s JOIN enrichment.item i USING(item_id)
- JOIN enrichment.batch b USING(batch_id) WHERE i.posting_id=p.posting_id AND i.source_hash=h.source_hash AND b.mode='ENRICH'
+ JOIN enrichment.batch b USING(batch_id) WHERE i.posting_id=p.posting_id AND i.source_hash=h.source_hash
+ AND b.job_run_id=p.run_id AND b.mode='ENRICH'
  ORDER BY s.revision_no DESC LIMIT 1
 ) r ON true
 LEFT JOIN LATERAL (
  SELECT a.state FROM enrichment.item i JOIN enrichment.batch b USING(batch_id)
  JOIN enrichment.attempt a ON a.attempt_id=i.extraction_id
- WHERE i.posting_id=p.posting_id AND i.source_hash=h.source_hash AND b.mode='ENRICH'
+ WHERE i.posting_id=p.posting_id AND i.source_hash=h.source_hash AND b.job_run_id=p.run_id AND b.mode='ENRICH'
  ORDER BY b.created_at DESC,i.item_id DESC LIMIT 1
 ) a ON true
 LEFT JOIN LATERAL (
@@ -83,9 +84,12 @@ LEFT JOIN LATERAL (
 ) links ON true;
 
 CREATE OR REPLACE VIEW enrichment.link_publication_source AS
-SELECT s.posting_id,'reviewed:'||s.revision_id AS enrichment_id,'job-alio:posting:'||s.posting_id AS posting_identity,
+SELECT s.posting_id,'reviewed:'||s.revision_id AS enrichment_id,
+ CASE WHEN s.source_id='job_alio' THEN 'job-alio:posting:'||s.source_posting_id
+ ELSE 'source:posting:'||s.source_id||':'||enrichment.hash(s.source_posting_id) END AS posting_identity,
  s.title AS name,s.revision_id,s.item_id,s.ncs_links,
- jsonb_build_object('posting_id',s.posting_id,'name',s.title,'revision_id',s.revision_id,'item_id',s.item_id,
+ jsonb_build_object('source_id',s.source_id,'source_posting_id',s.source_posting_id,
+  'posting_id',s.posting_id,'name',s.title,'revision_id',s.revision_id,'item_id',s.item_id,
   'job_run_id',s.job_run_id,'ncs_run_id',s.ncs_run_id,'source_hash',s.source_hash,
   'extraction',s.extraction,'extraction_decision_id',s.decision_id,'extraction_reviewer',d.reviewer,
   'extraction_reviewer_kind',d.reviewer_kind,'prompt_version',b.settings->>'prompt_version',
@@ -106,6 +110,11 @@ CREATE TABLE IF NOT EXISTS enrichment.link_publication_item (
  name text,payload jsonb NOT NULL,payload_hash text NOT NULL,
  PRIMARY KEY(publication_id,posting_id)
 );
+CREATE TABLE IF NOT EXISTS enrichment.link_publication_source_run (
+ publication_id text NOT NULL REFERENCES enrichment.link_publication,
+ source_id text NOT NULL,run_id text NOT NULL REFERENCES ingestion.run,
+ PRIMARY KEY(publication_id,source_id)
+);
 -- Upgrade the installed retention function without replacing other modules'
 -- optional pin checks. The base retention installer contains the same check.
 DO $upgrade$
@@ -113,11 +122,13 @@ DECLARE definition text; marker text:=' IF NOT EXISTS(SELECT 1 FROM ingestion.gr
 BEGIN
  IF to_regprocedure('retention.protection(text,integer)') IS NULL THEN RETURN; END IF;
  SELECT pg_get_functiondef('retention.protection(text,integer)'::regprocedure) INTO definition;
- IF position('REVIEWED_LINK_PUBLICATION' IN definition)=0 THEN
+ IF position('link_publication_source_run' IN definition)=0 THEN
   IF position(marker IN definition)=0 THEN RAISE EXCEPTION 'RETENTION_PROTECTION_UPGRADE_REQUIRES_REVIEW'; END IF;
   definition:=replace(definition,marker,$branch$
  IF to_regclass('enrichment.link_publication') IS NOT NULL THEN
-  EXECUTE 'SELECT EXISTS(SELECT 1 FROM enrichment.link_publication WHERE job_run_id=$1 OR ncs_run_id=$1)' INTO ontology_pinned USING id;
+  EXECUTE 'SELECT EXISTS(SELECT 1 FROM enrichment.link_publication p WHERE p.job_run_id=$1 OR p.ncs_run_id=$1 OR EXISTS
+   (SELECT 1 FROM enrichment.link_publication_source_run s WHERE s.publication_id=p.publication_id AND s.run_id=$1))'
+   INTO ontology_pinned USING id;
   IF ontology_pinned THEN RETURN 'REVIEWED_LINK_PUBLICATION'; END IF;
  END IF;
 $branch$||marker);
@@ -126,7 +137,8 @@ $branch$||marker);
 END $upgrade$;
 CREATE OR REPLACE FUNCTION enrichment.link_source_hash() RETURNS text LANGUAGE sql STABLE AS $$
  SELECT enrichment.hash(jsonb_build_object(
-  'jobs',(SELECT run_id FROM ingestion.latest_ready_run WHERE source_id='job_alio'),
+  'jobs',(SELECT jsonb_object_agg(source_id,run_id ORDER BY source_id) FROM ingestion.latest_ready_run
+          WHERE source_id IN('job_alio','nara_job')),
   'ncs',(SELECT run_id FROM ingestion.latest_ready_run WHERE source_id='ncs_competency'),
   'rows',(SELECT coalesce(jsonb_agg(payload ORDER BY posting_id),'[]') FROM enrichment.link_publication_source))::text)
 $$;
@@ -140,9 +152,12 @@ DECLARE h text:=enrichment.link_source_hash();existing text; BEGIN
   IF existing<>h THEN RAISE EXCEPTION 'PUBLICATION_INPUT_CHANGED_USE_NEW_ID'; END IF;
  ELSE
   INSERT INTO enrichment.link_publication(publication_id,source_hash,job_run_id,ncs_run_id,state)
-  SELECT id,h,j.run_id,n.run_id,'PREPARED' FROM ingestion.latest_ready_run j CROSS JOIN ingestion.latest_ready_run n
-  WHERE j.source_id='job_alio' AND n.source_id='ncs_competency';
+  SELECT id,h,j.run_id,n.run_id,'PREPARED' FROM
+   (SELECT run_id FROM ingestion.latest_ready_run WHERE source_id IN('job_alio','nara_job') ORDER BY source_id LIMIT 1) j
+   CROSS JOIN (SELECT run_id FROM ingestion.latest_ready_run WHERE source_id='ncs_competency') n;
   IF NOT FOUND THEN RAISE EXCEPTION 'CURRENT_SOURCE_SNAPSHOTS_REQUIRED'; END IF;
+  INSERT INTO enrichment.link_publication_source_run
+  SELECT id,source_id,run_id FROM ingestion.latest_ready_run WHERE source_id IN('job_alio','nara_job');
   INSERT INTO enrichment.link_publication_item
   SELECT id,posting_id,enrichment_id,posting_identity,name,payload,enrichment.hash(payload::text) FROM enrichment.link_publication_source;
  END IF;
@@ -152,13 +167,14 @@ DECLARE h text:=enrichment.link_source_hash();existing text; BEGIN
  RETURN id;
 END $$;
 CREATE OR REPLACE FUNCTION enrichment.check_link_publication(id text) RETURNS void LANGUAGE plpgsql AS $$ BEGIN
- IF NOT EXISTS(SELECT 1 FROM enrichment.link_publication WHERE publication_id=id AND source_hash=enrichment.link_source_hash())
+ IF NOT EXISTS(SELECT 1 FROM enrichment.link_publication p WHERE p.publication_id=check_link_publication.id AND p.source_hash=enrichment.link_source_hash())
  THEN RAISE EXCEPTION 'SOURCE_OR_REVIEW_CHANGED_DURING_PUBLICATION'; END IF;
  IF NOT EXISTS(SELECT 1 FROM enrichment.link_publication p WHERE publication_id=id AND source_hash=
- enrichment.hash(jsonb_build_object('jobs',p.job_run_id,'ncs',p.ncs_run_id,'rows',
- (SELECT coalesce(jsonb_agg(payload ORDER BY posting_id),'[]') FROM enrichment.link_publication_item WHERE publication_id=id))::text))
+ enrichment.hash(jsonb_build_object('jobs',(SELECT jsonb_object_agg(source_id,run_id ORDER BY source_id)
+ FROM enrichment.link_publication_source_run s WHERE s.publication_id=check_link_publication.id),'ncs',p.ncs_run_id,'rows',
+ (SELECT coalesce(jsonb_agg(i.payload ORDER BY i.posting_id),'[]') FROM enrichment.link_publication_item i WHERE i.publication_id=check_link_publication.id))::text))
  THEN RAISE EXCEPTION 'PUBLICATION_MEMBERSHIP_CHANGED'; END IF;
- IF EXISTS(SELECT 1 FROM enrichment.link_publication_item WHERE publication_id=id AND payload_hash<>enrichment.hash(payload::text))
+ IF EXISTS(SELECT 1 FROM enrichment.link_publication_item i WHERE i.publication_id=check_link_publication.id AND i.payload_hash<>enrichment.hash(i.payload::text))
  THEN RAISE EXCEPTION 'PUBLICATION_PAYLOAD_CHANGED'; END IF;
 END $$;
 CREATE OR REPLACE FUNCTION enrichment.finish_link_publication(id text,success boolean) RETURNS void LANGUAGE plpgsql AS $$ BEGIN

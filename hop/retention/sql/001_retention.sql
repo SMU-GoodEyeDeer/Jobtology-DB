@@ -111,7 +111,14 @@ DECLARE u ingestion.run; ontology_pinned boolean; BEGIN
   IF ontology_pinned THEN RETURN 'ONTOLOGY_OBSERVATION_HISTORY'; END IF;
  END IF;
  IF to_regclass('enrichment.link_publication') IS NOT NULL THEN
-  EXECUTE 'SELECT EXISTS(SELECT 1 FROM enrichment.link_publication WHERE job_run_id=$1 OR ncs_run_id=$1)' INTO ontology_pinned USING id;
+  IF to_regclass('enrichment.link_publication_source_run') IS NOT NULL THEN
+   EXECUTE 'SELECT EXISTS(SELECT 1 FROM enrichment.link_publication p WHERE p.job_run_id=$1 OR p.ncs_run_id=$1 OR EXISTS
+    (SELECT 1 FROM enrichment.link_publication_source_run s WHERE s.publication_id=p.publication_id AND s.run_id=$1))'
+    INTO ontology_pinned USING id;
+  ELSE
+   EXECUTE 'SELECT EXISTS(SELECT 1 FROM enrichment.link_publication WHERE job_run_id=$1 OR ncs_run_id=$1)'
+    INTO ontology_pinned USING id;
+  END IF;
   IF ontology_pinned THEN RETURN 'REVIEWED_LINK_PUBLICATION'; END IF;
  END IF;
  IF NOT EXISTS(SELECT 1 FROM ingestion.graph_export WHERE run_id=id) THEN RETURN 'GRAPH_NOT_CHECKPOINTED'; END IF;

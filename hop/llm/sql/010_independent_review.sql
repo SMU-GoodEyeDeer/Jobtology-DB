@@ -158,13 +158,29 @@ FROM enrichment.extraction_revision r LEFT JOIN enrichment.latest_extraction_dec
 -- A new correction supersedes its predecessor immediately for current serving.
 -- It must acquire its own review; rejection never falls back to an earlier revision.
 CREATE OR REPLACE VIEW enrichment.current_reviewed_posting AS
-SELECT p.*,r.revision_id,CASE WHEN r.decision='ACCEPT' THEN r.extraction END AS extraction,
+WITH source_posting AS (
+ SELECT 'job_alio'::text AS source_id,p.run_id,p.posting_id,p.list_document_id,p.list_locator,
+  p.detail_document_id,p.detail_locator,p.normalized,p.field_origin
+ FROM ingestion.job_posting p
+ JOIN ingestion.latest_ready_run j ON j.run_id=p.run_id AND j.source_id='job_alio'
+ UNION ALL
+ SELECT p.source_id,p.run_id,p.posting_id,NULL::text,NULL::text,NULL::text,NULL::text,
+  p.normalized,'{}'::jsonb
+ FROM ingestion.llm_posting p
+ JOIN ingestion.latest_ready_run j ON j.run_id=p.run_id AND j.source_id=p.source_id
+ WHERE p.source_id<>'job_alio'
+)
+SELECT p.run_id,p.posting_id,p.list_document_id,p.list_locator,p.detail_document_id,p.detail_locator,
+ p.normalized,p.field_origin,r.revision_id,CASE WHEN r.decision='ACCEPT' THEN r.extraction END AS extraction,
  r.decision,r.reviewer_kind,r.reviewer,r.reviewed_at,
  coalesce(links.matches,'[]'::jsonb) AS reviewed_ncs_links
-FROM ingestion.job_posting p JOIN ingestion.latest_ready_run j ON j.run_id=p.run_id AND j.source_id='job_alio'
+FROM source_posting p
 LEFT JOIN LATERAL (
- SELECT s.* FROM enrichment.extraction_review_state s JOIN enrichment.item i USING(item_id)
+ SELECT s.* FROM enrichment.extraction_review_state s
+ JOIN enrichment.item i USING(item_id)
+ JOIN enrichment.batch b USING(batch_id)
  WHERE i.posting_id=p.posting_id AND i.source_hash=enrichment.hash(enrichment.source_fields(p.normalized)::text)
+   AND b.job_run_id=p.run_id
  ORDER BY s.revision_no DESC LIMIT 1
 ) r ON true
 LEFT JOIN LATERAL (
@@ -178,5 +194,5 @@ LEFT JOIN LATERAL (
 ) links ON true;
 
 COMMENT ON VIEW enrichment.current_reviewed_posting IS
- 'Check decision=ACCEPT for extraction serving. NCS links require independent acceptance and current NCS; extraction survives NCS refresh. Reviewer kind is explicit, never inferred as human.';
+ 'Current source-qualified posting extractions. Check decision=ACCEPT for extraction serving. NCS links require independent acceptance and the current NCS catalog; extraction survives NCS refresh. Reviewer kind is explicit, never inferred as human.';
 COMMIT;

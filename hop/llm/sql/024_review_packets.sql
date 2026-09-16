@@ -38,7 +38,7 @@ DECLARE b enrichment.batch;item enrichment.item;rid text;ids text[];total intege
  IF b.mode<>'ENRICH' OR b.state NOT IN ('COMPLETE','PARTIAL','FAILED') OR nullif(btrim(actor),'') IS NULL
  OR cap IS NULL OR cap NOT BETWEEN 1 AND 1000 THEN RAISE EXCEPTION 'TERMINAL_PRODUCTION_BATCH_AND_REVIEW_ACTOR_REQUIRED'; END IF;
  ids:=CASE WHEN coalesce(postings,'')='' THEN '{}'::text[] ELSE string_to_array(postings,'|') END;
- IF EXISTS(SELECT 1 FROM unnest(ids) p WHERE p !~ '^[0-9]+$' OR NOT EXISTS(SELECT 1 FROM enrichment.item i WHERE i.batch_id=id AND i.posting_id=p))
+ IF EXISTS(SELECT 1 FROM unnest(ids) p WHERE p !~ '^[A-Za-z0-9][A-Za-z0-9_.:-]{0,199}$' OR NOT EXISTS(SELECT 1 FROM enrichment.item i WHERE i.batch_id=id AND i.posting_id=p))
  THEN RAISE EXCEPTION 'UNKNOWN_REVIEW_POSTING'; END IF;
  SELECT count(*) INTO total FROM enrichment.item i WHERE i.batch_id=id AND (cardinality(ids)=0 OR i.posting_id=ANY(ids));
  IF total NOT BETWEEN 1 AND cap THEN RAISE EXCEPTION 'REVIEW_SELECTION_EXCEEDS_CAP_OR_EMPTY'; END IF;
@@ -65,7 +65,7 @@ END $$;
 CREATE OR REPLACE FUNCTION enrichment.apply_link_review(packet jsonb) RETURNS jsonb LANGUAGE plpgsql AS $$
 DECLARE import_key text:=enrichment.hash(packet::text);who text:=packet->>'reviewer';kind text:=packet->>'reviewer_kind';
  v jsonb;l jsonb;expected jsonb;item enrichment.item;revision text;choice text;link_choice text;
- ex_count integer:=0;link_count integer:=0;answer jsonb;jobs text;ncs text; BEGIN
+ ex_count integer:=0;link_count integer:=0;answer jsonb;jobs text;ncs text;job_source text; BEGIN
  PERFORM retention.gate();
  PERFORM pg_advisory_xact_lock(hashtextextended('link-review-import:'||import_key,0));
  IF packet->>'contract' IS DISTINCT FROM 'ncs-link-review-v1' OR nullif(btrim(who),'') IS NULL
@@ -75,8 +75,12 @@ DECLARE import_key text:=enrichment.hash(packet::text);who text:=packet->>'revie
  IF FOUND THEN RETURN answer||jsonb_build_object('replayed',true,'import_id',import_key); END IF;
  IF EXISTS(SELECT 1 FROM jsonb_array_elements(packet->'cases') c GROUP BY c->>'item_id' HAVING count(*)<>1)
  THEN RAISE EXCEPTION 'DUPLICATE_REVIEW_CASE'; END IF;
- SELECT run_id INTO jobs FROM ingestion.latest_ready_run WHERE source_id='job_alio';
- SELECT run_id INTO ncs FROM ingestion.latest_ready_run WHERE source_id='ncs_competency';
+ SELECT b.job_run_id,b.ncs_run_id,u.source_id INTO jobs,ncs,job_source
+ FROM enrichment.batch b JOIN ingestion.run u ON u.run_id=b.job_run_id
+ WHERE b.batch_id=packet->>'batch_id';
+ IF NOT EXISTS(SELECT 1 FROM ingestion.latest_ready_run WHERE source_id=job_source AND run_id=jobs)
+ OR NOT EXISTS(SELECT 1 FROM ingestion.latest_ready_run WHERE source_id='ncs_competency' AND run_id=ncs)
+ THEN RAISE EXCEPTION 'REVIEW_SOURCE_IS_NOT_CURRENT'; END IF;
  FOR v IN SELECT jsonb_array_elements(packet->'cases') LOOP
   choice:=v->>'extraction_decision';
   IF choice IS NULL AND NOT EXISTS(SELECT 1 FROM jsonb_array_elements(v->'links') c WHERE c->>'decision' IS NOT NULL) THEN CONTINUE; END IF;

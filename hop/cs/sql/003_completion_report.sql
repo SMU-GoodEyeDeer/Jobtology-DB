@@ -13,7 +13,8 @@ SELECT scope.posting_identity,scope.role_id,scope.binding_hash,
  l->>'reason' AS reason,l->'duty' AS duty,
  l->>'reviewer_kind' AS reviewer_kind
 FROM cs.current_scope scope
-JOIN enrichment.linking_status state ON scope.source_id='job_alio'
+JOIN enrichment.linking_status state ON state.source_id=scope.source_id
+ AND state.job_run_id=scope.snapshot_run_id
  AND state.posting_id=scope.posting_id AND state.source_hash=scope.content_hash
 CROSS JOIN LATERAL jsonb_array_elements(state.ncs_links) l
 WHERE scope.scope_status='IN_SCOPE' AND (
@@ -26,7 +27,7 @@ CREATE OR REPLACE VIEW cs.role_completion AS
 WITH scope AS MATERIALIZED (
  SELECT * FROM cs.current_scope
 ), current_state AS MATERIALIZED (
- SELECT posting_id,source_hash,outcome,revision_id,ncs_run_id,ncs_links,extraction
+ SELECT source_id,job_run_id,posting_id,source_hash,outcome,revision_id,ncs_run_id,ncs_links,extraction
  FROM enrichment.linking_status
 )
 SELECT scope.policy_id,scope.source_id,scope.source_posting_id,scope.posting_id,
@@ -38,7 +39,6 @@ SELECT scope.policy_id,scope.source_id,scope.source_posting_id,scope.posting_id,
  coalesce(links.distinct_units,0) AS distinct_role_units,
  CASE
   WHEN scope.scope_status<>'IN_SCOPE' THEN 'SCOPE_REVIEW_OR_EXCLUSION'
-  WHEN scope.source_id<>'job_alio' THEN 'SOURCE_ADAPTER_ENRICHMENT_PENDING'
   WHEN coalesce(links.accepted_links,0)>0 AND coalesce(links.category_20_links,0)=0
    AND coalesce(links.other_category_links,0)>0 THEN 'PUBLISHED_DOMAIN_NCS_LINK'
   WHEN coalesce(links.accepted_links,0)>0 THEN 'PUBLISHED_NCS_LINK'
@@ -60,7 +60,8 @@ SELECT scope.policy_id,scope.source_id,scope.source_posting_id,scope.posting_id,
  coalesce(links.other_category_links,0) AS domain_role_links,
  coalesce(links.unclassified_links,0) AS unclassified_role_links
 FROM scope
-LEFT JOIN current_state state ON scope.source_id='job_alio'
+LEFT JOIN current_state state ON state.source_id=scope.source_id
+ AND state.job_run_id=scope.snapshot_run_id
  AND state.posting_id=scope.posting_id AND state.source_hash=scope.content_hash
 LEFT JOIN LATERAL (
  SELECT count(*)::integer AS accepted_links,

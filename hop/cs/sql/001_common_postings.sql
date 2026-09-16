@@ -67,6 +67,25 @@ JOIN ingestion.run r ON r.run_id=p.run_id AND r.source_id='job_alio'
 LEFT JOIN ingestion.ready_record d ON d.run_id=p.run_id
  AND d.source_record_id=p.posting_id||':detail' AND d.source_id='job_alio'
 UNION ALL
+SELECT 'nara_job'::text AS source_id,
+ p.posting_id AS source_posting_id,
+ cs.external_posting_key('nara_job',p.posting_id) AS posting_id,
+ cs.external_posting_identity('nara_job',p.posting_id) AS posting_identity,
+ p.run_id AS snapshot_run_id,
+ p.normalized->>'organization_name' AS employer,
+ p.normalized->>'title' AS title,
+ jsonb_build_object('posting_type_code',p.normalized->>'posting_type_code',
+                    'institution_type_code',p.normalized->>'institution_type_code') AS categories,
+ p.normalized,
+ enrichment.source_fields(p.normalized) AS source_data,
+ enrichment.hash(enrichment.source_fields(p.normalized)::text) AS inline_source_hash,
+ enrichment.hash(enrichment.source_fields(p.normalized)::text) AS content_hash,
+ coalesce(p.normalized->'attachment_refs','[]'::jsonb) AS attachment_refs,
+ p.field_origin AS evidence
+FROM ingestion.nara_job_posting p
+JOIN ingestion.run r ON r.run_id=p.run_id AND r.source_id='nara_job'
+ AND r.state='READY' AND r.mode<>'SMOKE'
+UNION ALL
 SELECT i.source_id,
  i.source_posting_id,
  cs.external_posting_key(i.source_id,i.source_posting_id) AS posting_id,
@@ -104,7 +123,7 @@ LEFT JOIN LATERAL (
   r.revision_id,r.revision_no,r.decision AS review_decision,r.reviewer_kind
  FROM enrichment.item i JOIN enrichment.batch b USING(batch_id)
  LEFT JOIN enrichment.extraction_review_state r USING(item_id)
- WHERE p.source_id='job_alio' AND b.mode='ENRICH'
+ WHERE b.job_run_id=p.snapshot_run_id AND b.mode='ENRICH'
   AND i.posting_id=p.posting_id AND i.source_hash=p.content_hash
 ) work ON true;
 

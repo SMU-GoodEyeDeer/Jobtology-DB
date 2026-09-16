@@ -30,16 +30,20 @@ CREATE TABLE ingestion.run (run_id text PRIMARY KEY,source_id text,state text,mo
 CREATE TABLE ingestion.job_posting (
  run_id text,posting_id text,list_document_id text,list_locator text,
  detail_document_id text,detail_locator text,normalized jsonb,field_origin jsonb);
+CREATE TABLE ingestion.nara_job_posting (
+ run_id text,posting_id text,list_document_id text,list_locator text,
+ detail_document_id text,detail_locator text,normalized jsonb,field_origin jsonb);
 CREATE TABLE ingestion.ready_record (run_id text,source_record_id text,source_id text,source_payload jsonb);
 CREATE VIEW ingestion.latest_ready_run AS
  SELECT run_id,source_id FROM ingestion.run WHERE state='READY' AND mode<>'SMOKE';
-CREATE TABLE enrichment.batch (batch_id text,mode text,created_at timestamptz);
+CREATE TABLE enrichment.batch (batch_id text,mode text,job_run_id text,created_at timestamptz);
 CREATE TABLE enrichment.item (item_id text,batch_id text,posting_id text,source_hash text,extraction_id text);
 CREATE TABLE enrichment.attempt (attempt_id text,state text,parsed_output jsonb);
 CREATE TABLE enrichment.extraction_review_state
  (revision_id text,item_id text,decision text,extraction jsonb,revision_no integer,reviewer_kind text);
 CREATE TABLE enrichment.linking_status
- (posting_id text,source_hash text,ncs_run_id text,ncs_links jsonb,extraction jsonb,outcome text,revision_id text);
+ (posting_id text,source_hash text,ncs_run_id text,ncs_links jsonb,extraction jsonb,outcome text,revision_id text,
+  source_id text,job_run_id text);
 CREATE TABLE enrichment.ncs_catalog
  (run_id text,code text,occupation_code text,PRIMARY KEY(run_id,code));
 CREATE TABLE enrichment.link_candidate
@@ -64,7 +68,7 @@ INSERT INTO ingestion.job_posting VALUES
   '{"title":"list","duties_text":"detail"}');
 INSERT INTO ingestion.ready_record VALUES
  ('alio-snapshot','123:detail','job_alio','{"files":[{"name":"notice.hwp"}]}');
-INSERT INTO enrichment.batch VALUES ('legacy-batch','ENRICH',clock_timestamp());
+INSERT INTO enrichment.batch VALUES ('legacy-batch','ENRICH','alio-snapshot',clock_timestamp());
 INSERT INTO enrichment.item VALUES
  ('legacy-item','legacy-batch','123','prepared-content-hash-for-alio-snapshot-123',NULL);
 INSERT INTO enrichment.extraction_review_state VALUES

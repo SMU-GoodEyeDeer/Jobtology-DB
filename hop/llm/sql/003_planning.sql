@@ -31,7 +31,7 @@ END $$;
 
 CREATE OR REPLACE FUNCTION enrichment.plan_batch(id text, run_mode text, dataset text, jobs text, ncs text, opts jsonb)
 RETURNS void LANGUAGE plpgsql AS $$
-DECLARE j text; n text; nh text; s text; selected text[]; bundles text[]; repair enrichment.batch%ROWTYPE; BEGIN
+DECLARE j text; n text; nh text; s text; job_source text; selected text[]; bundles text[]; repair enrichment.batch%ROWTYPE; BEGIN
  IF run_mode NOT IN ('EVAL','ENRICH') OR jsonb_typeof(opts) IS DISTINCT FROM 'object' OR
  NOT opts ?& ARRAY['extract_model','categorize_model','prompt_version','extra_params','limit','candidate_limit','max_matches',
  'max_input_chars','max_output_tokens','max_requests','request_reserve_usd','max_cost_usd','daily_budget_usd',
@@ -104,12 +104,15 @@ DECLARE j text; n text; nh text; s text; selected text[]; bundles text[]; repair
  coalesce((opts#>>'{extra_params,frequency_penalty}')::numeric,0) NOT BETWEEN -2 AND 2 OR
  coalesce((opts#>>'{extra_params,presence_penalty}')::numeric,0) NOT BETWEEN -2 AND 2
  THEN RAISE EXCEPTION 'INVALID_EXTRA_PARAMS'; END IF;
+ job_source:=coalesce(nullif(opts->>'job_source_id',''),'job_alio');
+ IF job_source NOT IN ('job_alio','nara_job') THEN RAISE EXCEPTION 'UNSUPPORTED_JOB_SOURCE'; END IF;
  IF run_mode='EVAL' THEN
   SELECT job_run_id,ncs_run_id INTO j,n FROM enrichment.dataset WHERE dataset_id=plan_batch.dataset;
   IF j IS NULL THEN RAISE EXCEPTION 'PREPARE_EVALUATION_DATASET_FIRST'; END IF;
- ELSE j:=enrichment.resolve_snapshot(jobs,'job_alio'); n:=enrichment.resolve_snapshot(ncs,'ncs_competency'); END IF;
+  job_source:='job_alio';
+ ELSE j:=enrichment.resolve_snapshot(jobs,job_source); n:=enrichment.resolve_snapshot(ncs,'ncs_competency'); END IF;
  IF repair.batch_id IS NOT NULL AND repair.job_run_id<>j THEN RAISE EXCEPTION 'REPAIR_SOURCE_PIN_MISMATCH'; END IF;
- PERFORM enrichment.assert_snapshot(j,'job_alio'); PERFORM enrichment.assert_snapshot(n,'ncs_competency');
+ PERFORM enrichment.assert_snapshot(j,job_source); PERFORM enrichment.assert_snapshot(n,'ncs_competency');
  IF bundles IS NOT NULL AND EXISTS(SELECT 1 FROM enrichment.input_bundle WHERE bundle_id=ANY(bundles) AND job_run_id<>j)
  THEN RAISE EXCEPTION 'INPUT_BUNDLE_JOB_SNAPSHOT_MISMATCH'; END IF;
  IF (bundles IS NOT NULL OR (run_mode='EVAL' AND EXISTS(SELECT 1 FROM enrichment.test_case_input WHERE dataset_id=plan_batch.dataset)))
@@ -146,9 +149,9 @@ DECLARE j text; n text; nh text; s text; selected text[]; bundles text[]; repair
   INSERT INTO enrichment.item(item_id,batch_id,posting_id,source_data,source_hash,ordinal)
   SELECT gen_random_uuid()::text,id,p.posting_id,src.data,
    enrichment.hash(src.data::text),row_number() OVER(ORDER BY p.posting_id)
-  FROM ingestion.job_posting p LEFT JOIN enrichment.input_bundle ib ON ib.bundle_id=ANY(bundles) AND ib.posting_id=p.posting_id AND ib.job_run_id=p.run_id
+  FROM ingestion.llm_posting p LEFT JOIN enrichment.input_bundle ib ON ib.bundle_id=ANY(bundles) AND ib.posting_id=p.posting_id AND ib.job_run_id=p.run_id
   CROSS JOIN LATERAL (SELECT coalesce(ib.source_data,enrichment.source_fields(p.normalized)) AS data) src
-  WHERE p.run_id=j AND (selected IS NULL OR p.posting_id=ANY(selected))
+  WHERE p.run_id=j AND p.source_id=job_source AND (selected IS NULL OR p.posting_id=ANY(selected))
   AND (repair.batch_id IS NULL OR EXISTS(SELECT 1 FROM enrichment.item old JOIN enrichment.attempt a ON a.attempt_id=old.extraction_id
     LEFT JOIN enrichment.extraction_audit audit ON audit.attempt_id=a.attempt_id AND audit.validator_version=opts->>'prompt_version'
     WHERE old.batch_id=repair.batch_id AND old.posting_id=p.posting_id AND old.source_hash=enrichment.hash(src.data::text)

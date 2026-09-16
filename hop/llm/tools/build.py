@@ -250,7 +250,9 @@ prompt_sql.append('COMMIT;')
 (OUT / 'sql/002_prompts.sql').write_text('\n'.join(prompt_sql) + '\n')
 
 PARAMS = [
- ('JOB_RUN_ID','LATEST','Pin one accepted JOB-ALIO snapshot.'), ('NCS_RUN_ID','LATEST','Pin one accepted NCS snapshot.'),
+ ('JOB_RUN_ID','LATEST','Pin one accepted job snapshot.'),
+ ('JOB_SOURCE_ID','job_alio','Posting provider: job_alio or nara_job. EVAL remains pinned to JOB-ALIO.'),
+ ('NCS_RUN_ID','LATEST','Pin one accepted NCS snapshot.'),
  ('DATASET_ID','korean-jd-v1','Prepared frozen evaluation dataset; ignored for ENRICH.'),
  ('EXTRACT_MODEL','google/gemini-3.8-flash','OpenRouter model ID for evidence extraction.'),
  ('CATEGORIZE_MODEL','google/gemini-3.8-flash','OpenRouter model ID for NCS matching.'),
@@ -282,13 +284,13 @@ PARAMS = [
 p = Pipe('start_batch','Freeze inputs and settings. A planned run makes no paid calls.')
 fields = [('run_mode','${RUN_MODE}','String')] + [(k.lower(),'${'+k+'}','String') for k,_,_ in PARAMS]
 p.chain(variables('Workflow options', fields), db('Build immutable settings', """SELECT gen_random_uuid()::text AS batch_id,
-jsonb_strip_nulls(jsonb_build_object('extract_model',?::text,'categorize_model',?::text,'provider_only',nullif(?::text,''),'prompt_version',?::text,
+jsonb_strip_nulls(jsonb_build_object('job_source_id',?::text,'extract_model',?::text,'categorize_model',?::text,'provider_only',nullif(?::text,''),'prompt_version',?::text,
 'temperature',nullif(?::text,''),'reasoning_effort',nullif(?::text,''),'extra_params',?::jsonb,
 'limit',?::integer,'candidate_limit',?::integer,'max_matches',?::integer,'max_input_chars',?::integer,
 'max_output_tokens',?::integer,'max_requests',?::integer,'request_reserve_usd',?::numeric,'max_cost_usd',?::numeric,
 'daily_budget_usd',?::numeric,'execute_requests',?::text,'reuse_cache',?::text,'endpoint',?::text,
 'request_delay_ms',?::integer,'read_timeout_ms',?::integer,'acceptance_policy',?::text,'posting_ids',nullif(?::text,''),'repair_batch_id',nullif(?::text,''),'input_bundle_ids',nullif(?::text,'')))::text AS settings_json""",
-[(x,'String') for x in ['extract_model','categorize_model','provider_only','prompt_version','temperature','reasoning_effort','extra_params_json',
+[(x,'String') for x in ['job_source_id','extract_model','categorize_model','provider_only','prompt_version','temperature','reasoning_effort','extra_params_json',
  'posting_limit','candidate_limit','max_matches','max_input_chars','max_output_tokens','max_requests','request_reserve_usd',
  'max_cost_usd','daily_budget_usd','execute_requests','reuse_cache','endpoint','request_delay_ms','read_timeout_ms','acceptance_policy','posting_ids','repair_batch_id','input_bundle_ids']]), remember('batch_id','LLM_BATCH_ID'),
  execute('Plan batch','SELECT enrichment.plan_batch(?,?,?, ?,?,?::jsonb)', ['batch_id','run_mode','dataset_id','job_run_id','ncs_run_id','settings_json']),

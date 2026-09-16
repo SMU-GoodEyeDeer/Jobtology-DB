@@ -8,7 +8,7 @@
     <parameter>
       <name>JOB_RUN_ID</name>
       <default_value>LATEST</default_value>
-      <description>Pin one accepted JOB-ALIO snapshot.</description>
+      <description>Pin one accepted job snapshot.</description>
     </parameter>
     <parameter>
       <name>NCS_RUN_ID</name>

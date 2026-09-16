@@ -19,12 +19,12 @@ INSERT INTO enrichment.ncs_catalog VALUES
  ('ncs-snapshot','2001010501_test','20010105'),
  ('ncs-snapshot','0101010101_test','01010101'),
  ('ncs-snapshot','1703060302_test','17030603');
-INSERT INTO enrichment.linking_status(posting_id,source_hash,ncs_run_id,ncs_links,extraction,outcome,revision_id)
+INSERT INTO enrichment.linking_status(posting_id,source_hash,ncs_run_id,ncs_links,extraction,outcome,revision_id,source_id,job_run_id)
 SELECT '123','prepared-content-hash-for-alio-snapshot-123',
 'ncs-snapshot',
 '[{"candidate_id":"data-link","competency_code":"2001010501_test","duty_index":0,"reason":"DB 구축","duty":{"position_ids":["p1"],"text":"DB 구축"}},
   {"candidate_id":"admin-link","competency_code":"0101010101_test","duty_index":1,"reason":"회계 행정","duty":{"position_ids":["p2"],"text":"회계 행정"}}]'::jsonb,
- extraction,'ACCEPTED_LINKS','legacy-revision'
+ extraction,'ACCEPTED_LINKS','legacy-revision','job_alio','alio-snapshot'
 FROM enrichment.extraction_review_state WHERE revision_id='legacy-revision';
 """
 

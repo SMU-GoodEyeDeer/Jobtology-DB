@@ -19,10 +19,13 @@ compact-input paid pilot was not launched. Do not resume attachment-based
 extraction/categorization or rebuild its inputs without explicit user resumption.
 See the [pause status and handoff](../../docs/hop-migration/attachment-status.md).
 
-These native Hop workflows read accepted JOB-ALIO and NCS snapshots from PostgreSQL,
+These native Hop workflows read accepted JOB-ALIO or 나라일터 and NCS snapshots from PostgreSQL,
 extract explicitly supported facts, and propose NCS alignments for explicit duties.
 Models and processing limits are workflow parameters. Start with a small evaluation.
-All entry points use **llm-local** and **Basic** logging.
+All entry points use **llm-local** and **Basic** logging. For production enrichment,
+set `JOB_SOURCE_ID=job_alio` (default) or `JOB_SOURCE_ID=nara_job` and pin
+`JOB_RUN_ID` to a READY snapshot of that source. Evaluation datasets remain
+JOB-ALIO-based so historical comparisons do not change.
 
 The default prompt/schema is **`ko-v3`**. It uses source passage IDs, explicit
 condition kinds, shared position references and nested condition expressions.
