@@ -10,8 +10,14 @@ LANGUAGE plpgsql STABLE AS $$ DECLARE value jsonb; BEGIN
 END $$;
 CREATE OR REPLACE FUNCTION enrichment.linking_input_hash(jobs text,posting text) RETURNS text
 LANGUAGE plpgsql STABLE AS $$
-DECLARE inline_hash text; current_files jsonb; chosen text; BEGIN
+DECLARE inline_hash text; current_files jsonb; chosen text; source text; BEGIN
  inline_hash:=enrichment.hash(enrichment.inline_posting_source(jobs,posting)::text);
+ SELECT source_id INTO source FROM ingestion.llm_posting
+ WHERE run_id=jobs AND posting_id=posting;
+ -- The current attachment bundle contract is JOB-ALIO-specific.  Do not scan
+ -- its historical detail records for a source whose attachments are only
+ -- retained as metadata; it cannot select a bundle for that source yet.
+ IF source IS DISTINCT FROM 'job_alio' THEN RETURN inline_hash; END IF;
  SELECT source_payload->'files' INTO current_files FROM ingestion.ready_record r
  JOIN ingestion.run u USING(run_id) WHERE r.run_id=jobs AND u.source_id='job_alio'
  AND source_record_id=posting||':detail';

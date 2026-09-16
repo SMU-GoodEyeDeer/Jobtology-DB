@@ -81,11 +81,14 @@ document processor remains a separate source-policy step.
 
 ### First live screening and enrichment
 
-The 2026-09-16 snapshot was screened at position level: 13 candidates were
-reviewed, nine were accepted as CS/IT/AI/data postings, and four were excluded
-as false positives. The accepted nine were enriched with `ko-link-v1` through
-OpenRouter's `openai/gpt-5.6-luna` route. All nine extraction responses passed
-the structural and source-evidence checks in 11 requests at $0.0170414.
+The 2026-09-16 snapshot had 13 initial candidate postings. Their first review
+excluded four clear false positives; after the model split the remaining notices
+into advertised positions, the current position-level decision set contains ten
+CS/IT/AI/data roles, two generic ETRI roles pending attachment detail, and 28
+explicitly out-of-scope roles. The nine initially selected notices were enriched
+with `ko-link-v1` through OpenRouter's `openai/gpt-5.6-luna` route. All nine
+extraction responses passed the structural and source-evidence checks in 11
+requests at $0.0170414.
 
 Only the medical big-data researcher had sufficiently explicit inline duties.
 Its three independently reviewed NCS links were published to Neo4j in

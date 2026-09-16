@@ -60,12 +60,11 @@ DECLARE rows jsonb; n integer; identities text[]; BEGIN
  THEN RAISE EXCEPTION 'INVALID_SCOPE_REVIEW_SELECTION'; END IF;
  identities:=CASE WHEN coalesce(posting_identities,'')=''
   THEN '{}'::text[] ELSE string_to_array(posting_identities,'|') END;
- IF EXISTS(SELECT 1 FROM unnest(identities) x
-   WHERE nullif(btrim(x),'') IS NULL
-      OR NOT EXISTS(SELECT 1 FROM cs.current_scope c
-                    WHERE c.posting_identity=x))
+ IF EXISTS(SELECT 1 FROM unnest(identities) x WHERE nullif(btrim(x),'') IS NULL)
     OR (SELECT count(*) FROM unnest(identities)) <>
        (SELECT count(DISTINCT x) FROM unnest(identities) x)
+    OR (cardinality(identities)>0 AND (SELECT count(DISTINCT c.posting_identity)
+       FROM cs.current_scope c WHERE c.posting_identity=ANY(identities))<>cardinality(identities))
  THEN RAISE EXCEPTION 'UNKNOWN_OR_DUPLICATE_SCOPE_POSTING_IDENTITY'; END IF;
  SELECT count(*),coalesce(jsonb_agg(
    cs.scope_review_case_v1(c.posting_identity,c.role_id)

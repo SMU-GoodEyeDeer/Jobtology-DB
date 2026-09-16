@@ -94,6 +94,11 @@ CREATE INDEX IF NOT EXISTS attempt_cache ON enrichment.attempt(cache_key) WHERE 
 ALTER TABLE enrichment.attempt ADD COLUMN IF NOT EXISTS raw_output jsonb;
 CREATE INDEX IF NOT EXISTS attempt_budget ON enrichment.attempt(reserved_at) WHERE reserved_at IS NOT NULL;
 CREATE INDEX IF NOT EXISTS item_batch ON enrichment.item(batch_id);
+-- Source/run-qualified review and publication views resolve an item's frozen
+-- source hash repeatedly.  This keeps multi-source scope and publication
+-- checks bounded as historical batches accumulate.
+CREATE INDEX IF NOT EXISTS item_source_lookup ON enrichment.item(posting_id,source_hash,batch_id);
+CREATE INDEX IF NOT EXISTS batch_job_mode_lookup ON enrichment.batch(job_run_id,mode,created_at DESC);
 CREATE TABLE IF NOT EXISTS enrichment.repair_item (
  item_id text PRIMARY KEY REFERENCES enrichment.item,
  prior_item_id text NOT NULL REFERENCES enrichment.item,
