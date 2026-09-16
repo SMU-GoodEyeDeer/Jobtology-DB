@@ -1,0 +1,290 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>verify_files</name>
+    <description>Rehash every selected response and compare its byte length before accepting a run.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>1000</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Run files</from>
+      <to>List selected documents</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>List selected documents</from>
+      <to>Rehash archived file</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Rehash archived file</from>
+      <to>Remeasure archived file</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Remeasure archived file</from>
+      <to>Compare file manifest</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Compare file manifest</from>
+      <to>File verified</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>File verified</from>
+      <to>Mark file verified</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>File verified</from>
+      <to>File changed</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Run files</name>
+    <fields>
+      <field>
+        <name>run_id</name>
+        <variable>${NARA_JOB_RUN_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>raw_root</name>
+        <variable>${RAW_ROOT}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>100</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>List selected documents</name>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <sql>SELECT d.document_id,?||'/'||d.raw_path AS raw_filename,d.raw_sha256 AS expected_hash,d.byte_length AS expected_bytes FROM ingestion.document d WHERE d.run_id=? AND d.selected ORDER BY page_no,confirmation_no</sql>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <parameter>
+      <field>
+        <name>raw_root</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>run_id</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <replace_vars>N</replace_vars>
+    <connection>jobtology-postgres</connection>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>330</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Calculator</type>
+    <name>Rehash archived file</name>
+    <failIfNoFile>Y</failIfNoFile>
+    <calculation>
+      <field_name>actual_hash</field_name>
+      <calc_type>SHA256</calc_type>
+      <field_a>raw_filename</field_a>
+      <value_type>String</value_type>
+      <value_length>-1</value_length>
+      <value_precision>-1</value_precision>
+      <remove>N</remove>
+    </calculation>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>GetFileNames</type>
+    <name>Remeasure archived file</name>
+    <filter>
+      <filterfiletype>all_files</filterfiletype>
+    </filter>
+    <rownum>N</rownum>
+    <rownum_field />
+    <filename_Field>raw_filename</filename_Field>
+    <wildcard_Field />
+    <exclude_wildcard_Field />
+    <filefield>Y</filefield>
+    <dynamic_include_subfolders>N</dynamic_include_subfolders>
+    <isaddresult>N</isaddresult>
+    <limit>0</limit>
+    <doNotFailIfNoFile>N</doNotFailIfNoFile>
+    <raiseAnExceptionIfNoFile>Y</raiseAnExceptionIfNoFile>
+    <file>
+      <name>${PROJECT_HOME}</name>
+      <filemask />
+      <exclude_filemask />
+      <file_required>N</file_required>
+      <include_subfolders>N</include_subfolders>
+    </file>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>790</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Compare file manifest</name>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <sql>SELECT lower(?::text)=?::text AND ?::bigint=?::bigint AS file_matches</sql>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <parameter>
+      <field>
+        <name>actual_hash</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>expected_hash</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>size</name>
+        <type>Integer</type>
+      </field>
+      <field>
+        <name>expected_bytes</name>
+        <type>Integer</type>
+      </field>
+    </parameter>
+    <replace_vars>N</replace_vars>
+    <connection>jobtology-postgres</connection>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>1020</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>File verified</name>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>file_matches</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Boolean</type>
+          <text>Y</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <send_true_to>Mark file verified</send_true_to>
+    <send_false_to>File changed</send_false_to>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>100</xloc>
+      <yloc>270</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>ExecSql</type>
+    <name>Mark file verified</name>
+    <sql>UPDATE ingestion.document SET verified_at=CURRENT_TIMESTAMP WHERE run_id=? AND document_id=? AND selected</sql>
+    <execute_each_row>Y</execute_each_row>
+    <single_statement>Y</single_statement>
+    <replace_variables>N</replace_variables>
+    <quoteString>N</quoteString>
+    <set_params>Y</set_params>
+    <arguments>
+      <argument>
+        <name>run_id</name>
+      </argument>
+      <argument>
+        <name>document_id</name>
+      </argument>
+    </arguments>
+    <connection>jobtology-postgres</connection>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>330</xloc>
+      <yloc>270</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Abort</type>
+    <name>File changed</name>
+    <row_threshold>0</row_threshold>
+    <message>Archived file hash or byte length no longer matches the manifest.</message>
+    <always_log_rows>N</always_log_rows>
+    <abort_option>ABORT_WITH_ERROR</abort_option>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>270</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

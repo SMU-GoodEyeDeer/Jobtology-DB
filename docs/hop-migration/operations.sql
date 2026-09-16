@@ -17,9 +17,10 @@ CREATE TABLE IF NOT EXISTS ingestion.refresh_policy (
  enabled boolean NOT NULL DEFAULT true
 );
 INSERT INTO ingestion.refresh_policy(source_id,interval_seconds) VALUES
- ('alio_organization',2592000),('job_alio',86400),('ncs_competency',604800),
+ ('alio_organization',2592000),('job_alio',86400),('nara_job',86400),('ncs_competency',604800),
  ('ncs_qualification',604800),('qnet_schedule',86400),('ncs_career_path',2592000)
 ON CONFLICT(source_id) DO NOTHING;
+UPDATE ingestion.refresh_policy SET requests_per_24h=10000 WHERE source_id='nara_job';
 CREATE TABLE IF NOT EXISTS ingestion.request_attempt (
  run_id text NOT NULL REFERENCES ingestion.run,
  source_id text NOT NULL,
@@ -79,7 +80,7 @@ BEGIN
  IF src IS NULL THEN RETURN QUERY SELECT false,'RUN_NOT_LOADING'::text;RETURN; END IF;
  PERFORM pg_advisory_xact_lock(hashtextextended('hop-request:'||src,0));
  SELECT requests_per_24h INTO budget FROM ingestion.refresh_policy WHERE source_id=src;
- IF max_requests NOT BETWEEN 1 AND 1000 OR budget IS NULL THEN
+ IF max_requests NOT BETWEEN 1 AND 10000 OR budget IS NULL THEN
   RETURN QUERY SELECT false,'INVALID_REQUEST_BUDGET'::text;RETURN;
  END IF;
  IF EXISTS(SELECT 1 FROM ingestion.request_attempt WHERE run_id=target_run AND partition_id=target_partition

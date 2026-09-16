@@ -1,0 +1,364 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>load_document</name>
+    <description>Read the archived JSON, validate its envelope, normalize every source object and retain rejected rows.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>1000</size_rowset>
+    <parameters>
+      <parameter>
+        <name>DOCUMENT_ID</name>
+        <default_value />
+        <description>DOCUMENT_ID</description>
+      </parameter>
+    </parameters>
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Document identity</from>
+      <to>Read document manifest</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Read document manifest</from>
+      <to>HTTP success</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>HTTP success</from>
+      <to>Read saved JSON</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>HTTP success</from>
+      <to>HTTP failure</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Read saved JSON</from>
+      <to>Validate envelope</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Validate envelope</from>
+      <to>Envelope accepted</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Envelope accepted</from>
+      <to>Document loaded</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Envelope accepted</from>
+      <to>Envelope failure</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Document identity</name>
+    <fields>
+      <field>
+        <name>run_id</name>
+        <variable>${NARA_JOB_RUN_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>document_id</name>
+        <variable>${DOCUMENT_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>raw_root</name>
+        <variable>${RAW_ROOT}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>max_pages</name>
+        <variable>${MAX_PAGES}</variable>
+        <type>Integer</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>max_requests</name>
+        <variable>${MAX_REQUESTS}</variable>
+        <type>Integer</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>mode</name>
+        <variable>${MODE}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>100</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Read document manifest</name>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <sql>SELECT ?||'/'||d.raw_path raw_filename,d.run_id,d.document_id,d.http_status,d.byte_length
+FROM ingestion.document d JOIN ingestion.run u USING(run_id)
+WHERE d.run_id=? AND d.document_id=? AND u.state='LOADING' AND u.source_id='nara_job'</sql>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <parameter>
+      <field>
+        <name>raw_root</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>run_id</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>document_id</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <replace_vars>N</replace_vars>
+    <connection>jobtology-postgres</connection>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>330</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>HTTP success</name>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>http_status</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Integer</type>
+          <text>200</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <send_true_to>Read saved JSON</send_true_to>
+    <send_false_to>HTTP failure</send_false_to>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>JsonInput</type>
+    <name>Read saved JSON</name>
+    <include>N</include>
+    <include_field />
+    <rownum>N</rownum>
+    <rownum_field />
+    <limit>0</limit>
+    <valueField>raw_filename</valueField>
+    <IsInFields>Y</IsInFields>
+    <IsAFile>Y</IsAFile>
+    <addresultfile>N</addresultfile>
+    <IsIgnoreEmptyFile>N</IsIgnoreEmptyFile>
+    <doNotFailIfNoFile>N</doNotFailIfNoFile>
+    <ignoreMissingPath>N</ignoreMissingPath>
+    <readurl>N</readurl>
+    <removeSourceField>N</removeSourceField>
+    <defaultPathLeafToNull>Y</defaultPathLeafToNull>
+    <files />
+    <fields>
+      <field>
+        <name>envelope_json</name>
+        <path>$</path>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+        <repeat>N</repeat>
+      </field>
+    </fields>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>790</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Validate envelope</name>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <sql>SELECT document_selected AS envelope_valid,item_count,provider_result,error_code AS envelope_error FROM ingestion.load_nara_document(?,?,?::jsonb,?::integer,?::integer,?::text)</sql>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <parameter>
+      <field>
+        <name>run_id</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>document_id</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>envelope_json</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>max_pages</name>
+        <type>Integer</type>
+      </field>
+      <field>
+        <name>max_requests</name>
+        <type>Integer</type>
+      </field>
+      <field>
+        <name>mode</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <replace_vars>N</replace_vars>
+    <connection>jobtology-postgres</connection>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>1020</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Dummy</type>
+    <name>Document loaded</name>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>100</xloc>
+      <yloc>270</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>Envelope accepted</name>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>envelope_valid</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Boolean</type>
+          <text>Y</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <send_true_to>Document loaded</send_true_to>
+    <send_false_to>Envelope failure</send_false_to>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>330</xloc>
+      <yloc>270</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Abort</type>
+    <name>HTTP failure</name>
+    <row_threshold>0</row_threshold>
+    <message>나라일터 returned a non-200 HTTP response. The body remains archived.</message>
+    <always_log_rows>N</always_log_rows>
+    <abort_option>ABORT_WITH_ERROR</abort_option>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>790</xloc>
+      <yloc>270</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Abort</type>
+    <name>Envelope failure</name>
+    <row_threshold>0</row_threshold>
+    <message>나라일터 envelope or page coverage is invalid. Inspect the archived document.</message>
+    <always_log_rows>N</always_log_rows>
+    <abort_option>ABORT_WITH_ERROR</abort_option>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>1020</xloc>
+      <yloc>270</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

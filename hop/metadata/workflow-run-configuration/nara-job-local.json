@@ -1,0 +1,11 @@
+{
+  "name": "nara-job-local",
+  "description": "Local 나라일터 workflow execution. Child pipelines use nara-job-local.",
+  "engineRunConfiguration": {
+    "Local": {
+      "safe_mode": false
+    }
+  },
+  "executionInfoLocationName": "",
+  "defaultSelection": false
+}

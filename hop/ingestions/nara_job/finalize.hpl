@@ -1,0 +1,282 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>finalize</name>
+    <description>Validate list/detail pairing and saved files, report unmatched employers, and finalize this snapshot.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>1000</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Run to validate</from>
+      <to>Summarize validation</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Summarize validation</from>
+      <to>Finalize run state</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Finalize run state</from>
+      <to>Read final state</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Read final state</from>
+      <to>나라일터 result</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>나라일터 result</from>
+      <to>Run accepted</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Run accepted</from>
+      <to>Finished</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Run accepted</from>
+      <to>Validation failed</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Run to validate</name>
+    <fields>
+      <field>
+        <name>run_id</name>
+        <variable>${NARA_JOB_RUN_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>100</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Summarize validation</name>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <sql>SELECT u.mode,(SELECT count(*) FROM ingestion.validation_issue v WHERE v.run_id=u.run_id
+AND NOT(u.mode='SMOKE' AND (v.issue='SMOKE_NOT_FULL' OR (v.issue='PARTITION_INCOMPLETE' AND v.location='index')))) issue_count,
+(SELECT count(*) FROM ingestion.rejected_row r WHERE r.run_id=u.run_id) rejected_count,
+(SELECT count(*) FROM ingestion.record r WHERE r.run_id=u.run_id) record_count,
+(SELECT count(*) FROM ingestion.document d WHERE d.run_id=u.run_id AND d.selected) document_count,
+(SELECT count(*) FROM ingestion.record r JOIN ingestion.document d USING(run_id,document_id)
+ WHERE r.run_id=u.run_id AND d.selected AND d.partition_id='index' AND coalesce((r.normalized-&gt;&gt;'ongoing')::boolean,false)) posting_count,
+0::bigint unmatched_employer_count FROM ingestion.run u WHERE u.run_id=? AND u.state='LOADING' AND u.source_id='nara_job'</sql>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <parameter>
+      <field>
+        <name>run_id</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <replace_vars>N</replace_vars>
+    <connection>jobtology-postgres</connection>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>330</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>ExecSql</type>
+    <name>Finalize run state</name>
+    <sql>UPDATE ingestion.run u SET state=CASE
+WHEN EXISTS(SELECT 1 FROM ingestion.rejected_row r WHERE r.run_id=u.run_id) THEN 'REVIEW_REQUIRED'
+WHEN (SELECT count(*) FROM ingestion.validation_issue v WHERE v.run_id=u.run_id
+ AND NOT(u.mode='SMOKE' AND (v.issue='SMOKE_NOT_FULL' OR (v.issue='PARTITION_INCOMPLETE' AND v.location='index'))))&gt;0 THEN 'FAILED'
+WHEN u.mode='SMOKE' THEN 'REVIEW_REQUIRED' ELSE 'READY' END,completed_at=CURRENT_TIMESTAMP
+WHERE u.run_id=? AND u.source_id='nara_job' AND u.state='LOADING'</sql>
+    <execute_each_row>Y</execute_each_row>
+    <single_statement>Y</single_statement>
+    <replace_variables>N</replace_variables>
+    <quoteString>N</quoteString>
+    <set_params>Y</set_params>
+    <arguments>
+      <argument>
+        <name>run_id</name>
+      </argument>
+    </arguments>
+    <connection>jobtology-postgres</connection>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Read final state</name>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <sql>SELECT state,(state='READY' OR (mode='SMOKE' AND state='REVIEW_REQUIRED' AND ?::bigint=0)) AS run_success FROM ingestion.run WHERE run_id=?</sql>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <parameter>
+      <field>
+        <name>issue_count</name>
+        <type>Integer</type>
+      </field>
+      <field>
+        <name>run_id</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <replace_vars>N</replace_vars>
+    <connection>jobtology-postgres</connection>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>790</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>WriteToLog</type>
+    <name>나라일터 result</name>
+    <displayHeader>Y</displayHeader>
+    <limitRows>N</limitRows>
+    <limitRowsNumber>0</limitRowsNumber>
+    <logmessage>나라일터 load result; unmatched employers are retained for review</logmessage>
+    <loglevel>Basic</loglevel>
+    <fields>
+      <field>
+        <name>run_id</name>
+      </field>
+      <field>
+        <name>mode</name>
+      </field>
+      <field>
+        <name>state</name>
+      </field>
+      <field>
+        <name>posting_count</name>
+      </field>
+      <field>
+        <name>record_count</name>
+      </field>
+      <field>
+        <name>document_count</name>
+      </field>
+      <field>
+        <name>rejected_count</name>
+      </field>
+      <field>
+        <name>issue_count</name>
+      </field>
+      <field>
+        <name>unmatched_employer_count</name>
+      </field>
+    </fields>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>1020</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>Run accepted</name>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>run_success</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Boolean</type>
+          <text>Y</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <send_true_to>Finished</send_true_to>
+    <send_false_to>Validation failed</send_false_to>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>100</xloc>
+      <yloc>270</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Dummy</type>
+    <name>Finished</name>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>330</xloc>
+      <yloc>270</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Abort</type>
+    <name>Validation failed</name>
+    <row_threshold>0</row_threshold>
+    <message>나라일터 run did not pass validation. Query ingestion.validation_issue using the logged run ID.</message>
+    <always_log_rows>N</always_log_rows>
+    <abort_option>ABORT_WITH_ERROR</abort_option>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>270</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

@@ -9,7 +9,7 @@ CREATE SCHEMA IF NOT EXISTS ingestion;
 CREATE TABLE IF NOT EXISTS ingestion.run (
     run_id text PRIMARY KEY,
     source_id text NOT NULL CHECK (source_id IN (
-        'alio_organization', 'job_alio', 'ncs_career_path',
+        'alio_organization', 'job_alio', 'nara_job', 'ncs_career_path',
         'ncs_competency', 'ncs_qualification', 'qnet_schedule')),
     mode text NOT NULL CHECK (mode IN ('SMOKE', 'FULL', 'REPLAY')),
     parser_version text NOT NULL DEFAULT 'hop-normalize-v1',
@@ -168,6 +168,43 @@ CROSS JOIN LATERAL jsonb_to_record(r.normalized) AS n(
     eligibility_text text, disqualification_text text, preference_text text, selection_text text)
 WHERE r.source_id = 'job_alio';
 
+-- 나라일터 publishes one index row and three companion resources per active
+-- posting.  Keep the representations separate in the ledger so every API
+-- response remains independently auditable, then assemble one posting here.
+CREATE OR REPLACE VIEW ingestion.nara_posting_representation AS
+SELECT r.run_id, r.document_id, r.locator, r.source_payload, r.normalized, n.*
+FROM ingestion.ready_record r
+CROSS JOIN LATERAL jsonb_to_record(r.normalized) AS n(
+    posting_id text, representation text, title text, organization_name text,
+    date_posted date, modified_date date, closing_date date, ongoing boolean,
+    source_url text, regions text, recruitment_type text, description_text text,
+    positions jsonb, attachment_refs jsonb, source_links jsonb)
+WHERE r.source_id = 'nara_job';
+
+CREATE OR REPLACE VIEW ingestion.nara_job_posting AS
+WITH representations AS MATERIALIZED (
+    SELECT * FROM ingestion.nara_posting_representation
+), active_list AS (
+    SELECT * FROM representations WHERE representation='list' AND ongoing
+)
+SELECT l.run_id,l.posting_id,l.document_id AS list_document_id,l.locator AS list_locator,
+       d.document_id AS detail_document_id,d.locator AS detail_locator,
+       (l.normalized || jsonb_strip_nulls(d.normalized)
+        || jsonb_strip_nulls(p.normalized) || jsonb_strip_nulls(f.normalized))
+        - 'representation' AS normalized,
+       jsonb_build_object(
+         'list_document_id',l.document_id,'list_locator',l.locator,
+         'detail_document_id',d.document_id,'detail_locator',d.locator,
+         'positions_document_id',p.document_id,'files_document_id',f.document_id
+       ) AS field_origin
+FROM active_list l
+JOIN representations d ON d.run_id=l.run_id AND d.posting_id=l.posting_id
+ AND d.representation='detail'
+JOIN representations p ON p.run_id=l.run_id AND p.posting_id=l.posting_id
+ AND p.representation='positions'
+JOIN representations f ON f.run_id=l.run_id AND f.posting_id=l.posting_id
+ AND f.representation='files';
+
 -- One draft posting per matching list/detail pair. Validation must precede READY.
 -- Keep BOTH input locations. Strip nulls from detail so null does not erase list.
 CREATE OR REPLACE VIEW ingestion.job_posting AS
@@ -189,6 +226,17 @@ JOIN postings d
   ON d.run_id = l.run_id AND d.posting_id = l.posting_id
  AND d.representation = 'detail'
 WHERE l.representation = 'list';
+
+-- Stable production input for the source-neutral LLM planner.  JOB-ALIO keeps
+-- its legacy numeric ID; additional sources receive a collision-proof key.
+CREATE OR REPLACE VIEW ingestion.llm_posting AS
+SELECT 'job_alio'::text AS source_id,p.run_id,p.posting_id,p.normalized
+FROM ingestion.job_posting p
+UNION ALL
+SELECT 'nara_job',p.run_id,
+       'ext-nara_job-'||encode(sha256(convert_to(p.posting_id,'UTF8')),'hex'),
+       p.normalized
+FROM ingestion.nara_job_posting p;
 
 -- Rebuildable graph projection. Record identities are scoped to this experiment;
 -- they are intentionally not the Python loader's content-addressed revision IDs.
@@ -231,6 +279,10 @@ CROSS JOIN LATERAL (
     UNION ALL
     SELECT 'job-alio:posting', 'JobPosting', r.normalized->>'posting_id', 'posting_id'
     WHERE r.source_id = 'job_alio'
+    UNION ALL
+    SELECT 'source:posting:nara_job', 'JobPosting',
+           encode(sha256(convert_to(r.normalized->>'posting_id','UTF8')),'hex'), 'posting_id'
+    WHERE r.source_id = 'nara_job'
 ) ref
 WHERE ref.code IS NOT NULL;
 COMMIT;

@@ -19,7 +19,7 @@ The target is a **separate `ingestion` PostgreSQL schema**. Its name describes t
 and can stay the same when the ETL tool changes.
 Use real provider responses, retain their history, and compare the resulting facts with the
 current pipeline before replacing a writer. The supplied SQL creates the loading tables and
-readable data views. All six sources now have executable Hop workflows, including
+readable data views. The original six sources and the additional 나라일터 source have executable Hop workflows, including
 [qualification mappings](../hop/ingestions/ncs_qualification/README.md),
 [Q-Net schedules](../hop/ingestions/qnet_schedule/README.md), and
 [career paths](../hop/ingestions/ncs_career_path/README.md).
@@ -27,8 +27,9 @@ readable data views. All six sources now have executable Hop workflows, includin
 For regular updates, start with the [refresh and recovery guide](../hop/operations/README.md).
 Its `operations/refresh_<source>.hwf` entry points fetch, validate and load both databases.
 The original `ingestions/<source>/full.hwf` entry points perform PostgreSQL ingestion only.
-The [deployment verification report](hop-migration/live-status.md) lists the six accepted
-live snapshots and the independent PostgreSQL/Neo4j checks.
+The [deployment verification report](hop-migration/live-status.md) lists the original accepted
+live snapshots and their independent PostgreSQL/Neo4j checks. The 나라일터 README records its
+separate installation and validation procedure.
 
 Source fetching, LLM requests and database writes use native Hop transforms/actions
 and PostgreSQL/Cypher statements. Attachment parsing calls the private service that
@@ -48,6 +49,7 @@ Jump to:
 - [Build the common fetch/load pipeline](#2-build-one-reusable-page-fetch-and-load-pattern)
 - [ALIO organizations](#31-alio-organizations-your-first-complete-load)
 - [JOB-ALIO list and detail](#32-job-alio-list-plus-detail)
+- [나라일터 postings](#321-나라일터-recent-and-open-postings)
 - [NCS competency](#33-ncs-competency-full-api-dataset)
 - [NCS qualifications](#34-ncs-qualification-mappings-filter-the-request-codes)
 - [Q-Net schedules](#35-q-net-exam-schedules-item-code--year)
@@ -65,6 +67,7 @@ Jump to:
 |---|---|---|---:|
 | `alio_organization` | Official public institutions, codes, names, metadata | `organization` | 355 |
 | `job_alio` | Active posting list **and every detail**, including qualification/preference text | `posting_representation` → `job_posting` | 1,020 representations → 510 postings |
+| `nara_job` | Recent index plus detail, position and file metadata for postings open at snapshot time | `nara_posting_representation` → `nara_job_posting` | 9,818 recent rows → 754 open postings measured 2026-09-16 |
 | `ncs_competency` | Full versioned competency units and occupation/classification references | `competency` | 15,520 |
 | `ncs_qualification` | Mappings from selected NCS units to credentials, retaining standard versions/hours | `qualification_mapping` | 87 |
 | `qnet_schedule` | Written/practical exam and registration dates per credential/year/round | `exam_session` | 56 |
@@ -74,7 +77,8 @@ All view names above are under `ingestion`. Counts are historical comparison val
 [the processing report](processing-pipeline.md), not acceptance thresholds for a fresh live fetch.
 The old collection report describes an earlier fetching milestone; the current implementation
 also has staging and explicit canonical assembly. Saramin is pending/blocked and Work24 is outside
-the current six-source scope. Keep them out of the migration schedule for now.
+the original six-source scope. 나라일터 is the additional implemented posting source;
+Saramin remains pending/blocked and Work24 remains outside this migration.
 
 ## 1. Create the destination once
 
@@ -629,6 +633,38 @@ validation. A detail failure leaves the entire run incomplete. For the saved bas
 510 list rows, 510 detail rows and 510 assembled `job_posting` rows. No attachment/PDF download is
 part of this source: retain API attachment metadata in the source payload; approved attachment
 byte retrieval is separate from the current contract.
+
+#### 3.2.1 나라일터: recent and open postings
+
+The second posting provider is implemented in
+[the native 나라일터 workflow](../hop/ingestions/nara_job/README.md). Run
+`ingestions/nara_job/install.hwf` once, then open `ingestions/nara_job/full.hwf`
+with **nara-job-local**. A FULL run archives a bounded recent registration window,
+keeps the complete index membership, and fetches `getItem`, `getItemPosition`, and
+`getItemFile` for each posting whose closing date is on or after the snapshot date.
+
+Blank `BEGIN_DATE` and `END_DATE` resolve once at startup to the preceding 120 days
+and current KST date. The exact values are stored in the index partition, so a
+later replay does not reinterpret which rows were open. The workflow uses native
+REST, file-output, PostgreSQL, child-pipeline, filter, and abort transforms.
+
+The first production run on 2026-09-16 completed as run
+`f3b83d1a-5103-40e1-9a1a-976d75b32be6`: 10,844 recent index rows, 761 open
+postings, 2,294 archived HTTP documents, and no rejected rows. The numbers are
+a baseline only; each future snapshot recalculates them from its own window.
+
+Use `JOB_SOURCE_ID=nara_job` when sending the screened CS subset through
+`llm/enrich.hwf`. Keep `JOB_RUN_ID` exact, start with `EXECUTE_REQUESTS=N`, and pass
+only reviewed `cs.current_scope.posting_id` values. This preserves the same
+structured-output validation, cache, extraction review, and per-link review used
+by JOB-ALIO while keeping provider identities separate.
+
+For the first live snapshot, the nine reviewed CS candidates completed
+`ko-link-v1` extraction with 0 structural rejections (11 OpenRouter requests,
+`$0.0170414`). Only one posting supplied enough inline duties for NCS matching;
+three source-grounded links were independently accepted and published in
+`nara-job-20260916`. The remaining attachment-dependent and no-duty outcomes
+remain explicit in `enrichment.linking_status` until attachment parsing is enabled.
 
 ### 3.3 NCS competency: full API dataset
 
