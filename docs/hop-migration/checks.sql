@@ -2,9 +2,9 @@
 -- the field/type/date validators described in the guide. No state changes here.
 -- This script CREATES the validation view; use a SQL workflow action or SQL editor.
 CREATE OR REPLACE VIEW ingestion.validation_issue AS
-WITH selected AS (
+WITH selected AS NOT MATERIALIZED (
     SELECT d.* FROM ingestion.document d WHERE d.selected
-), facts AS (
+), facts AS NOT MATERIALIZED (
     SELECT r.run_id,r.document_id,r.locator,r.source_record_id,r.normalized,d.partition_id
     FROM ingestion.record r JOIN selected d USING (run_id, document_id)
 ), partition_counts AS (
