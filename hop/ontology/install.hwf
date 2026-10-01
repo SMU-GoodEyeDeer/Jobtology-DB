@@ -379,6 +379,62 @@
       <draw>Y</draw>
       <parallel>N</parallel>
     </action>
+    <action>
+      <name>ontology 021_scoped_validation</name>
+      <type>SQL</type>
+      <connection>jobtology-postgres</connection>
+      <sqlfromfile>Y</sqlfromfile>
+      <sqlfilename>${PROJECT_HOME}/ontology/sql/021_scoped_validation.sql</sqlfilename>
+      <sqlfilename_encoding>UTF-8</sqlfilename_encoding>
+      <useVariableSubstitution>N</useVariableSubstitution>
+      <sendOneStatement>Y</sendOneStatement>
+      <xloc>1280</xloc>
+      <yloc>720</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+    </action>
+    <action>
+      <name>ontology 022_scoped_posting_census</name>
+      <type>SQL</type>
+      <connection>jobtology-postgres</connection>
+      <sqlfromfile>Y</sqlfromfile>
+      <sqlfilename>${PROJECT_HOME}/ontology/sql/022_scoped_posting_census.sql</sqlfilename>
+      <sqlfilename_encoding>UTF-8</sqlfilename_encoding>
+      <useVariableSubstitution>N</useVariableSubstitution>
+      <sendOneStatement>Y</sendOneStatement>
+      <xloc>1520</xloc>
+      <yloc>720</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+    </action>
+    <action>
+      <name>ontology 023_scoped_catalog_edges</name>
+      <type>SQL</type>
+      <connection>jobtology-postgres</connection>
+      <sqlfromfile>Y</sqlfromfile>
+      <sqlfilename>${PROJECT_HOME}/ontology/sql/023_scoped_catalog_edges.sql</sqlfilename>
+      <sqlfilename_encoding>UTF-8</sqlfilename_encoding>
+      <useVariableSubstitution>N</useVariableSubstitution>
+      <sendOneStatement>Y</sendOneStatement>
+      <xloc>1760</xloc>
+      <yloc>720</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+    </action>
+    <action>
+      <name>ontology 024_sealed_catalog</name>
+      <type>SQL</type>
+      <connection>jobtology-postgres</connection>
+      <sqlfromfile>Y</sqlfromfile>
+      <sqlfilename>${PROJECT_HOME}/ontology/sql/024_sealed_catalog.sql</sqlfilename>
+      <sqlfilename_encoding>UTF-8</sqlfilename_encoding>
+      <useVariableSubstitution>N</useVariableSubstitution>
+      <sendOneStatement>Y</sendOneStatement>
+      <xloc>2000</xloc>
+      <yloc>720</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+    </action>
   </actions>
   <hops>
     <hop>
@@ -719,6 +775,62 @@
     </hop>
     <hop>
       <from>ontology 020_catalog_source_graph</from>
+      <to>ontology 021_scoped_validation</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>ontology 021_scoped_validation</from>
+      <to>Abort</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>ontology 021_scoped_validation</from>
+      <to>ontology 022_scoped_posting_census</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>ontology 022_scoped_posting_census</from>
+      <to>Abort</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>ontology 022_scoped_posting_census</from>
+      <to>ontology 023_scoped_catalog_edges</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>ontology 023_scoped_catalog_edges</from>
+      <to>Abort</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>ontology 023_scoped_catalog_edges</from>
+      <to>ontology 024_sealed_catalog</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>ontology 024_sealed_catalog</from>
+      <to>Abort</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>ontology 024_sealed_catalog</from>
       <to>Success</to>
       <enabled>Y</enabled>
       <evaluation>Y</evaluation>

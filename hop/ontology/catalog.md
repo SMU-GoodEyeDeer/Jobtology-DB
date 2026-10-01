@@ -1,7 +1,10 @@
 # Source-only catalog: operator contract
 
 This package is source code only. No release is approved or installed by checking
-it in. `019_catalog_approval.sql` and `020_catalog_source_graph.sql` are the next ordered actions in `install.hwf`.
+it in. `019_catalog_approval.sql`, `020_catalog_source_graph.sql`,
+`021_scoped_validation.sql`, `022_scoped_posting_census.sql`,
+`023_scoped_catalog_edges.sql`, and `024_sealed_catalog.sql` are ordered actions
+in `install.hwf`.
 It creates `catalog.catalog_approval` (immutable audit rows) and the independent
 singleton `catalog.catalog_active_release`; it does not modify
 `ontology.active_release`, `activate_release`, `publication_issue`, or analytics
@@ -17,8 +20,21 @@ For an already-installed ontology schema, the incremental SQL is:
 ```sh
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/019_catalog_approval.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/020_catalog_source_graph.sql
+psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/021_scoped_validation.sql
+psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/022_scoped_posting_census.sql
+psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/023_scoped_catalog_edges.sql
+psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/024_sealed_catalog.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/catalog_reader_grants.psql
 ```
+
+If 019/020 and the reader grant are already installed, install **021 through 024
+in order** after inspecting the existing `ingestion.validation_issue` definition
+and taking the normal operator backup. Migration 021 changes only CTE planner
+hints, keeps all issue branches, and refuses an unrecognized production view.
+Migration 024 installs write fences and an integrity attestation; reapply 024
+after reinstalling 019, which otherwise replaces the optimized approval gate.
+Do not rerun source preparation or approve a release merely because these
+migrations succeed; measure the complete verifier and reader path first.
 
 The grant script creates `jobtology_catalog_reader` as a LOGIN/NOINHERIT role
 without a password. Provision authentication separately. It fails if that role
@@ -98,6 +114,20 @@ Approval also requires the persisted source-only mode and a source-only graph
 inventory; a fully reviewed graph cannot be relabeled as a catalog projection.
 Do not repair a failed load by changing the catalog pointer manually.
 
+The seal protects source content and release membership under a transaction-wide
+write boundary. Guarded writes require READ COMMITTED; TRUNCATE of guarded source
+and graph tables is forbidden even before the first seal. The existing release
+remains readable while an unrelated release is prepared, but a newer load to the
+**same graph destination** deliberately closes its old approval until that load
+is verified and separately approved. This conservative destination-wide behavior
+is not uninterrupted old-release availability during a failed B reload. Approved
+content cannot be edited; authorized revocation and reload state changes close
+new reads. Database owners, DDL-capable roles, and superusers are trusted and can
+disable triggers: keep those credentials outside the catalog reader and source
+writer roles. Neither these fences nor the synthetic SQL fixture certify a native
+graph load. Rollback of the catalog pointer does not change `ontology.active_release`
+or the analytics publication gate.
+
 ## Public read signatures and shapes
 
 All functions return `jsonb` and are in schema `catalog`. Every read passes the
@@ -135,6 +165,7 @@ or demand metrics.
 
 ```sh
 uv run hop/ontology/tests/catalog.py
+uv run hop/ontology/tests/sealed_catalog_concurrency.py
 uv run hop/ontology/tests/catalog_graph.py
 uv run hop/ontology/tests/source_catalog.py
 ```
