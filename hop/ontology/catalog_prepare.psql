@@ -1,0 +1,5 @@
+\set ON_ERROR_STOP on
+SELECT release_id,state,manifest_hash FROM ontology.corpus_release WHERE release_id=:'release_id';
+SELECT source_id,run_id FROM ontology.source_pin WHERE release_id=:'release_id' ORDER BY source_id;
+SELECT ontology.prepare_catalog_source_v1(:'release_id');
+SELECT mode,contract_version FROM ontology.catalog_source_mode WHERE release_id=:'release_id';
