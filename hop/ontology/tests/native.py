@@ -2,7 +2,7 @@
 from pathlib import Path
 import json,subprocess,tempfile,os,shutil
 from run import ROOT,PG,cmd,sql
-HOP='jobtology-ontology-test-hop';NET='jobtology-ontology-test';WORK=Path(tempfile.mkdtemp(prefix='jobtology-ontology-native-'));REMOTE='/tmp/ontology-test'
+HOP=os.environ.get('ONTOLOGY_TEST_HOP','jobtology-ontology-test-hop');NET=os.environ.get('ONTOLOGY_TEST_NET','jobtology-ontology-test');WORK=Path(tempfile.mkdtemp(prefix='jobtology-ontology-native-'));REMOTE='/tmp/ontology-test'
 
 def stage(database='ontologytest',neo=None):
  if subprocess.run(['docker','network','inspect',NET],capture_output=True).returncode:cmd(['docker','network','create','--internal',NET])

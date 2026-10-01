@@ -10,7 +10,7 @@ import uuid
 import native
 from run import ROOT,PG,cmd,sql,q,expect_error
 
-NEO='jobtology-ontology-test-neo'
+NEO=os.environ.get('ONTOLOGY_TEST_NEO','jobtology-ontology-test-neo')
 def neo(query):
     return cmd(['docker','exec',NEO,'cypher-shell','--format','plain',query])
 

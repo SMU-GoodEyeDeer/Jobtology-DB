@@ -2,7 +2,7 @@
 from pathlib import Path
 import subprocess,json,os,time,uuid
 ROOT=Path(__file__).resolve().parents[3]
-PG='jobtology-ontology-test-pg'
+PG=os.environ.get('ONTOLOGY_TEST_PG','jobtology-ontology-test-pg')
 
 def cmd(args,**kwargs):
  p=subprocess.run(args,text=True,capture_output=True,**kwargs)
