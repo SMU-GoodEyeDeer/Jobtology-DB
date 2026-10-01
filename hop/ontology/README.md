@@ -15,6 +15,25 @@ posting/relationship and evidence queries. They pin one release and require an
 explicit preview for drafts; no active release is selected implicitly from the
 latest ingestion. Attachment processing remains [on hold by user](../../docs/hop-migration/attachment-status.md).
 
+The separate [source-only catalog contract](catalog.md) has an independently
+approved PREPARING-release pointer and restricted readers. It does not open the
+analytics publication gate or certify posting reviews.
+
+For a source-only release, use a **new** release ID and six exact pinned run IDs
+(never `LATEST`): `prepare_release.hwf` with `RELEASE_ID`, `ALIO_RUN_ID`,
+`JOB_RUN_ID`, `NCS_RUN_ID`, `QUALIFICATION_RUN_ID`, `QNET_RUN_ID`, and
+`CAREER_RUN_ID`; then `bind_observations.hwf` with the same `RELEASE_ID`,
+`catalog_prepare.psql` with `-v release_id="$CATALOG_RELEASE_ID"`, and
+`load_release.hwf` with that `RELEASE_ID`. The SQL script explicitly calls
+`prepare_catalog_source_v1` and `seal_catalog_source_v1`; do **not** run
+`assemble_reviewed.hwf` or `freeze_reviews` for this mode. Inspect the native
+VERIFIED load before the separate `catalog_approve.psql` operator action. Exact
+Hop and psql invocations, pin discovery, and approval preflight are in
+[the catalog runbook](catalog.md#source-only-preparation-and-native-load).
+For a disposable end-to-end check (not operational approval evidence), run
+`uv run hop/ontology/tests/catalog_graph.py`; it uses isolated PostgreSQL,
+Hop and Neo4j containers and checks replay and conflict recovery.
+
 The [interchange guide](../../ontology/README.md) covers `export_jsonld.hwf`, the
 versioned Schema.org/Jobtology vocabulary and independent RDF/SHACL validation.
 Exports require a sealed inventory; a structurally valid preview does not certify
