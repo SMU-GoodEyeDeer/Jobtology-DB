@@ -127,15 +127,9 @@ def check() -> None:
         'RELEASE_NOT_READY_FOR_ACTIVATION',
     )
     expect_error(
-        f"BEGIN; ALTER TABLE ontology.graph_node DISABLE TRIGGER USER; "
-        f"UPDATE ontology.graph_node SET content_hash='drift' WHERE release_id={q(release)}; "
-        "SELECT catalog.catalog_context_v1(); ROLLBACK",
-        'CATALOG_APPROVAL_STALE',
-    )
-    expect_error(
         "BEGIN; UPDATE ingestion.record SET normalized='{}'::jsonb "
         "WHERE run_id='fixture-ncs_career_path'; SELECT catalog.catalog_context_v1(); ROLLBACK",
-        'PINNED_SOURCE_CHANGED',
+        'SEALED_CATALOG_WRITE_FENCE',
     )
 
     before = graph.neo(

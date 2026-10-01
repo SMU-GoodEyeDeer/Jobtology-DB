@@ -35,6 +35,7 @@ def check() -> None:
          '-v', 'actor=operator', '-v', 'reason=replay', '-U', 'postgres', '-d', 'ontologytest'],
         input=(ROOT / 'hop/ontology/catalog_approve.psql').read_text())
     sql((ROOT / 'hop/ontology/sql/019_catalog_approval.sql').read_text())
+    sql((ROOT / 'hop/ontology/sql/024_sealed_catalog.sql').read_text())
     assert approval == sql('SELECT approval_id FROM catalog.catalog_active_release')
     assert sql("SELECT count(*) FROM catalog.catalog_approval") == '1'
     assert sql("SELECT count(*) FROM ontology.active_release") == '0'
@@ -68,15 +69,65 @@ def check() -> None:
     expect_error('SET ROLE jobtology_catalog_reader; SELECT * FROM ontology.revision', 'permission denied')
     expect_error('SET ROLE jobtology_catalog_reader; SELECT ontology.query_entity_v1(NULL,NULL,true)', 'permission denied')
     expect_error('SET ROLE jobtology_catalog_reader; SELECT catalog._approved_release()', 'permission denied')
+    expect_error("SET ROLE jobtology_catalog_reader; SELECT catalog._context('catalog-fixture')",
+                 'permission denied')
+    expect_error("SET ROLE jobtology_catalog_reader; SELECT catalog._source_inventory('catalog-fixture')",
+                 'permission denied')
     expect_error("SET ROLE jobtology_catalog_reader; SELECT catalog.approve_catalog_release('catalog-fixture','fixture-neo','x','y')", 'permission denied')
     expect_error('SET ROLE jobtology_catalog_reader; SELECT * FROM catalog.catalog_active_release', 'permission denied')
 
-    expect_error("BEGIN; ALTER TABLE ontology.graph_node DISABLE TRIGGER USER; "
-                 "UPDATE ontology.graph_node SET content_hash='drift' WHERE release_id='catalog-fixture'; "
-                 "SELECT catalog.catalog_context_v1(); COMMIT", 'CATALOG_APPROVAL_STALE')
-    expect_error("BEGIN; UPDATE ingestion.record SET normalized='{}'::jsonb "
-                 "WHERE run_id='fixture-ncs_career_path'; SELECT catalog.catalog_context_v1(); COMMIT",
-                 'PINNED_SOURCE_CHANGED')
+    assert sql("SELECT generation=1 AND contract_version='hop-catalog-source-v1' "
+               "AND node_count>0 AND edge_count>0 AND length(membership_hash)=64 "
+               "FROM catalog.integrity_attestation WHERE release_id='catalog-fixture'") == 't'
+    for table in ('source_pin', 'release_source_run', 'input_record', 'release_revision',
+                  'revision_support', 'release_relation', 'observation_freeze',
+                  'observation_history_member', 'posting_observation',
+                  'observation_membership', 'entity_observation_state', 'graph_node',
+                  'graph_edge', 'catalog_source_mode'):
+        if table not in ('graph_node', 'graph_edge'):
+            expect_error(f"INSERT INTO ontology.{table} SELECT * FROM ontology.{table} "
+                         "WHERE release_id='catalog-fixture' ON CONFLICT DO NOTHING",
+                         'SEALED_CATALOG_WRITE_FENCE')
+        expect_error(f'TRUNCATE ontology.{table} CASCADE', 'SEALED_CATALOG_TRUNCATE_FENCE')
+    expect_error("INSERT INTO ontology.graph_node SELECT release_id,'forbidden-node',labels,"
+                 "properties,content_hash FROM ontology.graph_node WHERE release_id='catalog-fixture' LIMIT 1",
+                 'SEALED_CATALOG_WRITE_FENCE')
+    expect_error("INSERT INTO ontology.graph_edge SELECT release_id,'forbidden-edge',subject_id,"
+                 "predicate,object_id,properties,content_hash FROM ontology.graph_edge "
+                 "WHERE release_id='catalog-fixture' LIMIT 1", 'SEALED_CATALOG_WRITE_FENCE')
+    sql("INSERT INTO ontology.graph_node SELECT * FROM ontology.graph_node "
+        "WHERE release_id='catalog-fixture' ON CONFLICT DO NOTHING")
+    for table, predicate in (('run', "run_id='fixture-job_alio'"),
+                             ('partition', "run_id='fixture-job_alio'"),
+                             ('document', "run_id='fixture-job_alio'"),
+                             ('record', "run_id='fixture-job_alio'")):
+        override = 'OVERRIDING SYSTEM VALUE' if table == 'record' else ''
+        expect_error(f"INSERT INTO ingestion.{table} {override} SELECT * FROM ingestion.{table} "
+                     f'WHERE {predicate} ON CONFLICT DO NOTHING', 'SEALED_CATALOG_WRITE_FENCE')
+        expect_error(f'TRUNCATE ingestion.{table} CASCADE', 'SEALED_CATALOG_TRUNCATE_FENCE')
+    expect_error("UPDATE ingestion.record SET normalized='{}'::jsonb "
+                 "WHERE run_id='fixture-ncs_career_path'", 'SEALED_CATALOG_WRITE_FENCE')
+    expect_error("DELETE FROM ingestion.document WHERE run_id='fixture-job_alio'",
+                 'SEALED_CATALOG_WRITE_FENCE')
+    expect_error("UPDATE ontology.corpus_release SET manifest_hash=repeat('a',64) "
+                 "WHERE release_id='catalog-fixture'", 'SEALED_CATALOG_RELEASE_IMMUTABLE')
+    expect_error("UPDATE ontology.corpus_release SET created_at=created_at+interval '1 second' "
+                 "WHERE release_id='catalog-fixture'", 'SEALED_CATALOG_RELEASE_IMMUTABLE')
+    expect_error('SET ROLE jobtology_catalog_reader; SELECT * FROM catalog.integrity_attestation',
+                 'permission denied')
+    expect_error("SET ROLE jobtology_catalog_reader; INSERT INTO catalog.catalog_active_release "
+                 "VALUES(true,1)", 'permission denied')
+    expect_error("SET ROLE jobtology_catalog_reader; ALTER TABLE ontology.graph_node DISABLE TRIGGER USER",
+                 'permission denied')
+    assert json.loads(sql("BEGIN READ ONLY; SET ROLE jobtology_catalog_reader; "
+                          "SELECT catalog.catalog_context_v1(); COMMIT"))['release_id'] == 'catalog-fixture'
+    sql("INSERT INTO ingestion.run(run_id,source_id,mode,policy_revision,state,created_at,completed_at) "
+        "VALUES('unrelated-future','job_alio','FULL','fixture','READY',now(),now())")
+    choices = json.dumps({source: 'fixture-' + source for source in fixture()})
+    sql("SELECT ontology.prepare_release('catalog-next', '" + choices + "'::jsonb); "
+        "SELECT ontology.assemble_sources('catalog-next')")
+    assert sql("SELECT count(*) FROM ontology.release_revision WHERE release_id='catalog-next'") != '0'
+    assert json.loads(sql('SELECT catalog.catalog_context_v1()'))['release_id'] == 'catalog-fixture'
     sql("INSERT INTO ontology.graph_load(load_id,release_id,database_id,manifest_hash,state) "
         "SELECT 'reload-running','catalog-fixture','fixture-neo',manifest_hash,'RUNNING' "
         "FROM ontology.corpus_release WHERE release_id='catalog-fixture'")
