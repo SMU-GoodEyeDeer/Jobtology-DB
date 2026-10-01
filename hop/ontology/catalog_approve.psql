@@ -1,0 +1,10 @@
+\set ON_ERROR_STOP on
+BEGIN;
+SELECT release_id,state,manifest_hash,graph_verified_at,data_as_of
+FROM ontology.corpus_release WHERE release_id = :'release_id';
+SELECT load_id,release_id,database_id,manifest_hash,state,started_at,finished_at,node_count,edge_count
+FROM ontology.graph_load WHERE database_id = :'database_id'
+ORDER BY started_at DESC,load_id DESC LIMIT 1;
+SELECT catalog.approve_catalog_release(:'release_id',:'database_id',:'actor',:'reason');
+SELECT catalog.catalog_context_v1();
+COMMIT;
