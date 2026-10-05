@@ -3,7 +3,8 @@
 This package is source code only. No release is approved or installed by checking
 it in. `019_catalog_approval.sql`, `020_catalog_source_graph.sql`,
 `021_scoped_validation.sql`, `022_scoped_posting_census.sql`,
-`023_scoped_catalog_edges.sql`, and `024_sealed_catalog.sql` are ordered actions
+`023_scoped_catalog_edges.sql`, `024_sealed_catalog.sql`, and
+`025_live_source_feed.sql` are ordered actions
 in `install.hwf`.
 It creates `catalog.catalog_approval` (immutable audit rows) and the independent
 singleton `catalog.catalog_active_release`; it does not modify
@@ -40,7 +41,7 @@ The grant script creates `jobtology_catalog_reader` as a LOGIN/NOINHERIT role
 without a password. Provision authentication separately. It fails if that role
 can use the `ontology` schema (including via PUBLIC); remove that leakage before
 deploying it. Do not add the reader to privileged roles. Only the catalog schema
-and five read function signatures are granted. Tables, the internal gate,
+and eight read function signatures are granted. Tables, the internal gate,
 approval, and ontology preview functions are not granted. Install as a trusted
 schema owner with access to ontology/ingestion/retention; restrict owner and
 approver credentials independently of the reader role. Do not run the grant
@@ -161,6 +162,38 @@ same `release_id` and may fail closed after a reload or pointer change. Summary
 counts are source inventory/review *status*, not quality, capability, coverage,
 or demand metrics.
 
+## Live source feed (hop-live-source-v1)
+
+These independent `catalog` functions return `jsonb` directly from the latest
+READY non-SMOKE ingestion run per source. They **do not** use the sealed/approved
+release, its graph, or the approval gate. All responses include
+`contract_version: "hop-live-source-v1"` and `sources` entries with `source_id`,
+`run_id`, and ISO-8601 `data_as_of` (run completion). No job description,
+eligibility, preference, selection, or disqualification text is returned.
+
+| Signature | Response |
+|---|---|
+| `live_postings_v1(search text DEFAULT NULL, ncs_category text DEFAULT NULL, region text DEFAULT NULL, open_on date DEFAULT NULL, page_size integer DEFAULT 20, page_offset integer DEFAULT 0)` | `filters:{q,ncs_category,region,open_on}`, `limit`, `offset`, `total`, `items` with posting ID, title, organization, dates, ongoing, regions, employment types, recruitment type, education, paired NCS categories, headcount, and HTTP(S) source URL |
+| `live_posting_v1(posting_choice text)` | `item` with the same posting projection; only a posting in the latest READY job run is found |
+| `live_exam_sessions_v1(qualification text DEFAULT NULL, from_date date DEFAULT NULL, to_date date DEFAULT NULL, page_size integer DEFAULT 20, page_offset integer DEFAULT 0)` | `filters:{qualification,from,to}`, `limit`, `offset`, `total`, `items` with qualification code/name, year, round, category, session name, and `written`/`practical` registration, exam and result dates |
+
+Postings require `job_alio`; exams require `qnet_schedule` and optionally join
+`ncs_qualification` for names. Search is a literal case-insensitive substring of
+title or organization name; NCS code is case-insensitive exact, NCS name and
+region are exact. `open_on` intersects posting dates. Qualification matches code
+exactly or name by case-insensitive substring. Exam date bounds match any valid
+session date inclusively. Empty strings normalize to null; limits are 1–100,
+offsets nonnegative. Errors are `LIVE_SOURCE_UNAVAILABLE`, `INVALID_LIVE_PAGE`,
+`INVALID_LIVE_FILTER`, and `LIVE_POSTING_NOT_FOUND` (SQLSTATE P0001).
+
+On an already-installed target, the incremental install is **only** the new SQL,
+then the reader grant script as a privilege administrator (not via Hop):
+
+```sh
+psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/025_live_source_feed.sql
+psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/catalog_reader_grants.psql
+```
+
 ## Disposable verification
 
 ```sh
@@ -168,6 +201,7 @@ uv run hop/ontology/tests/catalog.py
 uv run hop/ontology/tests/sealed_catalog_concurrency.py
 uv run hop/ontology/tests/catalog_graph.py
 uv run hop/ontology/tests/source_catalog.py
+uv run hop/ontology/tests/live_feed.py
 ```
 
 These tests reuse `ontology/tests/run.py` and its **disposable** `ontologytest`

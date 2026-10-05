@@ -435,6 +435,20 @@
       <draw>Y</draw>
       <parallel>N</parallel>
     </action>
+    <action>
+      <name>ontology 025_live_source_feed</name>
+      <type>SQL</type>
+      <connection>jobtology-postgres</connection>
+      <sqlfromfile>Y</sqlfromfile>
+      <sqlfilename>${PROJECT_HOME}/ontology/sql/025_live_source_feed.sql</sqlfilename>
+      <sqlfilename_encoding>UTF-8</sqlfilename_encoding>
+      <useVariableSubstitution>N</useVariableSubstitution>
+      <sendOneStatement>Y</sendOneStatement>
+      <xloc>2240</xloc>
+      <yloc>720</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+    </action>
   </actions>
   <hops>
     <hop>
@@ -831,6 +845,20 @@
     </hop>
     <hop>
       <from>ontology 024_sealed_catalog</from>
+      <to>ontology 025_live_source_feed</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>ontology 025_live_source_feed</from>
+      <to>Abort</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>ontology 025_live_source_feed</from>
       <to>Success</to>
       <enabled>Y</enabled>
       <evaluation>Y</evaluation>
