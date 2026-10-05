@@ -20,7 +20,9 @@ GRANT EXECUTE ON FUNCTION catalog.catalog_context_v1(text),
   catalog.catalog_summary_v1(text),
   catalog.live_postings_v1(text,text,text,date,integer,integer),
   catalog.live_posting_v1(text),
-  catalog.live_exam_sessions_v1(text,date,date,integer,integer) TO jobtology_catalog_reader;
+   catalog.live_exam_sessions_v1(text,date,date,integer,integer),
+   catalog.live_ncs_demand_v1(text,integer,integer),
+   catalog.product_role_inputs_v1(text[]) TO jobtology_catalog_reader;
 DO $$ BEGIN
   IF has_schema_privilege('jobtology_catalog_reader','ontology','USAGE') OR
    EXISTS(SELECT 1 FROM pg_namespace WHERE nspname IN ('ingestion','cs')
