@@ -88,7 +88,9 @@ BEGIN
 
  WITH links AS MATERIALIZED (
    SELECT p.posting_source,p.publication_id,p.created_at,i.posting_id,i.name,i.payload,
-   i.payload->>'source_posting_id' AS source_posting_id,
+   coalesce(i.payload->>'source_posting_id',
+    CASE WHEN strpos(i.posting_identity,'job-alio:posting:')=1
+     THEN substr(i.posting_identity,length('job-alio:posting:')+1) END) AS source_posting_id,
    l.value AS link,l.ordinal,
    l.value->>'competency_code' AS competency_code
    FROM catalog._live_link_publications_with_provenance() p

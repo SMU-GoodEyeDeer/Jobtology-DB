@@ -124,7 +124,7 @@ def seed_legacy_and_newer_nara() -> None:
             "('newer-nara','nara_job','fixture-nara_job')")
     for publication, posting, identity, payload in [
         ('legacy-job', 'L1', 'job-alio:posting:legacy',
-         {'source_posting_id': 'legacy', 'links': [
+         {'links': [
              {'competency_code': '2001020102_24v1', 'reviewer_kind': 'assistant'}]}),
         ('legacy-job', 'L2', 'source:posting:nara_job:conflict',
          {'source_id': 'nara_job', 'links': [
@@ -241,6 +241,8 @@ def check() -> None:
                 ('2001020101_24v1', 1, 1), ('2001020102_24v1', 1, 1)]
     assert historical['items'][1]['evidence'][0]['publication_id'] == 'legacy-job'
     assert historical['items'][1]['evidence'][0]['created_at'] == '2026-09-06T00:00:00+00:00'
+    # Legacy payloads omit source_posting_id; it is derived from the verified identity.
+    assert historical['items'][1]['evidence'][0]['source_posting_id'] == 'legacy'
 
 
 if __name__ == '__main__':
