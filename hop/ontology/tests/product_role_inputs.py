@@ -65,7 +65,8 @@ def check() -> None:
     # When: inputs for a requested eight-digit occupation code are read.
     inputs = response("SELECT catalog.product_role_inputs_v1(ARRAY['20010201'])")
     # Then: every version and exact mapping appears, without private review data.
-    assert set(inputs) == {'contract_version', 'sources', 'units', 'qualifications', 'evidence'}
+    assert set(inputs) == {'contract_version', 'sources', 'units', 'qualifications', 'evidence',
+                           'linked_postings'}
     assert inputs['contract_version'] == 'jobtology-product-role-inputs-v1'
     assert inputs['sources'] == [
         {'source_id': 'ncs_competency', 'run_id': 'fixture-ncs_competency',
@@ -103,12 +104,21 @@ def check() -> None:
         {'competency_code': '2001020103_24v1', 'postings': 1, 'links': 1,
          'publication_ids': ['nara']},
     ]
+    # Then: each attributable posting appears once per source with its distinct codes,
+    # so the BE can derive a duplicate-free demand denominator per role.
+    assert inputs['linked_postings'] == [
+        {'posting_key': 'job_alio:P1', 'competency_codes': ['2001020101_24v1']},
+        {'posting_key': 'job_alio:P2', 'competency_codes': ['2001020102_24v1']},
+        {'posting_key': 'nara_job:N2', 'competency_codes': ['2001020103_24v1']},
+        {'posting_key': 'nara_job:P1', 'competency_codes': ['2001020101_24v1']},
+    ]
     assert not any(secret in json.dumps(inputs, ensure_ascii=False)
                    for secret in ('PRIVATE', 'reviewer', 'decision_id', 'reason', 'notes',
                                   'stale', 'failure'))
     other = response("SELECT catalog.product_role_inputs_v1(ARRAY['20010202'])")
     assert [unit['code'] for unit in other['units']] == ['2001020201_24v1']
     assert other['evidence'] == [] and other['qualifications'] == []
+    assert other['linked_postings'] == []
     assert response("SELECT catalog.product_role_inputs_v1(ARRAY['20010201','20010201'])") == inputs
     for query in ('SELECT catalog.product_role_inputs_v1(NULL)',
                   "SELECT catalog.product_role_inputs_v1(ARRAY[]::text[])",
@@ -139,6 +149,10 @@ def check() -> None:
          'publication_ids': ['newer-nara']},
         {'competency_code': '2001020102_24v1', 'postings': 1, 'links': 1,
          'publication_ids': ['legacy-job']},
+    ]
+    assert historical['linked_postings'] == [
+        {'posting_key': 'job_alio:L1', 'competency_codes': ['2001020102_24v1']},
+        {'posting_key': 'nara_job:N3', 'competency_codes': ['2001020101_24v1']},
     ]
     run.sql("UPDATE ingestion.run SET state='FAILED' WHERE run_id='fixture-ncs_qualification'")
     optional = response("SELECT catalog.product_role_inputs_v1(ARRAY['20010201'])")

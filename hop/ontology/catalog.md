@@ -4,8 +4,8 @@ This package is source code only. No release is approved or installed by checkin
 it in. `019_catalog_approval.sql`, `020_catalog_source_graph.sql`,
 `021_scoped_validation.sql`, `022_scoped_posting_census.sql`,
 `023_scoped_catalog_edges.sql`, `024_sealed_catalog.sql`, and
-`025_live_source_feed.sql`, `026_live_ncs_demand.sql`, and
-`027_product_role_inputs.sql` are ordered actions
+`025_live_source_feed.sql`, `026_live_ncs_demand.sql`,
+`027_product_role_inputs.sql`, and `028_product_role_demand_base.sql` are ordered actions
 in `install.hwf`.
 It creates `catalog.catalog_approval` (immutable audit rows) and the independent
 singleton `catalog.catalog_active_release`; it does not modify
@@ -29,10 +29,11 @@ psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/024_sealed_cat
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/025_live_source_feed.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/026_live_ncs_demand.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/027_product_role_inputs.sql
+psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/028_product_role_demand_base.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/catalog_reader_grants.psql
 ```
 
-If 019/020 and the reader grant are already installed, install **021 through 027
+If 019/020 and the reader grant are already installed, install **021 through 028
 in order**, then rerun the current reader grant, after inspecting the existing
 `ingestion.validation_issue` definition and taking the normal operator backup.
 Migration 021 changes only CTE planner
@@ -48,7 +49,7 @@ SQL 025 followed by that same commit's `catalog_reader_grants.psql`. Do not use
 the working-tree grant script for A-only: it also names the 026 and 027
 functions. The A-only grant remains subject to the same privilege inspection,
 operator approval, and backup requirements below. The full-current-source path
-is the 025, 026, 027, then current-grant sequence shown above.
+is the 025, 026, 027, 028, then current-grant sequence shown above.
 
 The grant script creates `jobtology_catalog_reader` as a LOGIN/NOINHERIT role
 without a password. Provision authentication separately. It fails if that role
@@ -207,12 +208,13 @@ the full-current-source path:
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/025_live_source_feed.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/026_live_ncs_demand.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/027_product_role_inputs.sql
+psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/028_product_role_demand_base.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/catalog_reader_grants.psql
 ```
 
 For A-only, use the 025 SQL and grant script from commit
 `5d27a4b940b307b67efbb0a45c23e026836c57be` only. Do not mix that installation
-with the current working-tree grant script or with 026/027.
+with the current working-tree grant script or with 026/027/028.
 
 ## Live NCS demand (hop-live-ncs-demand-v1)
 
@@ -245,13 +247,14 @@ The same selection governs per-code contributor-only `publication_ids` in
 product-role inputs; posting counts are distinct by `(posting_source,posting_id)`.
 
 This migration is part of the full-current-source sequence. Install 025 first,
-then 026, then 027, and rerun reader grants only after all three migrations are
+then 026, then 027, then 028, and rerun reader grants only after all four migrations are
 present, as privilege admin:
 
 ```sh
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/025_live_source_feed.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/026_live_ncs_demand.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/027_product_role_inputs.sql
+psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/028_product_role_demand_base.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/catalog_reader_grants.psql
 ```
 
@@ -267,6 +270,12 @@ minimum/total training hours (that run is optional). `evidence` has only
 competency code, source-scoped distinct posting count, link count, and sorted distinct
 `publication_ids` contributing to that exact code from the same selected READY
 publications as live NCS demand; it does not expose duties or private review data.
+`linked_postings` (added by 028, which replaces the function body with the same
+signature and grants) lists each attributable posting once as
+`{posting_key: "<posting_source>:<posting_id>", competency_codes: [...]}` with the
+sorted distinct requested-occupation codes it links to, from the same publication
+selection. Consumers derive a duplicate-free per-role demand denominator from it;
+it carries no titles, duties, or review data.
 The sources array records run IDs/completion timestamps and selected publication
 IDs/creation timestamps, posting source and latest-publication flag. Historical
 publication evidence must be dated and must not be represented as current demand.
@@ -275,13 +284,14 @@ codes (`INVALID_PRODUCT_ROLE_INPUT`); a missing READY competency run raises
 `LIVE_SOURCE_UNAVAILABLE`. It is not a sealed-catalog approval or publication.
 
 This migration is part of the full-current-source sequence. Install 025 first,
-then 026, then 027, and rerun reader grants only after all three migrations are
+then 026, then 027, then 028, and rerun reader grants only after all four migrations are
 present, as privilege admin:
 
 ```sh
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/025_live_source_feed.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/026_live_ncs_demand.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/027_product_role_inputs.sql
+psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/028_product_role_demand_base.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/catalog_reader_grants.psql
 ```
 
