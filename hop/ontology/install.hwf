@@ -492,6 +492,20 @@
       <parallel>N</parallel>
     </action>
     <action>
+      <name>ontology 028_product_role_demand_base</name>
+      <type>SQL</type>
+      <connection>jobtology-postgres</connection>
+      <sqlfromfile>Y</sqlfromfile>
+      <sqlfilename>${PROJECT_HOME}/ontology/sql/028_product_role_demand_base.sql</sqlfilename>
+      <sqlfilename_encoding>UTF-8</sqlfilename_encoding>
+      <useVariableSubstitution>N</useVariableSubstitution>
+      <sendOneStatement>Y</sendOneStatement>
+      <xloc>800</xloc>
+      <yloc>1040</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+    </action>
+    <action>
       <name>ontology 029_flat_catalog_compatibility</name>
       <type>SQL</type>
       <connection>jobtology-postgres</connection>
@@ -500,7 +514,7 @@
       <sqlfilename_encoding>UTF-8</sqlfilename_encoding>
       <useVariableSubstitution>N</useVariableSubstitution>
       <sendOneStatement>Y</sendOneStatement>
-      <xloc>800</xloc>
+      <xloc>1040</xloc>
       <yloc>1040</yloc>
       <draw>Y</draw>
       <parallel>N</parallel>
@@ -957,6 +971,20 @@
     </hop>
     <hop>
       <from>ontology 028_flat_graph_projection</from>
+      <to>ontology 028_product_role_demand_base</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>ontology 028_product_role_demand_base</from>
+      <to>Abort</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>ontology 028_product_role_demand_base</from>
       <to>ontology 029_flat_catalog_compatibility</to>
       <enabled>Y</enabled>
       <evaluation>Y</evaluation>

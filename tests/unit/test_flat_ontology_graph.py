@@ -95,19 +95,43 @@ def test_streamed_property_queries_have_one_jdbc_load_token_parameter() -> None:
 
 
 def test_focused_and_canonical_installers_end_with_the_same_contract() -> None:
+    flat_migrations = ["028_flat_graph_projection.sql", "029_flat_catalog_compatibility.sql"]
     for name in ("install_flat_graph.hwf", "install.hwf"):
         tree = ET.parse(ONTOLOGY / name)
-        statements = [
-            item.findtext("sqlfilename", "")
+        sql_actions = [
+            item
             for item in tree.findall("actions/action")
             if item.findtext("type") == "SQL"
         ]
-        assert statements[-2:] == [
-            "${PROJECT_HOME}/ontology/sql/028_flat_graph_projection.sql",
-            "${PROJECT_HOME}/ontology/sql/029_flat_catalog_compatibility.sql",
-        ]
+        expected = sorted(path.name for path in (ONTOLOGY / "sql").glob("*.sql"))
         if name == "install_flat_graph.hwf":
-            assert len(statements) == 2
+            expected = flat_migrations
+        else:
+            assert expected[-3:] == [
+                flat_migrations[0],
+                "028_product_role_demand_base.sql",
+                flat_migrations[1],
+            ]
+        assert [item.findtext("sqlfilename") for item in sql_actions] == [
+            "${PROJECT_HOME}/ontology/sql/" + filename for filename in expected
+        ]
+        names = [item.findtext("name") for item in sql_actions]
+        assert len(names) == len(set(names))
+        expected_hops = [("Start", names[0], "Y", "Y")]
+        for index, action_name in enumerate(names):
+            successor = names[index + 1] if index + 1 < len(names) else "Success"
+            expected_hops.extend(
+                [(action_name, "Abort", "N", "N"), (action_name, successor, "Y", "N")]
+            )
+        actual_hops = []
+        for hop in tree.findall("hops/hop"):
+            assert hop.findtext("enabled") == "Y"
+            actual_hops.append(
+                tuple(
+                    hop.findtext(field) for field in ("from", "to", "evaluation", "unconditional")
+                )
+            )
+        assert sorted(actual_hops) == sorted(expected_hops)
 
 
 def test_grouped_properties_keep_independent_typed_verifiers_and_endpoint_seeks() -> None:
