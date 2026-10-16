@@ -1,5 +1,45 @@
 # Current Hop migration handoff
 
+Updated: **2026-10-16 KST — admin dashboard release preparation.** The user
+requested an eight-character minimum dashboard password and authorized commit
+and push of the dashboard changes. Configuration, validation tests and operator
+documentation now require at least 8 password characters; the independent
+session-signing secret still requires at least 32 characters. The 8 focused
+authentication tests, Ruff and whitespace checks passed. The prior deployed
+revision `18abac0` predates the dashboard; a new revision must be built and
+deployed before the dashboard is available. Commit, push and deployment remain
+pending at this preparation checkpoint. The 31-test verification checkpoint
+below is retained as historical evidence.
+
+Updated: **2026-10-16 KST — repository-only admin dashboard; production remains
+unchanged.** The same repository now includes an authenticated ingestion/graph
+dashboard, explicit Coolify Railpack configuration, bounded read-only telemetry,
+and a durable approved-action queue with a separate host worker. The dashboard
+uses its own login; Coolify manages the intended `jobtology-admin.yeongmin.net`
+domain/TLS. Controls default disabled and require reviewed local profiles plus a
+live worker. Only the existing due-source refresh and approved local JobKorea
+loader are dispatchable; no paid inference or job-board content recovery was
+added. See the [dashboard runbook](../admin-dashboard.md).
+
+The 31 admin tests, Ruff, strict Pyright, fresh development installation and full
+test collection passed. Disposable PostgreSQL 18/Neo4j 2026.06 actual-driver
+fixtures validated the documented column grants, source/ontology duplicate
+exclusion (including ontology nodes also labeled `entity`), ledger SMOKE
+exclusion, prior READY visibility after failure, and summary counts. A bounded
+real-process worker check with a harmless stub passed authenticated API enqueue,
+RUNNING/disabled controls, graceful drain, SUCCEEDED and private 0600 logs;
+it did not execute either ingestion script.
+Chromium desktop/mobile flows and simulated action/CSRF/idempotency/error paths
+passed without JavaScript errors or external page requests. The built wheel
+contains the app and three static assets. Railpack 0.42.0 schema validation and
+plan preparation passed; no full image build or Coolify deployment was performed.
+Live progress percentages are unavailable; the UI shows reported run states and
+only renders percentages when explicitly supplied. There were no production
+database grants, refresh/load operations or provider calls, and no commits/push.
+Protected verification receipt:
+`~/.local/state/jobtology-hop/admin-dashboard-20261016-45b75d2d5a52/receipt.json`,
+SHA256 `5a1bfbd665119230a98f406847de6eda7c580a3ad5d1f2ea48a06abd57495ded`.
+
 Updated: **2026-10-16 KST — repository-only integration fixes; no deployment or
 runtime change.** The runtime deployment allowlist now includes
 `028_product_role_demand_base.sql`; regression coverage checks real-package

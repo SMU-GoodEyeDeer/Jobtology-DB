@@ -1,0 +1,23 @@
+[Unit]
+Description=Jobtology admin approved-operation host worker
+After=local-fs.target docker.service
+RequiresMountsFor=/var/lib/jobtology-admin
+
+[Service]
+Type=simple
+# Replace with the existing ingestion operator and matching web runtime UID/GID.
+# Host-only Docker access is inherited from that operator; never mount the socket in web.
+User=jobtology-operator
+Group=jobtology-operator
+WorkingDirectory=/srv/Jobtology-DB
+EnvironmentFile=/etc/jobtology-admin/worker.env
+ExecStart=/srv/Jobtology-DB/.venv/bin/python -m jobtology_db.admin.worker
+UMask=0077
+Restart=always
+RestartSec=10
+# A stop drains the current operation; neither web redeploys nor client disconnects cancel it.
+KillMode=process
+TimeoutStopSec=infinity
+
+[Install]
+WantedBy=multi-user.target

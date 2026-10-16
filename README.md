@@ -18,6 +18,9 @@ production rollout, embeddings and broader serving extensions remain deferred. C
 See [the processing/operations guide](docs/processing-pipeline.md) for implementation, deployment
 instructions, limitations, and local processing results.
 
+The [admin dashboard deployment guide](docs/admin-dashboard.md) covers the separate dashboard login,
+Coolify Railpack setup, read-only database telemetry and approved host-worker operations.
+
 The [ontology completion ledger](docs/hop-migration/ontology-completion.md) tracks the full Hop
 transformation, independent reviews and remaining serving-publication work.
 
@@ -154,7 +157,8 @@ state; `READY` means validated staging, not final source acceptance or a publish
   plan's 100 GiB free-space reserve.
 - The included development PostgreSQL publishes only to `127.0.0.1:55432`. On Goldship, keep
   ingestion, PostgreSQL, Neo4j, and operator UIs internal/localhost or Tailscale-only. This repository
-  does not expose a public HTTP service; the separately deployed frontend remains the public edge.
+  keeps ingestion and databases private. The optional authenticated admin dashboard has its own
+  explicitly configured Coolify domain; see its deployment guide above.
 - In the Coolify stack, replace the development DSN/password with runtime secrets and address
   PostgreSQL by its private service name on port 5432; do not publish that port. FE-to-BE remains on
   the private application network behind the FE's public domain, while database/admin access is not

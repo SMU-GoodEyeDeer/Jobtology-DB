@@ -1,0 +1,27 @@
+{
+  "$schema": "https://schema.railpack.com",
+  "provider": "python",
+  "packages": {
+    "python": "3.12"
+  },
+  "steps": {
+    "install": {
+      "commands": [
+        { "path": "/app/.venv/bin" },
+        { "src": "pyproject.toml", "dest": "pyproject.toml" },
+        { "src": "uv.lock", "dest": "uv.lock" },
+        "uv sync --frozen --no-dev --extra admin --no-install-project"
+      ]
+    },
+    "build": {
+      "secrets": [],
+      "commands": [
+        "uv sync --frozen --no-dev --extra admin"
+      ]
+    }
+  },
+  "deploy": {
+    "paths": ["/app/.venv/bin"],
+    "startCommand": "uvicorn jobtology_db.admin.app:app --host 0.0.0.0 --port ${PORT:-8000} --no-access-log"
+  }
+}

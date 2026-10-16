@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "actions": [
+    {
+      "id": "refresh-due",
+      "label": "Refresh due official sources",
+      "description": "Run the existing due-source scheduler once. It can fetch configured official sources; JobKorea remains local only. No paid inference.",
+      "kind": "refresh_due",
+      "parameters": {
+        "runtime_env": "/etc/jobtology-hop/runtime.env"
+      }
+    },
+    {
+      "id": "load-approved-jobkorea",
+      "label": "Load approved local JobKorea snapshot",
+      "description": "Load one operator-reviewed, locally archived composition using its pinned deployment manifest. No source-site requests or paid inference.",
+      "kind": "load_jobkorea",
+      "parameters": {
+        "manifest": "/srv/jobtology-private/approved/manifest.json",
+        "manifest_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "composition_dir": "/srv/jobtology-private/approved/composition",
+        "checkpoint_dir": "/srv/jobtology-private/checkpoints/approved-import"
+      }
+    }
+  ]
+}
