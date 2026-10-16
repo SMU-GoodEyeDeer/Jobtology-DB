@@ -28,6 +28,12 @@ DO $$ BEGIN
    EXISTS(SELECT 1 FROM pg_namespace WHERE nspname IN ('ingestion','cs')
     AND has_schema_privilege('jobtology_catalog_reader',oid,'USAGE')) OR
   has_function_privilege('jobtology_catalog_reader','catalog.approve_catalog_release(text,text,text,text)','EXECUTE') OR
+  coalesce(has_function_privilege('jobtology_catalog_reader',
+   to_regprocedure('catalog.approve_flat_catalog_release(text,text,text,text)'),'EXECUTE'),false) OR
+  coalesce(has_table_privilege('jobtology_catalog_reader',
+   to_regclass('catalog.flat_catalog_active_release'),'SELECT,INSERT,UPDATE,DELETE,TRUNCATE'),false) OR
+  coalesce(has_table_privilege('jobtology_catalog_reader',
+   to_regclass('catalog.flat_catalog_approval'),'SELECT,INSERT,UPDATE,DELETE,TRUNCATE'),false) OR
   has_table_privilege('jobtology_catalog_reader','catalog.catalog_active_release','SELECT') THEN
   RAISE EXCEPTION 'CATALOG_READER_PRIVILEGE_LEAK';
  END IF;

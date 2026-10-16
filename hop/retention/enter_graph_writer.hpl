@@ -2,7 +2,7 @@
 <pipeline>
   <info>
     <name>enter_graph_writer</name>
-    <description>Register an active graph writer before it reads or mutates any graph batch.</description>
+    <description>Register an active graph writer before it reads or mutates business graph entities.</description>
     <pipeline_type>Normal</pipeline_type>
     <size_rowset>100</size_rowset>
     <parameters />

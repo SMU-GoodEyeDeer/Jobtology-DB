@@ -9,7 +9,7 @@ CREATE SCHEMA IF NOT EXISTS ingestion;
 CREATE TABLE IF NOT EXISTS ingestion.run (
     run_id text PRIMARY KEY,
     source_id text NOT NULL CHECK (source_id IN (
-        'alio_organization', 'job_alio', 'nara_job', 'ncs_career_path',
+        'alio_organization', 'job_alio', 'nara_job', 'jobkorea', 'ncs_career_path',
         'ncs_competency', 'ncs_qualification', 'qnet_schedule')),
     mode text NOT NULL CHECK (mode IN ('SMOKE', 'FULL', 'REPLAY')),
     parser_version text NOT NULL DEFAULT 'hop-normalize-v1',
@@ -44,8 +44,8 @@ CREATE TABLE IF NOT EXISTS ingestion.partition (
     CHECK (jsonb_typeof(request_context) = 'object')
 );
 
--- One row per archived HTTP response attempt. page_no=1 is also used for a
--- single detail/file. confirmation_no=1 denotes the SECOND successful empty check.
+-- One row per archived HTTP response attempt or supplied local file.
+-- page_no=1 is also used for a single detail/file. confirmation_no=1 denotes the SECOND successful empty check.
 -- Failed transport attempts with no response file belong in Hop's attempt log;
 -- they never count as selected documents or completed partitions.
 CREATE TABLE IF NOT EXISTS ingestion.document (
@@ -59,7 +59,7 @@ CREATE TABLE IF NOT EXISTS ingestion.document (
     raw_sha256 text NOT NULL CHECK (raw_sha256 ~ '^[0-9a-f]{64}$'),
     byte_length bigint NOT NULL CHECK (byte_length >= 0),
     encoding text NOT NULL,
-    http_status integer NOT NULL,
+    http_status integer,
     provider_result text,
     retrieved_at timestamptz NOT NULL,
     -- For ALIO, retain requested page/size when absent in the response.
@@ -69,9 +69,13 @@ CREATE TABLE IF NOT EXISTS ingestion.document (
     item_count integer CHECK (item_count >= 0),
     selected boolean NOT NULL DEFAULT false,
     verified_at timestamptz,
+    transport text NOT NULL DEFAULT 'HTTP' CHECK (transport IN ('HTTP','LOCAL_FILE')),
     PRIMARY KEY (run_id, document_id),
     UNIQUE (run_id, partition_id, page_no, confirmation_no, attempt_no),
-    FOREIGN KEY (run_id, partition_id) REFERENCES ingestion.partition
+    FOREIGN KEY (run_id, partition_id) REFERENCES ingestion.partition,
+    CONSTRAINT document_transport_metadata_check CHECK (
+      (transport='HTTP' AND http_status IS NOT NULL) OR
+      (transport='LOCAL_FILE' AND http_status IS NULL AND provider_result IS NULL))
 );
 CREATE UNIQUE INDEX IF NOT EXISTS document_one_selection
     ON ingestion.document (run_id, partition_id, page_no, confirmation_no)
@@ -238,6 +242,22 @@ SELECT 'nara_job',p.run_id,
        p.normalized
 FROM ingestion.nara_job_posting p;
 
+-- JobKorea graph facts are explicit metadata. Raw payloads, URL references and
+-- narratives stay in PostgreSQL; existing source projections keep their facts.
+CREATE OR REPLACE FUNCTION ingestion.jobkorea_graph_facts(n jsonb) RETURNS jsonb
+LANGUAGE sql IMMUTABLE AS $$
+ SELECT coalesce(jsonb_object_agg(key,value),'{}'::jsonb) FROM jsonb_each(n)
+ WHERE key IN ('kind','posting_id','native_posting_id','representation','title',
+ 'organization_name','company_name_raw','employer_identity_kind','company_type',
+ 'company_size','industry','education','experience_raw','employment_type','salary_raw',
+ 'regions','work_hours','headcount','role','job_position_raw','job_functions',
+ 'benefits_text','benefits_tags','application_method','application_start_date',
+ 'application_start_at','application_start_precision','application_start_timezone',
+ 'closing_date','deadline_kind','deadline_basis','deadline_raw','deadline_date',
+ 'deadline_at','deadline_timezone','deadline_precision','deadline_display_label',
+ 'content_status','extraction_eligible','source_status','scope','provider_complete')
+$$;
+
 -- Rebuildable graph projection. Record identities are scoped to this experiment;
 -- they are intentionally not the Python loader's content-addressed revision IDs.
 CREATE OR REPLACE VIEW ingestion.graph_record AS
@@ -246,8 +266,9 @@ SELECT 'hop:' || r.run_id || ':' || r.record_id::text AS id,
        r.normalized->>'kind' AS kind,
        COALESCE(r.normalized->>'name', r.normalized->>'title',
                 r.normalized->>'qualification_name', r.normalized->>'occupation_name') AS name,
-       (r.normalized - ARRAY['definition', 'eligibility_text', 'disqualification_text',
-          'preference_text', 'selection_text', 'address', 'website', 'source_url'])::text AS facts_json
+       (CASE WHEN r.source_id='jobkorea' THEN ingestion.jobkorea_graph_facts(r.normalized)
+        ELSE r.normalized - ARRAY['definition', 'eligibility_text', 'disqualification_text',
+          'preference_text', 'selection_text', 'address', 'website', 'source_url'] END)::text AS facts_json
 FROM ingestion.ready_record r;
 
 CREATE OR REPLACE VIEW ingestion.graph_reference AS
@@ -283,6 +304,10 @@ CROSS JOIN LATERAL (
     SELECT 'source:posting:nara_job', 'JobPosting',
            encode(sha256(convert_to(r.normalized->>'posting_id','UTF8')),'hex'), 'posting_id'
     WHERE r.source_id = 'nara_job'
+    UNION ALL
+    SELECT 'source:posting:jobkorea', 'JobPosting',
+           encode(sha256(convert_to(r.normalized->>'posting_id','UTF8')),'hex'), 'posting_id'
+    WHERE r.source_id = 'jobkorea'
 ) ref
 WHERE ref.code IS NOT NULL;
 COMMIT;

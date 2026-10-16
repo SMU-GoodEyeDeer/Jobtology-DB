@@ -62,12 +62,13 @@ def check(native):
             structure,_,details=validator.check(file);assert structure['conforms'],details
             published,_,_=validator.check(file,True);assert not published['conforms']
             reports.append(structure)
-            assert neo.neo("MATCH (root:corpusRelease {id:"+json.dumps('release/'+release)+"})-[:INCLUDES]->(v:occupationRevision) WHERE v.source_id='INTERNAL_EDITORIAL' RETURN count(v)=4 AND all(x IN collect(v) WHERE x.name IN ['AI 엔지니어','백엔드 개발자','프론트엔드 개발자','데이터 분석가']) AS verified").splitlines()[-1].lower()=='true'
-        # Both revisions coexist; the older graph/review still reproduces its release.
+            assert neo.neo("MATCH (root:corpusRelease {id:"+json.dumps('release/'+release)+"})-[:INCLUDES]->(v:occupation) WHERE v.source_id='INTERNAL_EDITORIAL' RETURN count(v)=4 AND all(x IN collect(v) WHERE x.name IN ['AI 엔지니어','백엔드 개발자','프론트엔드 개발자','데이터 분석가']) AS verified").splitlines()[-1].lower()=='true'
+        # Both immutable PG revisions/exports survive; old replay cannot roll
+        # back the selected facts on the current graph's identity shell.
         old=sql("SELECT manifest_hash FROM ontology.corpus_release WHERE release_id='fixture-release'")
-        native.run('load_release.hwf',dict(RELEASE_ID='fixture-release'),'editorial-native-old-release-replay')
+        native.run('load_release.hwf',dict(RELEASE_ID='fixture-release'),'editorial-native-old-release-replay',False)
         assert sql("SELECT manifest_hash FROM ontology.corpus_release WHERE release_id='fixture-release'")==old
-        assert neo.neo("MATCH (v:occupationRevision {occupation_code:'AI_ENGINEER'}) RETURN count(v)=2 AND count(DISTINCT v.entity_id)=1 AS verified").splitlines()[-1].lower()=='true'
+        assert neo.neo("MATCH (v:occupation {occupation_code:'AI_ENGINEER'}) RETURN count(v)=1 AND count(DISTINCT v.entity_id)=1 AS verified").splitlines()[-1].lower()=='true'
         assert neo.neo("MATCH (s:editorialSourceSnapshot) RETURN count(s)=2 AND all(x IN collect(s) WHERE x.byte_length>0 AND x.catalogue_version IN [1,2]) AS verified").splitlines()[-1].lower()=='true'
         # Check source semantics independently of the generic native content hashes.
         rdf,_,manifest=validator.load(exports[0])

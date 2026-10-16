@@ -13,6 +13,38 @@ RETURNS text LANGUAGE sql IMMUTABLE STRICT AS $$
  SELECT 'source:posting:'||source_id||':'||enrichment.hash(source_posting_id)
 $$;
 
+-- This source contract is separate from enrichment.source_fields, so existing
+-- JOB-ALIO/Nara reviewed hashes remain unchanged. References and source payloads
+-- are evidence in PostgreSQL, never input text or a recovery instruction.
+CREATE OR REPLACE FUNCTION cs.jobkorea_source_fields(n jsonb) RETURNS jsonb
+LANGUAGE sql IMMUTABLE AS $$
+ SELECT coalesce(jsonb_object_agg(key,value),'{}'::jsonb) FROM jsonb_each(n)
+ WHERE key IN ('title','organization_name','company_name_raw','employer_identity_kind',
+ 'company_type','company_size','industry','education','experience_raw','employment_type',
+ 'salary_raw','regions','work_hours','headcount','role','job_position_raw','job_functions',
+ 'benefits_text','benefits_tags','application_method','application_start_date',
+ 'application_start_at','application_start_precision','application_start_timezone',
+ 'closing_date','deadline_kind','deadline_basis','deadline_raw','deadline_date',
+ 'deadline_at','deadline_timezone','deadline_precision','deadline_display_label',
+ 'content_status','extraction_eligible','source_status','scope','provider_complete',
+ 'description_text','duties_text','eligibility_text','preference_text','selection_text',
+ 'disqualification_text')
+$$;
+
+-- Once the structured LLM contract exists, lineage must use its exact hash.
+-- Source-only installs retain their original normalized metadata hash.
+CREATE OR REPLACE FUNCTION cs.jobkorea_content_hash(jobs text,posting text,n jsonb)
+RETURNS text LANGUAGE plpgsql STABLE AS $$ DECLARE expected text; actual text; BEGIN
+ IF to_regprocedure('enrichment.build_jobkorea_input(text,text)') IS NULL THEN
+  RETURN enrichment.hash(cs.jobkorea_source_fields(n)::text);
+ END IF;
+ expected:=enrichment.hash((enrichment.build_jobkorea_input(jobs,
+  cs.external_posting_key('jobkorea',posting))->'source_data')::text);
+ actual:=enrichment.linking_input_hash(jobs,cs.external_posting_key('jobkorea',posting));
+ IF actual IS DISTINCT FROM expected THEN RAISE EXCEPTION 'JOBKOREA_LINKING_HASH_ADAPTER_NOT_INSTALLED'; END IF;
+ RETURN actual;
+END $$;
+
 -- Additional providers can be staged here without changing the fixed source enum
 -- of the existing ingestion ledger. Only READY snapshots are visible to readers.
 CREATE TABLE IF NOT EXISTS cs.source_snapshot (
@@ -86,6 +118,24 @@ FROM ingestion.nara_job_posting p
 JOIN ingestion.run r ON r.run_id=p.run_id AND r.source_id='nara_job'
  AND r.state='READY' AND r.mode<>'SMOKE'
 UNION ALL
+SELECT 'jobkorea'::text AS source_id,
+ r.normalized->>'posting_id' AS source_posting_id,
+ cs.external_posting_key('jobkorea',r.normalized->>'posting_id') AS posting_id,
+ cs.external_posting_identity('jobkorea',r.normalized->>'posting_id') AS posting_identity,
+ r.run_id AS snapshot_run_id,
+ r.normalized->>'organization_name' AS employer,
+ r.normalized->>'title' AS title,
+ jsonb_strip_nulls(jsonb_build_object('industry',r.normalized->'industry',
+  'job_functions',r.normalized->'job_functions','employer_identity_kind',r.normalized->'employer_identity_kind')) AS categories,
+ r.normalized,
+ cs.jobkorea_source_fields(r.normalized) AS source_data,
+ enrichment.hash(cs.jobkorea_source_fields(r.normalized)::text) AS inline_source_hash,
+ cs.jobkorea_content_hash(r.run_id,r.normalized->>'posting_id',r.normalized) AS content_hash,
+ '[]'::jsonb AS attachment_refs,
+ jsonb_build_object('document_id',r.document_id,'locator',r.locator,
+  'field_lineage',r.field_lineage,'quality_flags',r.quality_flags,'transport','LOCAL_FILE') AS evidence
+FROM ingestion.ready_record r WHERE r.source_id='jobkorea'
+UNION ALL
 SELECT i.source_id,
  i.source_posting_id,
  cs.external_posting_key(i.source_id,i.source_posting_id) AS posting_id,
@@ -110,8 +160,8 @@ COMMENT ON VIEW cs.common_posting IS
 -- and current content to existing ENRICH items/revisions without copying or
 -- changing their IDs, source hashes, reviewer attribution or producing model.
 -- Additional providers are selectable for scope analysis. The existing
--- enrichment.plan_batch and link publication paths still require ALIO snapshots;
--- generic rows have no work lineage until those consumers gain source adapters.
+-- native JobKorea adapter uses its prepared metadata/narrative input hash once
+-- linking is installed. Other providers need their own downstream source adapter.
 CREATE OR REPLACE VIEW cs.posting_work_lineage AS
 SELECT p.source_id,p.source_posting_id,p.posting_id,p.posting_identity,
  p.snapshot_run_id,p.content_hash,

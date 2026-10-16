@@ -24,13 +24,13 @@ def check():
     # The native verifier checks every projected property, label, edge endpoint
     # and membership. These separately authored traversals verify source meaning.
     checks={
-        'postings':"MATCH (r:corpusRelease {release_id:$release})-[m:INCLUDES {release_id:$release}]->(p:jobPostingRevision) RETURN count(p)",
+        'postings':"MATCH (r:corpusRelease {release_id:$release})-[m:INCLUDES {release_id:$release}]->(p:jobPosting) RETURN count(p)",
         'claims':"MATCH (r:corpusRelease {release_id:$release})-[:INCLUDES {release_id:$release}]->(c:assertion) WHERE c:dutyClaim OR c:requirementClaim RETURN count(c)",
         'evidence':"MATCH (r:corpusRelease {release_id:$release})-[:INCLUDES {release_id:$release}]->(e:evidenceSpan) RETURN count(e)",
         'positions':"MATCH (r:corpusRelease {release_id:$release})-[:INCLUDES {release_id:$release}]->(p:positionClaim) RETURN count(p)",
-        'unversioned_families':"MATCH (v:ncsCompetencyRevision)-[:VERSION_OF {release_id:$release}]->(f:ncsUnitFamily) WHERE v.code CONTAINS '_' AND NOT f.code CONTAINS '_' RETURN count(v)",
-        'qualified_curriculum':"MATCH (q:qualificationRevision)-[e:CURRICULUM_REFERENCES {release_id:$release}]->(:ncsCompetency) RETURN count(e)",
-        'typed_exam_dates':"MATCH (e:examSessionRevision) WHERE any(k IN keys(e) WHERE k STARTS WITH 'dates.' AND valueType(e[k])='DATE NOT NULL') RETURN count(e)",
+        'unversioned_families':"MATCH (v:ncsCompetency)-[:VERSION_OF {release_id:$release}]->(f:ncsUnitFamily) WHERE v.code CONTAINS '_' AND NOT f.code CONTAINS '_' RETURN count(v)",
+        'qualified_curriculum':"MATCH (q:qualification)-[e:CURRICULUM_REFERENCES {release_id:$release}]->(:ncsCompetency) RETURN count(e)",
+        'typed_exam_dates':"MATCH (e:examSession) WHERE any(k IN keys(e) WHERE k STARTS WITH 'dates.' AND valueType(e[k])='DATE NOT NULL') RETURN count(e)",
         'lineage_key_escaping':"MATCH (e:sourceRecordEvidence {source_id:'qnet_schedule'}) WHERE any(k IN keys(e) WHERE k STARTS WITH 'field_lineage.dates~2') RETURN count(e)",
         'private_untouched':"MATCH (p:Person {person_id:'real-fixture-private',name:'Untouched test value'}) RETURN count(p)",
     }
@@ -38,7 +38,7 @@ def check():
     assert actual['postings']==513 and actual['claims']==1850 and actual['positions']==211 and actual['evidence']==2873,actual
     assert actual['unversioned_families']==15520 and actual['qualified_curriculum']>0,actual
     assert actual['typed_exam_dates']>0 and actual['lineage_key_escaping']>0 and actual['private_untouched']==1,actual
-    assert sql("SELECT state='PREPARING' AND graph_verified_at IS NOT NULL FROM ontology.corpus_release WHERE release_id='"+RELEASE+"'")=='t'
+    assert sql("SELECT state='PREPARING' AND EXISTS(SELECT 1 FROM ontology.flat_graph_load l WHERE l.release_id=r.release_id AND l.state='VERIFIED') FROM ontology.corpus_release r WHERE release_id='"+RELEASE+"'")=='t'
     assert sql('SELECT count(*) FROM ontology.active_release')=='0'
     assert sql("SELECT count(*) FROM retention.writer WHERE kind='ONTOLOGY_GRAPH'")=='0'
     report=dict(release_id=RELEASE,manifest=expected,readback=actual,production_reviews_written=0,semantic_quality_evaluation=False)

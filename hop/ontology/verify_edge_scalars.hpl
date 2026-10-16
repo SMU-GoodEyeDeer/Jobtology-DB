@@ -2,7 +2,7 @@
 <pipeline>
   <info>
     <name>verify_edge_scalars</name>
-    <description>Verify typed ontology edge_scalars properties.</description>
+    <description>Verify typed flat ontology edge_scalars.</description>
     <pipeline_type>Normal</pipeline_type>
     <size_rowset>100</size_rowset>
     <parameters />
@@ -63,7 +63,7 @@
     <type>TableInput</type>
     <name>Expected properties</name>
     <connection>jobtology-postgres</connection>
-    <sql>SELECT l.load_id,l.release_id,l.database_id,l.manifest_hash,r.manifest-&gt;&gt;'data_as_of' AS data_as_of,(r.manifest-&gt;&gt;'nodes')::bigint AS expected_nodes,(r.manifest-&gt;&gt;'edges')::bigint AS expected_edges,p.owner_id,p.content_hash,p.key,p.ordinal,p.array_size,p.text_value,p.value_type,e.subject_id,e.predicate,e.object_id FROM ontology.graph_load l JOIN ontology.corpus_release r USING(release_id) JOIN ontology.graph_property p ON p.release_id=l.release_id LEFT JOIN ontology.graph_edge e ON e.release_id=p.release_id AND e.edge_id=p.owner_id AND p.owner_type='EDGE' WHERE l.load_id=? AND l.state='RUNNING' AND p.owner_type='EDGE' AND p.is_array=false ORDER BY p.owner_id,p.key,p.ordinal</sql>
+    <sql>SELECT database_id,release_id,owner_id,content_hash,subject_id,predicate,object_id,count(*)::bigint AS property_rows, string_agg(replace(replace(coalesce(key,''),'%','%25'),'|','%7C')||'|'||value_type||'|'||is_owned::text||'|'||ordinal::text||'|'||array_size::text||'|'||replace(replace(coalesce(text_value,''),'%','%25'),'|','%7C'),'|' ORDER BY key,ordinal) AS property_data FROM (SELECT l.load_id,l.release_id,l.database_id,l.manifest_hash,l.source_manifest_hash,r.manifest-&gt;&gt;'data_as_of' AS data_as_of,projection.node_count AS expected_nodes,projection.edge_count AS expected_edges,(projection.manifest-&gt;&gt;'bindings')::bigint AS legacy_nodes,(projection.manifest-&gt;&gt;'legacy_edges')::bigint AS legacy_edges,p.owner_id,p.content_hash,p.key,p.ordinal,p.array_size,p.text_value,p.value_type,e.subject_id,e.predicate,e.object_id,coalesce(jsonb_exists(n.owned_properties,p.key),false) AS is_owned FROM ontology.flat_graph_load l JOIN ontology.flat_graph_projection projection USING(release_id) JOIN ontology.corpus_release r USING(release_id) JOIN ontology.flat_graph_property p ON p.release_id=l.release_id LEFT JOIN ontology.flat_graph_edge e ON e.release_id=p.release_id AND e.edge_id=p.owner_id AND p.owner_type='EDGE' LEFT JOIN ontology.flat_graph_node n ON n.release_id=p.release_id AND n.node_id=p.owner_id AND p.owner_type='NODE' WHERE l.load_id=? AND l.state IN ('RUNNING','STAGED') AND p.owner_type='EDGE' AND p.is_array=false ORDER BY p.owner_id,p.key,p.ordinal) expected GROUP BY database_id,release_id,owner_id,content_hash,subject_id,predicate,object_id ORDER BY owner_id</sql>
     <limit>0</limit>
     <lookup>Load token</lookup>
     <execute_each_row>Y</execute_each_row>
@@ -86,9 +86,23 @@
     <cypher>CALL db.info() YIELD id AS actual_database_id
 UNWIND $rows AS row
 WITH row,actual_database_id WHERE row.database_id=actual_database_id
-MATCH (a:ontologyObject {id:row.subject_id})-[n:$(row.predicate) {id:row.owner_id}]-&gt;(b:ontologyObject {id:row.object_id}) WHERE n.release_id=row.release_id
-WITH row,n,CASE row.value_type WHEN 'integer' THEN toInteger(row.text_value) WHEN 'number' THEN toFloat(row.text_value) WHEN 'boolean' THEN toBoolean(row.text_value) WHEN 'date' THEN date(row.text_value) WHEN 'datetime' THEN datetime(row.text_value) WHEN 'string' THEN coalesce(row.text_value,'') ELSE row.text_value END AS expected WHERE n.content_hash=row.content_hash ORDER BY row.owner_id,row.key,row.ordinal
-RETURN count(n)=size($rows) AND all(ok IN collect(coalesce(n.content_hash=row.content_hash AND n[row.key]=expected,false)) WHERE ok) AS verified</cypher>
+WITH row,split(row.property_data,'|') AS fields
+WHERE row.property_rows&gt;0 AND size(fields)=row.property_rows*6
+WITH row,[i IN range(0,size(fields)-1,6) | {
+ key:replace(replace(fields[i],'%7C','|'),'%25','%'),value_type:fields[i+1],
+ is_owned:fields[i+2]='true',ownership_valid:fields[i+2] IN ['true','false'],
+ ordinal:toInteger(fields[i+3]),array_size:toInteger(fields[i+4]),
+ text_value:replace(replace(fields[i+5],'%7C','|'),'%25','%')}] AS properties
+WHERE all(property IN properties WHERE property.ownership_valid AND property.ordinal IS NOT NULL AND property.array_size IS NOT NULL
+ AND property.value_type IN ['integer','number','boolean','date','datetime','string','null','empty_array'])
+MATCH (a:ontologyObject {id:row.subject_id}) USING INDEX SEEK a:ontologyObject(id) WITH row,properties,a MATCH (b:ontologyObject {id:row.object_id}) USING INDEX SEEK b:ontologyObject(id) WITH row,properties,a,b MATCH (a)-[n:$(row.predicate) {id:row.owner_id}]-&gt;(b) WHERE n.release_id=row.release_id
+WITH row,n,properties WHERE n.content_hash=row.content_hash
+UNWIND properties AS property
+WITH row,n,property,CASE property.value_type WHEN 'integer' THEN toInteger(property.text_value) WHEN 'number' THEN toFloat(property.text_value) WHEN 'boolean' THEN toBoolean(property.text_value) WHEN 'date' THEN date(property.text_value) WHEN 'datetime' THEN datetime(property.text_value) WHEN 'string' THEN property.text_value ELSE null END AS expected
+WITH row,n,collect({key:property.key,is_owned:property.is_owned,is_empty:false,expected:expected,
+ valid_shape:property.ordinal=-1 AND property.array_size=-1 AND property.value_type&lt;&gt;'empty_array' AND (property.value_type='null' OR expected IS NOT NULL)}) AS expected_properties
+WHERE all(property IN expected_properties WHERE property.valid_shape)
+RETURN count(n)=size($rows) AND count(DISTINCT row.owner_id)=size($rows) AND all(ok IN collect(coalesce(n.content_hash=row.content_hash AND all(property IN expected_properties WHERE CASE WHEN property.expected IS NULL THEN n[property.key] IS NULL WHEN property.is_empty THEN n[property.key]=[] AND valueType(n[property.key]) STARTS WITH 'LIST&lt;' ELSE n[property.key]=property.expected AND valueType(n[property.key])=valueType(property.expected) END),false)) WHERE ok) AS verified</cypher>
     <batch_size>500</batch_size>
     <read_only>Y</read_only>
     <retry>N</retry>
@@ -118,18 +132,8 @@ RETURN count(n)=size($rows) AND all(ok IN collect(coalesce(n.content_hash=row.co
         <type>String</type>
       </mapping>
       <mapping>
-        <parameter>key</parameter>
-        <field>key</field>
-        <type>String</type>
-      </mapping>
-      <mapping>
-        <parameter>text_value</parameter>
-        <field>text_value</field>
-        <type>String</type>
-      </mapping>
-      <mapping>
-        <parameter>value_type</parameter>
-        <field>value_type</field>
+        <parameter>property_data</parameter>
+        <field>property_data</field>
         <type>String</type>
       </mapping>
       <mapping>
@@ -148,13 +152,8 @@ RETURN count(n)=size($rows) AND all(ok IN collect(coalesce(n.content_hash=row.co
         <type>String</type>
       </mapping>
       <mapping>
-        <parameter>ordinal</parameter>
-        <field>ordinal</field>
-        <type>Integer</type>
-      </mapping>
-      <mapping>
-        <parameter>array_size</parameter>
-        <field>array_size</field>
+        <parameter>property_rows</parameter>
+        <field>property_rows</field>
         <type>Integer</type>
       </mapping>
     </mappings>
@@ -226,7 +225,7 @@ RETURN count(n)=size($rows) AND all(ok IN collect(coalesce(n.content_hash=row.co
   <transform>
     <type>Abort</type>
     <name>Graph mismatch</name>
-    <message>Ontology graph verification failed. The PostgreSQL active release was not changed. Inspect the log and retry the same release.</message>
+    <message>Flat ontology verification failed; PostgreSQL history is unchanged.</message>
     <always_log_rows>N</always_log_rows>
     <abort_option>ABORT_WITH_ERROR</abort_option>
     <row_threshold>0</row_threshold>

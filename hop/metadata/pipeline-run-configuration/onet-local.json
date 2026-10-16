@@ -1,0 +1,18 @@
+{
+  "name": "onet-local",
+  "description": "Local frozen O*NET catalogue only; Basic logging and no execution-data capture.",
+  "engineRunConfiguration": {
+    "Local": {
+      "safe_mode": false,
+      "show_feedback": false,
+      "rowset_size": "1000",
+      "feedback_size": "50000",
+      "sample_size": "0",
+      "gather_metrics": true
+    }
+  },
+  "configurationVariables": [],
+  "executionInfoLocationName": "",
+  "dataProfile": "",
+  "defaultSelection": false
+}

@@ -273,23 +273,10 @@ def test_updater_records_failures_and_backs_off(engine: Engine, tmp_path: Path) 
     assert waiting[0]["state"] == "RETRY_WAIT"
 
 
-def test_optional_neo4j_staging_load_is_idempotent(engine: Engine, tmp_path: Path) -> None:
-    uri = os.environ.get("JOBTOLOGY_TEST_NEO4J_URI")
-    password = os.environ.get("JOBTOLOGY_TEST_NEO4J_PASSWORD")
-    if not uri or not password:
-        pytest.skip("Set JOBTOLOGY_TEST_NEO4J_URI/PASSWORD for a disposable Neo4j instance")
-    settings = settings_for(engine, tmp_path).model_copy(
-        update={
-            "JOBTOLOGY_NEO4J_URI": uri,
-            "JOBTOLOGY_NEO4J_PASSWORD": SecretStr(password),
-        }
-    )
-    run = fetch_fixture(engine, settings, organization_document(str(uuid.uuid4())))
-    summary = process_run(engine, tmp_path, run, settings)
-    first = load_neo4j_staging(engine, settings, summary.processing_run_id)
-    second = load_neo4j_staging(engine, settings, summary.processing_run_id)
-    assert first == second
-    assert first["records"] == 1 and first["serving_scope"] == "STAGING"
+def test_legacy_neo4j_staging_load_is_retired(engine: Engine, tmp_path: Path) -> None:
+    settings = settings_for(engine, tmp_path)
+    with pytest.raises(ProcessingError, match="LEGACY_NEO4J_PUBLISHER_RETIRED"):
+        load_neo4j_staging(engine, settings, "unused-processing-run")
 
 
 def test_production_fetch_wrapper_stops_before_http_at_budget_limit(
@@ -329,17 +316,13 @@ def test_saved_six_source_corpus_end_to_end(
     """Explicit opt-in: READ local saved inputs; write only the disposable test DB/raw directory.
 
     All HTTP is handled by MockTransport. There is no network fallback on a missing fixture.
-    Exercises the production fetch_source wrapper, dependency regeneration, processing and graph
-    staging at full corpus scale, then an unchanged tick and a changed JOB-ALIO list/detail pair.
+    Exercises the production fetch_source wrapper, dependency regeneration, processing
+    at full corpus scale, then an unchanged tick and a changed JOB-ALIO list/detail pair.
     """
     if os.environ.get("JOBTOLOGY_TEST_REPLAY_SAVED_CORPUS") != "1":
         pytest.skip(
             "Set JOBTOLOGY_TEST_REPLAY_SAVED_CORPUS=1 to use the local saved six-source corpus"
         )
-    uri = os.environ.get("JOBTOLOGY_TEST_NEO4J_URI")
-    password = os.environ.get("JOBTOLOGY_TEST_NEO4J_PASSWORD")
-    if not uri or not password:
-        pytest.skip("The full-corpus replay requires a disposable Neo4j test instance")
     original = Settings()
     original_url = original.database_url()
     assert original_url is not None
@@ -430,8 +413,6 @@ def test_saved_six_source_corpus_end_to_end(
     monkeypatch.setattr(httpx, "Client", offline_client)
     settings = settings_for(engine, tmp_path).model_copy(
         update={
-            "JOBTOLOGY_NEO4J_URI": uri,
-            "JOBTOLOGY_NEO4J_PASSWORD": SecretStr(password),
             "JOBTOLOGY_UPDATE_REQUEST_INTERVAL_SECONDS": 0,
             "JOBTOLOGY_UPDATE_REQUESTS_PER_24H": 2000,  # simulated initial and changed daily fetch
             "NCS_CAREER_PATH_DOWNLOAD_URL": original.NCS_CAREER_PATH_DOWNLOAD_URL,
@@ -448,11 +429,11 @@ def test_saved_six_source_corpus_end_to_end(
     def emit(outcome: dict[str, Any]) -> None:
         print(json.dumps(outcome, ensure_ascii=False), flush=True)
 
-    first = update_sources(engine, settings, schedule, clock=lambda: now, emit=emit, neo4j=True)
+    first = update_sources(engine, settings, schedule, clock=lambda: now, emit=emit)
     assert all(result["state"] == "READY" for result in first), first
     assert {row["source_id"]: row["records"] for row in first} == expected
     assert calls == 878
-    immediate = update_sources(engine, settings, schedule, clock=lambda: now, neo4j=True)
+    immediate = update_sources(engine, settings, schedule, clock=lambda: now)
     assert all(result["state"] == "NOT_DUE" for result in immediate)
     assert calls == 878, "Not-due tick performed an HTTP request"
 
@@ -466,8 +447,8 @@ def test_saved_six_source_corpus_end_to_end(
             )
         replay = process_run(engine, tmp_path, fetch_id, settings)
         assert replay.new_revisions == 0 and replay.reused_documents == replay.documents
-        loaded = load_neo4j_staging(engine, settings, replay.processing_run_id)
-        assert loaded["records"] == expected[result["source_id"]]
+        with pytest.raises(ProcessingError, match="LEGACY_NEO4J_PUBLISHER_RETIRED"):
+            load_neo4j_staging(engine, settings, replay.processing_run_id)
 
     modify_job = True
     with engine.begin() as c:
@@ -477,7 +458,7 @@ def test_saved_six_source_corpus_end_to_end(
         """),
             {"now": now},
         )
-    changed = update_sources(engine, settings, schedule, clock=lambda: now, emit=emit, neo4j=True)
+    changed = update_sources(engine, settings, schedule, clock=lambda: now, emit=emit)
     job = next(row for row in changed if row["source_id"] == "job_alio")
     assert job["state"] == "READY" and job["changed"] is True
     assert job["records"] == 1020 and job["new_revisions"] == 2

@@ -58,9 +58,9 @@ VALUES({q(version+'-extract')},{q(version)},{q(version)},'extract','fixture','{{
     native.run('assemble_reviewed.hwf',dict(RELEASE_ID='fragment-versions'),'fragment-version-reviewed-replay')
     assert before==sql("SELECT jsonb_agg(c.payload ORDER BY c.posting_revision_id,c.kind,c.ordinal) FROM ontology.claim c")
     native.run('load_release.hwf',dict(RELEASE_ID='fragment-versions'),'fragment-version-graph-load')
-    assert graph.neo("MATCH (r:jobPostingRevision) WHERE r.posting_id IN ['ko-v5','ko-v6'] RETURN count(r)").splitlines()[-1]=='2'
+    assert graph.neo("MATCH (r:jobPosting) WHERE r.posting_id IN ['ko-v5','ko-v6'] RETURN count(r)").splitlines()[-1]=='2'
     assert graph.neo("MATCH (n:conditionExpression) RETURN count(n)").splitlines()[-1]=='12'
-    assert sql("SELECT state='PREPARING' AND graph_verified_at IS NOT NULL FROM ontology.corpus_release WHERE release_id='fragment-versions'")=='t'
+    assert sql("SELECT state='PREPARING' AND EXISTS(SELECT 1 FROM ontology.flat_graph_load l WHERE l.release_id=r.release_id AND l.state='VERIFIED') FROM ontology.corpus_release r WHERE release_id='fragment-versions'")=='t'
     print('NATIVE V5/V6 ONTOLOGY FRAGMENT CHECKS PASSED',native.WORK,flush=True)
 
 

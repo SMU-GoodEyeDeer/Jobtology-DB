@@ -1,0 +1,104 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>end_inferred_occupation_execution</name>
+    <description>End dispatcher after all child workers settle; unresolved reservations remain held.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Pilot options</from>
+      <to>End bounded inference dispatch</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>End bounded inference dispatch</from>
+      <to>Inference dispatcher report</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Pilot options</name>
+    <fields>
+      <field>
+        <name>token</name>
+        <variable>${METADATA_OCCUPATION_EXECUTION_TOKEN}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>End bounded inference dispatch</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT CASE WHEN nullif(?,'') IS NULL THEN '{"execute_requests":"N"}'::jsonb ELSE enrichment.end_metadata_occupation_execution(nullif(?,'')::uuid) END::text AS dispatch_json</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>token</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>token</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <GUI>
+      <xloc>340</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform>
+    <type>WriteToLog</type>
+    <name>Inference dispatcher report</name>
+    <displayHeader>Y</displayHeader>
+    <limitRows>N</limitRows>
+    <limitRowsNumber>0</limitRowsNumber>
+    <logmessage>Dispatcher completed or stopped. Never-sent rows remain pending for a fresh batch.</logmessage>
+    <loglevel>Basic</loglevel>
+    <fields>
+      <field>
+        <name>dispatch_json</name>
+      </field>
+    </fields>
+    <GUI>
+      <xloc>600</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

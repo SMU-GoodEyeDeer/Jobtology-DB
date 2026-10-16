@@ -1,0 +1,210 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>request_inferred_occupation</name>
+    <description>One inferred-only paid HTTP attempt; no automatic retry or redirect, no dry-run key read.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters>
+      <parameter>
+        <name>ATTEMPT_ID</name>
+        <default_value />
+        <description>Exact planned inference attempt.</description>
+      </parameter>
+    </parameters>
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Pilot options</from>
+      <to>Send one reserved inference request</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Send one reserved inference request</from>
+      <to>Inference attempt state</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Pilot options</name>
+    <fields>
+      <field>
+        <name>attempt_id</name>
+        <variable>${ATTEMPT_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform>
+    <type>UserDefinedJavaClass</type>
+    <name>Send one reserved inference request</name>
+    <clear_result_fields>N</clear_result_fields>
+    <java_target_version>17</java_target_version>
+    <definitions>
+      <definition>
+        <class_type>TRANSFORM_CLASS</class_type>
+        <class_name>MetadataOccupationRequest</class_name>
+        <class_source>
+void require(boolean condition, String code) throws Exception {
+ if(!condition) throw new Exception(code);
+}
+
+String keyFile(String file) throws Exception {
+ java.nio.file.Path path=java.nio.file.Paths.get(file);
+ require(path.isAbsolute(),"KEY_PATH_REQUIRED");
+ java.nio.file.Path current=path.getRoot();
+ for(java.nio.file.Path part:path){current=current.resolve(part);require(!java.nio.file.Files.isSymbolicLink(current),"KEY_SYMLINK_FORBIDDEN");}
+ require(java.nio.file.Files.isRegularFile(path,java.nio.file.LinkOption.NOFOLLOW_LINKS)
+  &amp;&amp; java.nio.file.Files.size(path)&lt;=8192,"KEY_FILE_INVALID");
+ String csv=java.nio.file.Files.readString(path,java.nio.charset.StandardCharsets.UTF_8);
+ if(csv.endsWith("\r\n"))csv=csv.substring(0,csv.length()-2);
+ else if(csv.endsWith("\n"))csv=csv.substring(0,csv.length()-1);
+ String[] lines=csv.split("\r?\n",-1);
+ require(lines.length==2 &amp;&amp; "api_key".equals(lines[0].trim()),"KEY_ROWS_INVALID");
+ String key=lines[1].trim();
+ if(key.startsWith("\"") &amp;&amp; key.endsWith("\""))key=key.substring(1,key.length()-1);
+ require(key.matches("[A-Za-z0-9_-]{10,2048}"),"KEY_INVALID");
+ return key;
+}
+
+void saveResponse(java.sql.Connection jdbc,String attempt,int status,String body,long elapsed) throws Exception {
+ java.sql.PreparedStatement save=jdbc.prepareStatement("SELECT enrichment.save_response(?,?::integer,?,?::bigint)");
+ try {save.setString(1,attempt);save.setInt(2,status);save.setString(3,body);save.setLong(4,elapsed);save.execute();}
+ finally{save.close();}
+}
+
+public boolean processRow() throws HopException {
+ Object[] row=getRow();if(row==null){setOutputDone();return false;}
+ org.apache.hop.core.database.Database db=null;
+ boolean reserved=false;
+ String attempt=get(Fields.In,"attempt_id").getString(row);
+ String finalState="NOT_SENT";
+ try {
+  org.apache.hop.core.database.DatabaseMeta meta=(org.apache.hop.core.database.DatabaseMeta)
+   getPipelineMeta().getMetadataProvider().getSerializer(org.apache.hop.core.database.DatabaseMeta.class).load("jobtology-postgres");
+  db=new org.apache.hop.core.database.Database(getParent(),getParent(),meta);db.connect();
+  java.sql.Connection jdbc=db.getConnection();
+  java.sql.PreparedStatement eligible=jdbc.prepareStatement("SELECT b.settings-&gt;&gt;'endpoint',b.settings-&gt;&gt;'read_timeout_ms',b.settings-&gt;&gt;'request_delay_ms',current_setting('jobtology.isolated_fixture',true) FROM enrichment.attempt a JOIN enrichment.batch b USING(batch_id) WHERE a.attempt_id=? AND a.stage='categorize' AND a.state='PLANNED' AND b.state='RUNNING' AND b.settings-&gt;&gt;'execute_requests'='Y' AND b.settings-&gt;&gt;'metadata_scope'='NCS_OCCUPATION_INFERENCE_V1' AND EXISTS(SELECT 1 FROM ingestion.latest_ready_run WHERE source_id='jobkorea' AND run_id=b.job_run_id) AND EXISTS(SELECT 1 FROM ingestion.latest_ready_run WHERE source_id='ncs_competency' AND run_id=b.ncs_run_id) AND NOT EXISTS(SELECT 1 FROM enrichment.attempt stopped WHERE stopped.batch_id=b.batch_id AND ((stopped.reserved_at IS NOT NULL AND stopped.state IN ('ERROR','RESERVED','REJECTED')) OR stopped.state='BUDGET_BLOCKED'))");
+  eligible.setString(1,attempt);java.sql.ResultSet selected=eligible.executeQuery();
+  String endpoint=null;String fixture=null;long timeout=0;long delay=0;
+  try{if(selected.next()){endpoint=selected.getString(1);timeout=Long.parseLong(selected.getString(2));delay=Long.parseLong(selected.getString(3));fixture=selected.getString(4);}}
+  finally{selected.close();eligible.close();}
+  // This gate precedes any key read, including direct accidental dry-run invocation.
+  if(endpoint!=null){
+   boolean production="https://openrouter.ai/api/v1/chat/completions".equals(endpoint);
+   String token=System.getenv("JOBKOREA_ISOLATED_TOKEN");
+   boolean isolated=token!=null &amp;&amp; token.matches("[0-9a-f]{12}") &amp;&amp; token.equals(fixture)
+    &amp;&amp; endpoint.matches("http://jobtology-jobkorea-test-"+token+"-mock:[0-9]{1,5}/chat/completions");
+   require(production || isolated,"MODEL_ENDPOINT_FORBIDDEN");
+   require(timeout&gt;=1000 &amp;&amp; timeout&lt;=600000 &amp;&amp; delay&gt;=0 &amp;&amp; delay&lt;=60000,"REQUEST_TIMEOUT_INVALID");
+   String key=keyFile(getParent().resolve(getVariable("API_KEY_FILE","")));
+   java.sql.PreparedStatement reserve=jdbc.prepareStatement("SELECT enrichment.reserve_request(?)");
+   try{reserve.setString(1,attempt);reserve.execute();}finally{reserve.close();}
+   java.sql.PreparedStatement read=jdbc.prepareStatement("SELECT request_body::text FROM enrichment.attempt WHERE attempt_id=? AND state='RESERVED'");
+   read.setString(1,attempt);java.sql.ResultSet requestRow=read.executeQuery();String request=null;
+   try{if(requestRow.next())request=requestRow.getString(1);}finally{requestRow.close();read.close();}
+   if(request!=null){
+    reserved=true;if(delay&gt;0)Thread.sleep(delay);
+    long started=System.nanoTime();int status=0;String body=null;
+    org.apache.hc.client5.http.impl.classic.CloseableHttpClient http=null;
+    org.apache.hc.core5.http.ClassicHttpResponse response=null;
+    try {
+     org.apache.hc.client5.http.config.RequestConfig config=org.apache.hc.client5.http.config.RequestConfig.custom()
+      .setConnectionRequestTimeout(org.apache.hc.core5.util.Timeout.ofMilliseconds(10000))
+      .setConnectTimeout(org.apache.hc.core5.util.Timeout.ofMilliseconds(10000))
+      .setResponseTimeout(org.apache.hc.core5.util.Timeout.ofMilliseconds(timeout)).build();
+     http=org.apache.hc.client5.http.impl.classic.HttpClients.custom().disableAutomaticRetries().disableRedirectHandling()
+      .setDefaultRequestConfig(config).build();
+     org.apache.hc.client5.http.classic.methods.HttpPost post=new org.apache.hc.client5.http.classic.methods.HttpPost(endpoint);
+     post.setHeader("Authorization","Bearer "+key);post.setHeader("Content-Type","application/json");
+     post.setEntity(new org.apache.hc.core5.http.io.entity.StringEntity(request,org.apache.hc.core5.http.ContentType.APPLICATION_JSON));
+     response=http.executeOpen(null,post,null);status=response.getCode();
+     require(response.getEntity()!=null,"EMPTY_MODEL_RESPONSE");
+     java.io.InputStream input=response.getEntity().getContent();
+     java.io.ByteArrayOutputStream bytes=new java.io.ByteArrayOutputStream();byte[] buffer=new byte[8192];int count;
+     try{while((count=input.read(buffer))!=-1){require(bytes.size()+count&lt;=8388608,"MODEL_RESPONSE_TOO_LARGE");bytes.write(buffer,0,count);}}
+     finally{input.close();}
+     body=java.nio.charset.StandardCharsets.UTF_8.newDecoder().onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+      .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT).decode(java.nio.ByteBuffer.wrap(bytes.toByteArray())).toString();
+    } catch(Exception transport){status=0;body=null;}
+    finally{if(response!=null)try{response.close();}catch(Exception ignored){} if(http!=null)try{http.close();}catch(Exception ignored){}}
+    saveResponse(jdbc,attempt,status,body,(System.nanoTime()-started)/1000000);reserved=false;
+    java.sql.PreparedStatement done=jdbc.prepareStatement("SELECT state FROM enrichment.attempt WHERE attempt_id=?");
+    done.setString(1,attempt);java.sql.ResultSet result=done.executeQuery();
+    try{require(result.next(),"RESPONSE_RESULT_MISSING");finalState=result.getString(1);}finally{result.close();done.close();}
+   } else finalState="BUDGET_OR_PROVIDER_BLOCKED";
+  }
+  Object[] output=createOutputRow(row,data.outputRowMeta.size());get(Fields.Out,"request_state").setValue(output,finalState);
+  putRow(data.outputRowMeta,output);return true;
+ } catch(Exception failure){
+  // A save failure after POST keeps its RESERVED accounting hold. Never retry.
+  throw new HopException("Inferred occupation request failed; inspect the attempt ledger before retrying ("+failure.getClass().getSimpleName()+", reservation="+reserved+")");
+ } finally{if(db!=null)db.close();}
+}
+</class_source>
+      </definition>
+    </definitions>
+    <fields>
+      <field>
+        <field_name>request_state</field_name>
+        <field_type>String</field_type>
+        <field_length>-1</field_length>
+        <field_precision>-1</field_precision>
+      </field>
+    </fields>
+    <GUI>
+      <xloc>340</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform>
+    <type>WriteToLog</type>
+    <name>Inference attempt state</name>
+    <displayHeader>Y</displayHeader>
+    <limitRows>N</limitRows>
+    <limitRowsNumber>0</limitRowsNumber>
+    <logmessage>One model attempt completed or safely withheld. Inspect the immutable request ledger for details.</logmessage>
+    <loglevel>Basic</loglevel>
+    <fields>
+      <field>
+        <name>attempt_id</name>
+      </field>
+      <field>
+        <name>request_state</name>
+      </field>
+    </fields>
+    <GUI>
+      <xloc>600</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

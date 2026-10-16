@@ -10,6 +10,10 @@ source "$config"
 mkdir -p "$STATE_DIR"
 exec 9>"$STATE_DIR/refresh.lock"
 flock -n 9 || exit 0
+# Failed/interrupted batch-free migrations leave this protected operator fence.
+[[ ! -e "$STATE_DIR/batchfree-migration.pending" ]] || exit 0
+# Failed/interrupted ontology flattening leaves this protected operator fence.
+[[ ! -e "$STATE_DIR/flat-ontology-migration.pending" ]] || exit 0
 hop_id=$(docker ps --filter "volume=$HOP_CONFIG_VOLUME" --format '{{.ID}}')
 pg_id=$(docker ps --filter "name=$PG_CONTAINER_NAME" --format '{{.ID}}')
 [[ "$hop_id" =~ ^[0-9a-f]{12}$ && "$pg_id" =~ ^[0-9a-f]{12}$ ]] || { echo 'Expected one running Hop and PostgreSQL container.' >&2; exit 1; }
@@ -22,7 +26,7 @@ space_ok() {
  ((available >= MIN_FREE_KIB && used < MAX_USED_PERCENT))
 }
 overall=0
-for source_id in alio_organization job_alio ncs_competency ncs_qualification qnet_schedule ncs_career_path; do
+for source_id in alio_organization job_alio ncs_competency ncs_qualification qnet_schedule ncs_career_path nara_job; do
  row=$(sql <<< "SELECT operation||'|'||coalesce(run_id,'') FROM ingestion.refresh_queue WHERE source_id='$source_id';")
  [[ -n "$row" ]] || continue
  space_ok || { echo 'Refresh stopped: raw-volume reserve or usage limit reached.' >&2; exit 1; }

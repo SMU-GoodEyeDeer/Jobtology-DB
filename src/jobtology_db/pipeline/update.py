@@ -28,7 +28,7 @@ from jobtology_db.pipeline.request_security import request_fingerprint
 from jobtology_db.processing.sources import ProcessingError
 from jobtology_db.settings import Settings
 from jobtology_db.storage.ledger import PostgresFetchLedger
-from jobtology_db.storage.neo4j_staging import load_neo4j_staging
+from jobtology_db.storage.neo4j_staging import load_neo4j_staging, require_native_graph_publisher
 from jobtology_db.storage.processing import GLOBAL_UPDATE_LOCK, advisory_lock
 from jobtology_db.storage.raw_files import RawFileStore
 
@@ -192,11 +192,8 @@ def update_sources(
 ) -> list[dict[str, Any]]:
     """One serial, lock-protected tick. This function owns no timer or daemon lifecycle."""
     outcomes: list[dict[str, Any]] = []
-    if neo4j and (
-        not settings.JOBTOLOGY_NEO4J_URI
-        or not settings.secret_value(settings.JOBTOLOGY_NEO4J_PASSWORD)
-    ):
-        raise ProcessingError("NEO4J_CONFIGURATION_REQUIRED")
+    if neo4j:
+        require_native_graph_publisher()
     failed: set[str] = set()
     parent_run_id = str(uuid.uuid4())
     with advisory_lock(engine, GLOBAL_UPDATE_LOCK) as lock_connection:

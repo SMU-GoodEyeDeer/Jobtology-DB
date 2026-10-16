@@ -59,7 +59,7 @@
     <type>DBJoin</type>
     <name>Snapshot decisions</name>
     <connection>jobtology-postgres</connection>
-    <sql>SELECT run_id,source_id,created_at,selected,reason,record_count,document_count,raw_bytes,graph_deleted FROM retention.plan_run WHERE plan_id=? ORDER BY created_at,run_id</sql>
+    <sql>SELECT run_id,source_id,created_at,selected,reason,record_count,document_count,raw_bytes,source_projection_verified FROM retention.plan_run WHERE plan_id=? ORDER BY created_at,run_id</sql>
     <cache>N</cache>
     <cache_size>0</cache_size>
     <rowlimit>0</rowlimit>

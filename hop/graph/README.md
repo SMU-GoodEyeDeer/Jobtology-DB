@@ -1,214 +1,295 @@
-# Load accepted PostgreSQL snapshots into Neo4j
+# Batch-free source business graph
 
-These workflows use native Hop transforms/actions, parameter-bound PostgreSQL queries and
-Neo4j Cypher. They read accepted `ingestion` snapshots without fetching APIs, running Python
-or JavaScript, or calling an LLM. PostgreSQL remains the source of record.
+PostgreSQL retains import audit/recovery, accepted source rows, immutable raw
+provenance and historical membership. Neo4j contains stable business identities,
+selected current source facts and direct source relationships. Native Hop uses
+parameter-bound SQL/Cypher and existing private connection metadata. These graph
+workflows make no provider or model requests.
 
-The workflows and `graph-local` run configurations are installed in the live Hop server's
-persistent default project. On 2026-09-11, accepted source snapshots were loaded and verified
-against the existing Neo4j 2026.06.0 Community instance through `jobtology-neo4j`.
+The October 11 permanent model decision is **production VERIFIED on October 12
+KST**. All 86 source projections are READY. The migration removed 86 batch nodes,
+224,903 record nodes and 585,681 scaffold relationships, preserving all 240,196
+existing business nodes and 800,648 business relationships. The final graph has
+240,288 nodes and 830,643 relationships, including 92 real Q-Net sessions and
+29,995 direct source edges. Independent readback preserved all 22,295 posting
+date properties/types and 5,878 inferred NCS links; normal Q-Net replay passed.
+Exact receipts and preservation scope belong in
+[the current handoff](../../docs/hop-migration/current-handoff.md#live-checkpoint-verified);
+the dated September verification below documents the superseded record graph.
 
-## Run the organization and posting graph
+## Install and load
 
-The guarded loader requires [retention support](../retention/README.md), already
-installed on Goldship. For a fresh installation, run `llm/install.hwf` to create
-the enrichment metadata schema, then `retention/install.hwf`. Neither installer
-reads an API key or calls a model.
+The canonical retention and JobKorea installers wait for `graph/install.hwf`.
+This focused installer applies the protected posting-date SQL 001, then additive
+`sql/002_batchfree_source_graph.sql` and
+`sql/003_source_query_sharing.sql`. Existing `ingestion` and retention schemas
+are prerequisites; installers make no source/model requests. The current handoff
+records which runtime version has actually been deployed.
 
-1. Use the saved **Neo4j Connection** named `jobtology-neo4j`. For another installation, configure
-   this metadata with its target host, database and credentials, or override `NEO4J_CONNECTION`.
-   Keep the private connection metadata out of Git. The existing `jobtology-postgres` connection
-   supplies the source rows.
-2. Open **`${PROJECT_HOME}/graph/alio_jobs.hwf`**.
-3. Select **graph-local**, use **Basic** logging, and leave `JOB_RUN_ID=LATEST` or supply an exact
-   READY JOB-ALIO run ID.
+Run `graph/load_snapshot.hwf` with `graph-local` and the exact accepted `RUN_ID`.
+`NEO4J_CONNECTION` defaults to `jobtology-neo4j`; `jobtology-postgres` supplies the
+source. The accepted run must be READY, non-SMOKE and have no validation issues.
+All eight source adapters share this entrypoint. The ALIO/jobs wrapper still
+pins the selected jobs snapshot and its recorded organization dependency.
 
-The workflow pins that jobs snapshot and its recorded ALIO employer dependency. It loads the
-organization graph first, then the jobs graph, verifying each batch before marking it READY.
-It does not select a newer organization snapshot independently of the jobs dependency.
+The loader enters the retention writer guard, checks the accepted source,
+creates missing entity uniqueness constraints, captures PostgreSQL proof,
+projects current entities/names/dates and direct relationships, verifies those
+properties and exact managed relationship counts, then accepts the PostgreSQL
+projection. The normal wrapper separately records the graph export checkpoint.
+It never creates `ingestionBatch`, `ingestionRecord` or `archivedRecord` nodes.
+Compatibility HPL filenames `begin_batch`, `finish_batch`, `mark_failed`,
+`load_records` and `load_references` now implement this same batch-free contract.
 
-| Parameter | Default | Meaning |
-|---|---|---|
-| `JOB_RUN_ID` | `LATEST` | Latest accepted JOB-ALIO snapshot, or an explicit jobs run ID. |
-| `NEO4J_CONNECTION` | `jobtology-neo4j` | Name of the private Hop Neo4j connection metadata. |
+Entity writers and verifiers, including `load_records` and `verify_records`,
+use bounded `UNWIND` batches of up to 500 rows per Neo4j transaction. Each batch
+must account for every input row. Writers and verifiers independently select
+authoritative PostgreSQL source rows and retain the full identity, label,
+property type and NULL guards. Source relationship batching remains unchanged.
+Posting-date transport also uses 500-row batches, requiring every
+row to match including the final partial batch; its isolated native proof and
+deployment status are recorded in the current handoff.
+See [the current handoff](../../docs/hop-migration/current-handoff.md) for
+deployment status and the scope of measured performance results.
 
-For another source or a retry of one batch, open **`graph/load_snapshot.hwf`** with the same
-run configuration and supply **`RUN_ID=<accepted PostgreSQL run ID>`**. It supports all source
-types exposed by `ingestion.graph_record` and `ingestion.graph_reference`. All six source types have live Hop ingestion workflows.
+For the existing graph migration, `graph/migrate_source_graph.hwf` uses
+`RUN_ID=ALL_CHECKPOINTED`. It captures the exact historical source proof for all
+checkpointed runs, writes each current entity/relationship once, and preserves
+existing posting dates. It does not remove historical graph nodes itself. The
+[guarded operator](../operations/migrate_batchfree_graph.py) verifies backing,
+backs up typed graph state, performs removal and checks business preservation.
+Run the guarded workflow entrypoint so its writer lease applies.
 
-The [source scheduler](../operations/README.md) refreshes and exports due sources. For a manual
-graph-only retry, reuse the same accepted PostgreSQL run; this makes no provider requests.
+Separate performance TODO: measure Neo4j deletion transaction batches of 200
+against the verified one-row setting before changing source relationship cleanup.
+The live atomic PostgreSQL capture took 3,394.886 seconds, compared with
+1,172.897 seconds for the older 84-run per-run benchmark. The cause is unproven;
+investigate in disposable archived-data fixtures without relaxing source proofs.
+The earlier posting-date first-read slowdown remains a separate unresolved TODO.
 
-## What is stored
+## Query-local validation and selection
 
-The graph uses dedicated labels, separate from the existing Python loader's `Ingest*` labels:
+Additive SQL 003 is generated by `tools/build_source_queries.py` from the existing
+shared and JobKorea validation rules and source graph definitions. Exact-run
+validation shares that statement's source rows and NDJSON row manifest. Source
+selection shares READY rows, references and run-validity results within each
+statement. Independent writer and verifier calls read source data again; no
+session or persistent validation cache is introduced. The public all-run
+`ingestion.validation_issue` view remains the compatibility oracle. Source proof,
+projection guards, snapshot checks and posting-date observation guards use the
+same exact-run validation contract.
 
-| Label / relationship | Meaning |
-|---|---|
-| `ingestionBatch` | One PostgreSQL run, source, graph state, source date and verification timestamp. |
-| `ingestionRecord` | One historical source row, with its source ID, kind, name and selected structured facts. |
-| `organization` / `jobPosting` | A shared organization or posting identity, with its real name/title. |
-| `occupation` / `ncsCompetency` | An NCS occupation or full-version competency unit, with its name. |
-| `qualification` | A credential identity when qualification/schedule sources are loaded. |
-| `entity` | Additional common label on business identities for ID uniqueness and generic lookup. |
-| `HAS_RECORD` | Connects a batch to its source records. |
-| `REFERS_TO {field: ...}` | Connects a source record to the identities named by its fields. |
+Selection includes candidate owner history and possible current relationship
+endpoints before choosing valid observations. Source namespaces bound this
+search: JobKorea and Nara postings are isolated; ALIO and JOB-ALIO form one group;
+NCS sources and Q-Net form another. Unknown sources and `ALL_CHECKPOINTED` retain
+the conservative all-source search, and the latter still validates every explicit
+checkpoint. Newer invalid runs cannot replace valid current facts. Whole-row NULL
+semantics, array order, historical richer names and cross-run endpoint authority
+retain their existing rules.
 
-Both posting representations are retained: `<posting_id>:list` and `<posting_id>:detail`.
-They refer to the same posting identity and employer identity. The selected organization's source
-record refers to that employer identity too. This preserves the original staging graph contract;
-it is not a new canonical serving model or a skills-extraction graph. NCS records refer to their
-competency unit and occupation. These source loaders do not infer job-to-NCS matches. The separate [LLM workflows](../llm/README.md)
-can publish reviewed `jobEnrichment` nodes and `ALIGNS_WITH_NCS` relationships with duty evidence.
+Installation and runtime guards bind the installed READY-record and reference
+definitions. Changed membership or reference rules refuse source selection with
+`SOURCE_GRAPH_QUERY_CONTRACT_CHANGED` until the optimization is regenerated and
+verified. Changed shared validation rules or a changed local adapter hook use the
+public validation path afresh, so an added rule cannot be silently skipped.
+JobKorea validation remains optional when that adapter has not been installed.
 
-Full source objects and long eligibility, preference and selection text stay in PostgreSQL.
-`facts_json` follows the field exclusions in `ingestion.graph_record`. Names and source facts
-belong to the snapshot record. An entity keeps its stable ID, kind and code, plus mutable display
-metadata: `name`, `title` for postings, `name_source_run_id` and `name_source_record_id`.
+The isolated `tests/source_queries_native.py` oracle passed 46 checks against the
+previous SQL contracts across all eight adapters, including changed endpoints,
+invalid newer history, typed/NULL/ordered values, document and checkpoint tamper,
+fresh repair, immutable and archived proofs, and definition drift. Its protected
+receipt binds exact candidate artifact hashes and confirms removal of its fresh
+database. In a retained 8,434-posting JobKorea clone, one warmed diagnostic with
+fresh table statistics returned entities in 17.696 seconds and the empty direct
+edge set in 9.027 seconds with unchanged planner settings. These single samples
+do not establish a controlled before/after gain, full-workflow throughput or
+`ALL_CHECKPOINTED` performance. Record full replay and atomic/per-run proof
+measurements separately in the current handoff.
 
-Names are selected from accepted, non-SMOKE PostgreSQL snapshots without validation issues.
-The loader prefers a nonempty name, then the authoritative ALIO/NCS/qualification source, then
-that source's newest accepted run. Posting detail wins over list within the same run. Stable
-tie-breakers make the selection repeatable. A source without a name falls back to `kind code`;
-none of the currently loaded entities need this fallback. Replaying an old graph batch therefore
-cannot replace a newer accepted name with an older one. Display names can come from a newer
-accepted PostgreSQL snapshot than the historical graph record being viewed; use the record's
-own name/facts for historical analysis.
+Additive SQL004, generated by `tools/build_replay_queries.py`, preserves frozen
+SQL003 and adds an existing-proof replay path. It acquires `retention.gate()`
+before reading live READY eligibility or locking the projection row. Complete
+record/member counts allow one authoritative captured/live validation before
+the normal guarded LOADING update. Absent or incomplete proof uses the exact
+SQL003 capture implementation, retaining missing-evidence repair; altered values
+still fail authoritative hashes. Archived proofs remain valid for readback and
+are refused for live replay. Both canonical and focused date installers replay
+001/002/003/004 in order. SQL004 and date500 isolated proofs and guarded
+production rollout/separate readback are verified. See the [October 13 routine performance report](../../docs/hop-migration/2026-10-13-routine-performance.md); bounded first-backend date SQL tests did not reproduce the
+historical minutes-long reader delay and establish no root cause for it.
 
-Batch `source_created_at` preserves the PostgreSQL run timestamp in UTC. `batch_date` is its
-calendar date in **Asia/Seoul**, and `name` includes the local timestamp and source. These values
-come from source ingestion, not from the time a graph retry happens.
+## Stable identities and current facts
 
-The accepted PostgreSQL inputs contain:
+Existing source-qualified entity IDs, `kind`, `code` and business labels remain:
+`entity:organization`, `entity:jobPosting`, `entity:occupation`,
+`entity:ncsCompetency` and `entity:qualification`. Q-Net schedules gain
+`entity:examSession` with IDs `qnet:exam-session:` plus SHA256 of their existing
+source record identity (qualification/year/category/round). A session is a real
+schedule business entity; it preserves data formerly stranded on source records.
 
-| Input | Source records | Identity references |
-|---|---:|---:|
-| 355 ALIO organizations | 355 | 355 |
-| 506 JOB-ALIO postings, list plus detail | 1,012 | 2,024 |
-| 15,520 NCS competencies | 15,520 | 31,040 |
-| Total | 16,887 | 33,419 |
+Entities keep explicit `name`, posting `title`, `name_source_run_id` and
+`name_source_record_id`. Name selection retains the established nonempty-name,
+authoritative-source, newest-run and detail-before-list priorities, with stable
+ties. Current facts are selected separately and expose `source_id`,
+`source_run_id`, `source_record_id`, typed `source_created_at`,
+`source_facts_json` and `source_facts_sha256`. The hash is SHA256 of the exact
+UTF-8 JSON string stored in `source_facts_json`.
 
-These reference **17,475 distinct entities**: 355 organizations, 506 postings, 15,520 versioned
-competencies and 1,094 occupations. A graph containing all three snapshots has **34,365 nodes**
-and **50,306 relationships**, including three batch nodes and all historical source records.
-These are snapshot-specific verification counts, not hard-coded source-size requirements.
+Authoritative organization/competency records, postings and exam sessions carry
+their own sanitized structured facts. Referred organization, occupation,
+unversioned competency and qualification identities carry only their own
+code/name/classification/level fields. Posting facts use the existing same-run
+list/detail assembly when available; that assembly's null handling is preserved.
+Otherwise one complete deterministic representation is selected. Newer missing
+or NULL source fields clear current facts, while the historical richer display
+name may remain. Values are never merged across runs. Long source/raw evidence
+stays in PostgreSQL and existing source-specific graph exclusions apply.
 
-## Verification and repeat runs
+`graph_source_entities(run)` and `graph_source_edges(run)` project the latest
+accepted observation for every touched identity, including current relationship
+endpoints. Replaying an old run cannot roll current facts or dates backward.
+Entities absent from a later supplied file remain known; absence does not imply
+closure or deletion. JobKorea employer text does not fabricate an organization
+identity.
 
-`load_snapshot.hwf` executes these stages sequentially:
+## Direct grounded relationships
 
-1. Require a READY, non-SMOKE PostgreSQL run with no validation issues.
-2. Inspect uniqueness constraints and create only missing constraints.
-3. Upgrade former labels in place and retire their matching legacy constraints, if present.
-4. Create or reopen the graph batch in LOADING state, with its original source date.
-5. Merge source records and references; assign semantic entity labels and readable names.
-6. Verify every record property, reference triple, entity kind/code/label and display-name origin.
-7. Verify batch date/name and total membership, rejecting extra rows/references and handling empty sets.
-8. Mark the graph batch READY only after all checks succeed.
+| Relationship | Direction and source |
+| --- | --- |
+| `EMPLOYER` | JOB-ALIO posting to its explicitly coded organization. |
+| `CLASSIFIED_AS` | Versioned NCS competency to its supplied occupation code. |
+| `HAS_CAREER_COMPETENCY` | Occupation to the supplied unversioned career competency. |
+| `QUALIFICATION_MAPPING` | Competency to each supplied qualification mapping. |
+| `HAS_EXAM_SESSION` | Qualification to its supplied Q-Net session. |
 
-The loader uses parameter-bound Cypher, one statement per incoming row, with no UNWIND or
-script transform. The run configurations disable row sampling and execution-data capture.
+Each relationship carries `source_graph=true`, stable `edge_key`, `owner_id`,
+`source_id`, `source_run_id`, `source_record_id` and record-specific `facts_json`.
+Career ranks and qualification mapping versions retain separate source-record
+relationships rather than selecting one arbitrary mapping. Endpoints must come
+from the same accepted source row. On updates, only obsolete managed keys for
+that owner/source are deleted; same-key relationship IDs survive replay. Inferred
+occupation links, candidates, review status and accounting are outside these
+managed direct relationships and remain unchanged.
 
-`MERGE` makes repeated loads of the same snapshot idempotent. Record facts and stable identity
-kind/code are set on creation and then verified, so a conflicting stored value causes failure.
-Entity names are refreshed from accepted source facts and then independently checked by the workflow.
-A new PostgreSQL run creates a new graph batch and record set; stable identities remain shared.
-Historical batches are retained. Always select an intended READY batch when querying facts.
+## PostgreSQL snapshot proof and recovery
 
-If Neo4j fails, PostgreSQL remains READY. The workflow marks a LOADING graph batch FAILED when
-the graph is reachable; a connection outage can leave it LOADING. Inspect and correct the graph
-problem, then rerun the same `RUN_ID`. No graph error requires refetching an API. The two-source
-wrapper is sequential: if organization loading succeeds and jobs loading fails, the verified
-organization batch stays READY and the jobs batch can be retried independently.
+`ingestion.source_graph_projection` holds LOADING/READY/FAILED state, loader
+`hop-graph-batchfree-v1`, record/reference counts, a content SHA256, start time,
+verification time and failure code. Two immutable tables retain the proof:
+`source_graph_record_evidence` hashes normalized/raw/lineage/quality/document
+content, and `source_graph_membership` binds each exact run/record/field to an
+identity/kind/code. The proof tables have no source-run foreign key, so independent
+source cleanup can preserve accepted evidence. They are additional audit tables;
+no frozen source row or LLM input is rewritten.
 
-Hop 2.19's Neo4j Cypher transform treats the information notification produced by an existing
-`CREATE CONSTRAINT ... IF NOT EXISTS` as an error. The executable workflow therefore uses
-`SHOW CONSTRAINTS` first. It verifies the label/property uniqueness definition, skips a matching
-constraint, and rejects an incompatible use of its intended constraint name. Run one writer per
-instance at a time; shared entity display metadata and label/constraint upgrades can touch
-multiple snapshots. This workflow does not implement a distributed writer lock.
+`assert_source_graph_projection(run)` rejects non-READY, missing or changed
+proof. It rehashes the immutable manifest and checks live accepted content while
+that source run remains. `assert_source_graph_member(run,id,kind,code)` also
+requires exact historical membership. `graph_source_run_evidence(run)` and
+`graph_source_identity_evidence(run,id)` expose those verified rows. Frozen LLM
+source/catalogue hashes are verified by their existing input contracts in
+addition to this graph-membership proof. A historical JobKorea/NCS pin can remain
+valid while the live entity's current source facts advance; consumers must not
+compare its current facts hash to an older frozen input hash.
 
-## Labels and Browser captions
+A partial graph load leaves PostgreSQL input acceptance untouched and its new
+projection FAILED (or LOADING after interruption). Correct the graph problem
+and replay the exact RUN_ID; no API refetch is needed. A later successful
+verification restores READY and then the ordinary wrapper records its graph
+export checkpoint. PostgreSQL retains the history, while graph entities carry
+only current facts and scalar origin references.
 
-The loader automatically replaces `HopMigrationBatch` with `ingestionBatch`, `HopMigrationRecord`
-with `ingestionRecord`, and `HopMigrationIdentity` with `entity` plus its business label. This is
-an in-place relabel: node IDs, relationships and source facts are preserved. New uniqueness
-constraints use `ingestion_v2_*_id`. Only the three matching old `ingestion_*_id` constraints
-are retired. Nodes belonging to the Python loader are outside this migration.
+## Query and captions
 
-The text drawn inside a node is a **caption**, chosen by the graph viewer. The database stores
-readable properties; each Neo4j Browser profile chooses which property to display.
-
-1. Run **`:style`** in Neo4j Browser.
-2. Download the current style first if you want to keep a copy of your custom styling.
-3. Upload [`browser-style.grass`](browser-style.grass) from this directory.
-4. Re-run a small graph query below. Organization/occupation/competency captions use `name`,
-   postings use `title`, and batches use `batch_date`.
-
-Alternatively, select each node label in the result overview and click the desired **Caption**
-property. All business nodes also have `name`, so choosing it for the common `entity` label works
-too. For colors, put the business label ahead of `entity` in the result's label styling order.
-The file is saved in the persistent Hop project as well as this repo. It does not automatically
-change existing browser profiles. See the official
-[Browser styling guide](https://neo4j.com/docs/browser/operations/browser-styling/).
-
-## Inspect the graph
-
-Check batch states and source-record counts:
+Inspect the current business graph directly:
 
 ```cypher
-MATCH (b:ingestionBatch)
-OPTIONAL MATCH (b)-[:HAS_RECORD]->(r:ingestionRecord)
-RETURN b.id AS run_id, b.source_id AS source, b.state AS state,
-       count(r) AS source_records
-ORDER BY source, run_id;
+MATCH path=(posting:entity:jobPosting)-[:EMPLOYER]->(employer:entity:organization)
+RETURN path LIMIT 20;
 ```
-
-For the currently accepted pair, inspect each posting's official employer while selecting one
-representation per posting:
 
 ```cypher
-MATCH (:ingestionBatch {
-  id: '77ccb77b-3afc-4965-8ce5-efd687304954', state: 'READY'
-})-[:HAS_RECORD]->(posting:ingestionRecord)
-MATCH (:ingestionBatch {
-  id: 'cb6db580-6cdb-4015-8fd6-2d7f682e460a', state: 'READY'
-})-[:HAS_RECORD]->(organization:ingestionRecord)
-MATCH (posting)-[:REFERS_TO {field: 'organization_code'}]->(employer:entity)
-      <-[:REFERS_TO {field: 'code'}]-(organization)
-WHERE posting.source_record_id ENDS WITH ':detail'
-RETURN posting.name AS posting, organization.name AS employer,
-       employer.code AS organization_code
-ORDER BY employer, posting;
+MATCH path=(unit:entity:ncsCompetency)-[:CLASSIFIED_AS]->(occupation:entity:occupation)
+RETURN path LIMIT 20;
 ```
 
-For a visual example of postings and employers, including the source record that provides the
-link:
+Historical snapshot membership and full source facts are SQL queries against the
+retained PostgreSQL evidence; they are not graph traversals. Browser captions
+use posting `title` and other business entity `name`. Upload
+[browser-style.grass](browser-style.grass) to the desired Browser profile.
+
+## Posting ingestion dates
+
+Shared `jobPosting` entities also expose dates for direct filtering without
+traversing historical batches. Their source is a separate append-only
+PostgreSQL ingestion-observation ledger. It records accepted runs that actually
+contain the posting; it selects dates independently of the entity's display name.
+
+| Property | Meaning |
+| --- | --- |
+| `first_ingested_at` | Earliest recorded accepted ingestion time for this posting; Neo4j `datetime`. |
+| `last_ingested_at` | Latest recorded accepted ingestion time for this posting; Neo4j `datetime`. |
+| `latest_ingestion_run_id` | Accepted run supplying the latest ingestion observation. |
+| `ingestion_batch_date` | Calendar date of `last_ingested_at` in `Asia/Seoul`; Neo4j `date`. |
+| `ingestion_time_basis` | `JOBKOREA_IMPORTED_AT` or `RUN_CREATED_AT`, identifying the latest observation's time basis. |
+| `scraped_at` | Known collection time for the selected latest run; Neo4j `datetime`, absent when unknown. |
+| `scraped_at_basis` | `USER_REPORTED` or `IMPORT_RECEIPT`; absent when scrape time is unknown. |
+| `scraped_at_evidence_reference` | Opaque reference to separately retained collection-time evidence, when available. |
+
+Graph loading or verification time does not advance these ingestion dates.
+JobKorea uses its immutable local import receipt's `imported_at`; other posting
+sources use the recorded ingestion run's `created_at`, identified by the basis.
+Replaying an older run cannot replace a newer observation. A latest observation
+with unknown scrape time clears a scrape timestamp from an older run rather than
+presenting it as the latest collection time. The compact ledger has no run foreign
+key, so future cleanup of historical source runs need not erase its timestamps or
+be blocked by them.
+
+`graph/install_posting_dates.hwf` installs
+`graph/sql/001_posting_ingestion_dates.sql` for an existing environment with shared
+ingestion and retention support. The canonical retention and JobKorea installers
+also include this shared contract. The shared
+`graph/load_snapshot.hwf` loads and verifies the properties for future snapshots.
+For an existing accepted graph, `graph/update_posting_dates.hwf` with an exact
+`RUN_ID` updates and verifies only this date metadata. Run the workflow entry
+point so its retention writer guard applies.
+
+For example, filter posting identities directly by their latest ingestion date:
 
 ```cypher
-MATCH (:ingestionBatch {id: '77ccb77b-3afc-4965-8ce5-efd687304954', state: 'READY'})
-      -[:HAS_RECORD]->(r:ingestionRecord)
-WHERE r.source_record_id ENDS WITH ':detail'
-WITH r ORDER BY r.id LIMIT 10
-MATCH p=(posting:jobPosting)<-[:REFERS_TO {field: 'posting_id'}]-(r)
-        -[:REFERS_TO {field: 'organization_code'}]->(employer:organization)
-RETURN p;
+MATCH (p:entity:jobPosting)
+WHERE p.ingestion_batch_date = date('2026-10-08')
+RETURN p.id, p.title, p.first_ingested_at, p.last_ingested_at,
+       p.scraped_at, p.scraped_at_basis
 ```
 
-For NCS competencies and their occupations:
+The posting-date contract is preserved by the separate batch-free migration.
+The bulk migration preserves these existing properties; future per-run imports
+continue capturing and verifying the observation ledger. It makes no LLM or
+source request. See the
+[current deployment checkpoint](../../docs/hop-migration/current-handoff.md#october-11-posting-ingestion-date-metadata)
+for verified runtime status.
 
-```cypher
-MATCH (:ingestionBatch {id: 'a32170ed-7485-4e31-82d3-ed48b3398946', state: 'READY'})
-      -[:HAS_RECORD]->(r:ingestionRecord)
-WITH r ORDER BY r.id LIMIT 20
-MATCH p=(unit:ncsCompetency)<-[:REFERS_TO {field: 'code'}]-(r)
-        -[:REFERS_TO {field: 'occupation_code'}]->(occupation:occupation)
-RETURN p;
-```
+## Batch-free native verification
 
-The workflow files and `metadata/{pipeline,workflow}-run-configuration/graph-local.json` files
-belong in the persistent Hop project. Their backing Docker volume survives a container
-replacement. The Neo4j database has its own persistence and backup requirements.
+`python3 hop/graph/tests/batchfree_native.py` uses only existing local images,
+unique disposable PostgreSQL/Hop/Neo4j containers on an internal network and
+synthetic local source content. It covers all eight adapters, typed posting
+dates, same business and relationship element IDs on replay, multi-valued
+mappings/ranks, Q-Net sessions, own-subject facts, old-pinned evidence with newer
+facts, missing/absent observations, incomplete and failed-load recovery, inferred
+link preservation, immutable/forged/tampered proof refusal and absence of all
+retired graph node labels. The operator hook additionally proves typed backup,
+unexpected-attachment refusal, partial-removal recovery and rollback. Protected
+receipts record actual checks and resource cleanup; they establish fixture
+behavior, not unmeasured larger production throughput.
+
+## Historical record-graph verification
+
+The sections below retain September evidence for the superseded graph model.
+Their batch/record descriptions are historical, not instructions for the current
+loader. Consult the current handoff for deployed runtime state.
 
 ## Local verification
 
@@ -312,7 +393,3 @@ V2 execution logs are in `${PROJECT_HOME}/data/graph-logs/`:
 - `20260911-v2-pair-first.log`
 - `20260911-v2-ncs-first.log`
 - `20260911-v2-ncs-repeat.log`
-
-## Manual retention and graph writers
-
-`load_snapshot.hwf` now registers/releases a PostgreSQL retention writer lease. Install [retention support](../retention/README.md) before using this guarded workflow. Retention preserves shared entity nodes and last-known facts as `archivedRecord` nodes, then removes only selected historical batches and source records. Always run the workflow entry point so its writer guard applies.

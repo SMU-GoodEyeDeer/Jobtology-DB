@@ -1,0 +1,299 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>begin_inferred_occupation_graph</name>
+    <description>Check PostgreSQL source proofs before own STAGING writes.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Exact projection pins</from>
+      <to>Check immutable projection</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Check immutable projection</from>
+      <to>Expected frozen projection</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Expected frozen projection</from>
+      <to>Begin own staging projection</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Begin own staging projection</from>
+      <to>Require exact graph result</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Require exact graph result</from>
+      <to>Verified</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Require exact graph result</from>
+      <to>Graph mismatch</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Exact projection pins</name>
+    <fields>
+      <field>
+        <name>jobs</name>
+        <variable>${JOB_RUN_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>ncs</name>
+        <variable>${NCS_RUN_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>include_unreviewed</name>
+        <variable>${INCLUDE_UNREVIEWED}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>graph_token</name>
+        <variable>${GRAPH_TOKEN}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform>
+    <type>ExecSql</type>
+    <name>Check immutable projection</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT enrichment.check_metadata_occupation_graph(?)</sql>
+    <execute_each_row>Y</execute_each_row>
+    <single_statement>Y</single_statement>
+    <set_params>Y</set_params>
+    <replace_variables>N</replace_variables>
+    <quoteString>N</quoteString>
+    <arguments>
+      <argument>
+        <name>graph_token</name>
+      </argument>
+    </arguments>
+    <GUI>
+      <xloc>340</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Expected frozen projection</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT enrichment.hash(?||':'||?) AS projection_id,
+enrichment.metadata_occupation_graph_hash(?,?,?::boolean) AS projection_hash,
+(SELECT count(*)::bigint FROM enrichment.metadata_occupation_graph_rows(?,?,?::boolean)) AS expected_count</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>jobs</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>ncs</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>jobs</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>ncs</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>include_unreviewed</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>jobs</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>ncs</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>include_unreviewed</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <GUI>
+      <xloc>600</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform>
+    <type>Neo4jCypherOutput</type>
+    <name>Begin own staging projection</name>
+    <connection>${NEO4J_CONNECTION}</connection>
+    <cypher>MERGE (m:metadataOccupationProjection {id:$projection_id})
+SET m.managed_by='jobtology-metadata-occupation',m.job_run_id=$jobs,m.ncs_run_id=$ncs,
+m.serving_scope='STAGING',m.state='LOADING',m.projection_token=$graph_token,
+m.projection_hash=$projection_hash,m.expected_count=$expected_count
+WITH m OPTIONAL MATCH ()-[r:INFERRED_NCS_OCCUPATION {managed_by:'jobtology-metadata-occupation',
+job_run_id:$jobs,ncs_run_id:$ncs}]-&gt;()
+SET r.current=false
+RETURN count(DISTINCT m)=1 AS verified</cypher>
+    <batch_size>1</batch_size>
+    <read_only>N</read_only>
+    <retry>N</retry>
+    <nr_retries_on_error>0</nr_retries_on_error>
+    <cypher_from_field>N</cypher_from_field>
+    <unwind>N</unwind>
+    <returning_graph>N</returning_graph>
+    <mappings>
+      <mapping>
+        <parameter>jobs</parameter>
+        <field>jobs</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>ncs</parameter>
+        <field>ncs</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>graph_token</parameter>
+        <field>graph_token</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>projection_id</parameter>
+        <field>projection_id</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>projection_hash</parameter>
+        <field>projection_hash</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>expected_count</parameter>
+        <field>expected_count</field>
+        <type>Integer</type>
+      </mapping>
+    </mappings>
+    <returns>
+      <return>
+        <name>verified</name>
+        <type>Boolean</type>
+        <source_type>Boolean</source_type>
+      </return>
+    </returns>
+    <GUI>
+      <xloc>860</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>Require exact graph result</name>
+    <send_true_to>Verified</send_true_to>
+    <send_false_to>Graph mismatch</send_false_to>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>verified</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Boolean</type>
+          <text>Y</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <GUI>
+      <xloc>1120</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform>
+    <type>Dummy</type>
+    <name>Verified</name>
+    <GUI>
+      <xloc>1380</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform>
+    <type>Abort</type>
+    <name>Graph mismatch</name>
+    <message>Inferred occupation projection differs from its exact frozen pins/evidence.</message>
+    <always_log_rows>N</always_log_rows>
+    <abort_option>ABORT_WITH_ERROR</abort_option>
+    <row_threshold>0</row_threshold>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

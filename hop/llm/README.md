@@ -27,6 +27,21 @@ set `JOB_SOURCE_ID=job_alio` (default) or `JOB_SOURCE_ID=nara_job` and pin
 `JOB_RUN_ID` to a READY snapshot of that source. Evaluation datasets remain
 JOB-ALIO-based so historical comparisons do not change.
 
+For local JobKorea exports, use the [bounded pilot entry points](../ingestions/jobkorea/README.md#prepare-a-small-semantic-linking-pilot)
+after source installation. `jobkorea-input-v1` freezes exact listing evidence and
+supplied local narrative, with separate normalized metadata and audit manifests.
+Its metadata eligibility is independent of missing full-description eligibility.
+The default IT/software/data candidate pilot is five postings, `ko-link-v1`,
+`REVIEW`, and `EXECUTE_REQUESTS=N`; preparation pins exact current JobKorea/NCS
+runs and requires verified bundles. Listing labels cannot become duty evidence,
+and absent explicit duties skip NCS matching. Existing JOB-ALIO/Nara hashes,
+attachment verification, historical evaluations and saved review decisions retain
+their contracts. Reviewed publication requires both the JobKorea source graph
+and pinned NCS competency graph loaded in Neo4j. The user authorized a small paid
+pilot on October 7; measured
+results and the requested per-1,000-listing price estimate belong in the
+[current handoff](../../docs/hop-migration/current-handoff.md).
+
 The default prompt/schema is **`ko-v3`**. It uses source passage IDs, explicit
 condition kinds, shared position references and nested condition expressions.
 `ko-v1` and `ko-v2` remain installed for historical replay: the

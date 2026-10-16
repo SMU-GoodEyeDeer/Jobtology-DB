@@ -107,7 +107,7 @@ def process_latest() -> None:
 
 @load_app.command("neo4j")
 def load_graph(processing_run_id: str) -> None:
-    """Load an isolated, provenance-linked IngestBatch. Does not activate a corpus release."""
+    """Retired publisher. Use the native Hop graph/load_snapshot.hwf entrypoint."""
 
     def action(engine: Engine, settings: Settings) -> None:
         json_event(load_neo4j_staging(engine, settings, processing_run_id))

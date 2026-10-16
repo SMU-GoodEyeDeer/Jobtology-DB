@@ -1,4 +1,4 @@
--- Generated from retention/sql/001_retention.sql. Requires installed manual retention.
+-- Generated from retention/sql/002_batchfree_retention.sql. Requires installed manual retention.
 BEGIN;
 SELECT retention.gate();
 DO $$ BEGIN IF ingestion.maintenance_active() THEN RAISE EXCEPTION 'RETENTION_ACTIVE'; END IF; END $$;
@@ -6,6 +6,7 @@ CREATE OR REPLACE FUNCTION retention.protection(id text,keep_count integer) RETU
 DECLARE u ingestion.run; ontology_pinned boolean; BEGIN
  SELECT * INTO u FROM ingestion.run WHERE run_id=id;
  IF NOT FOUND THEN RETURN 'MISSING_RUN'; END IF;
+ IF u.source_id='jobkorea' THEN RETURN 'UNSUPPORTED_JOBKOREA_STORAGE_RETENTION'; END IF;
  IF u.state<>'READY' OR u.mode='SMOKE' THEN RETURN 'NOT_ACCEPTED_FULL_SNAPSHOT'; END IF;
  IF id IN (SELECT run_id FROM ingestion.run WHERE source_id=u.source_id AND state='READY' AND mode<>'SMOKE'
    ORDER BY created_at DESC,run_id DESC LIMIT keep_count) THEN RETURN 'KEEP_LATEST'; END IF;
@@ -26,6 +27,17 @@ DECLARE u ingestion.run; ontology_pinned boolean; BEGIN
  IF to_regclass('ontology.observation_run') IS NOT NULL THEN
   EXECUTE 'SELECT EXISTS(SELECT 1 FROM ontology.observation_run WHERE run_id=$1)' INTO ontology_pinned USING id;
   IF ontology_pinned THEN RETURN 'ONTOLOGY_OBSERVATION_HISTORY'; END IF;
+ END IF;
+ IF to_regclass('enrichment.link_publication') IS NOT NULL THEN
+  IF to_regclass('enrichment.link_publication_source_run') IS NOT NULL THEN
+   EXECUTE 'SELECT EXISTS(SELECT 1 FROM enrichment.link_publication p WHERE p.job_run_id=$1 OR p.ncs_run_id=$1 OR EXISTS
+    (SELECT 1 FROM enrichment.link_publication_source_run s WHERE s.publication_id=p.publication_id AND s.run_id=$1))'
+    INTO ontology_pinned USING id;
+  ELSE
+   EXECUTE 'SELECT EXISTS(SELECT 1 FROM enrichment.link_publication WHERE job_run_id=$1 OR ncs_run_id=$1)'
+    INTO ontology_pinned USING id;
+  END IF;
+  IF ontology_pinned THEN RETURN 'REVIEWED_LINK_PUBLICATION'; END IF;
  END IF;
  IF NOT EXISTS(SELECT 1 FROM ingestion.graph_export WHERE run_id=id) THEN RETURN 'GRAPH_NOT_CHECKPOINTED'; END IF;
  IF EXISTS(SELECT 1 FROM ingestion.request_attempt WHERE run_id=id AND reserved_at>clock_timestamp()-interval '24 hours')

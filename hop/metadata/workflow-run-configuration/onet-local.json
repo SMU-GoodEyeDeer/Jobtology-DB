@@ -1,0 +1,11 @@
+{
+  "name": "onet-local",
+  "description": "Local frozen O*NET catalogue only; Basic logging and no execution-data capture.",
+  "engineRunConfiguration": {
+    "Local": {
+      "safe_mode": false
+    }
+  },
+  "executionInfoLocationName": "",
+  "defaultSelection": false
+}

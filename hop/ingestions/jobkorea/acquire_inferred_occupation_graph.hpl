@@ -1,0 +1,131 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>acquire_inferred_occupation_graph</name>
+    <description>Freeze exact rows and acquire retention writer.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Exact projection pins</from>
+      <to>Acquire fenced writer</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Acquire fenced writer</from>
+      <to>Remember exact pilot pins</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Exact projection pins</name>
+    <fields>
+      <field>
+        <name>jobs</name>
+        <variable>${JOB_RUN_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>ncs</name>
+        <variable>${NCS_RUN_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>include_unreviewed</name>
+        <variable>${INCLUDE_UNREVIEWED}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>graph_token</name>
+        <variable>${GRAPH_TOKEN}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Acquire fenced writer</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT enrichment.begin_metadata_occupation_graph(?,?,?::boolean) AS acquired_token</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>jobs</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>ncs</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>include_unreviewed</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <GUI>
+      <xloc>340</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform>
+    <type>SetVariable</type>
+    <name>Remember exact pilot pins</name>
+    <use_formatting>Y</use_formatting>
+    <fields>
+      <field>
+        <field_name>acquired_token</field_name>
+        <variable_name>GRAPH_TOKEN</variable_name>
+        <variable_type>PARENT_WORKFLOW</variable_type>
+        <default_value />
+      </field>
+    </fields>
+    <GUI>
+      <xloc>600</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

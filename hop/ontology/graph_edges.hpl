@@ -2,7 +2,7 @@
 <pipeline>
   <info>
     <name>graph_edges</name>
-    <description>Merge semantic and evidence relationships with explicit release membership.</description>
+    <description>Merge flat semantic/evidence edges; unaffected edges retain their original statement IDs.</description>
     <pipeline_type>Normal</pipeline_type>
     <size_rowset>100</size_rowset>
     <parameters />
@@ -63,7 +63,7 @@
     <type>TableInput</type>
     <name>Expected graph edges</name>
     <connection>jobtology-postgres</connection>
-    <sql>SELECT l.load_id,l.release_id,l.database_id,l.manifest_hash,r.manifest-&gt;&gt;'data_as_of' AS data_as_of,(r.manifest-&gt;&gt;'nodes')::bigint AS expected_nodes,(r.manifest-&gt;&gt;'edges')::bigint AS expected_edges,e.edge_id,e.subject_id,e.predicate,e.object_id,e.content_hash FROM ontology.graph_load l JOIN ontology.corpus_release r USING(release_id) JOIN ontology.graph_edge e ON e.release_id=l.release_id WHERE l.load_id=? AND l.state='RUNNING' ORDER BY e.edge_id</sql>
+    <sql>SELECT l.load_id,l.release_id,l.database_id,l.manifest_hash,l.source_manifest_hash,r.manifest-&gt;&gt;'data_as_of' AS data_as_of,projection.node_count AS expected_nodes,projection.edge_count AS expected_edges,(projection.manifest-&gt;&gt;'bindings')::bigint AS legacy_nodes,(projection.manifest-&gt;&gt;'legacy_edges')::bigint AS legacy_edges,e.edge_id,e.subject_id,e.predicate,e.object_id,e.content_hash FROM ontology.flat_graph_load l JOIN ontology.flat_graph_projection projection USING(release_id) JOIN ontology.corpus_release r USING(release_id) JOIN ontology.flat_graph_edge e ON e.release_id=l.release_id WHERE l.load_id=? AND l.state IN ('RUNNING','STAGED') ORDER BY e.edge_id</sql>
     <limit>0</limit>
     <lookup>Load token</lookup>
     <execute_each_row>Y</execute_each_row>
@@ -86,7 +86,8 @@
     <cypher>CALL db.info() YIELD id AS actual_database_id
 UNWIND $rows AS row
 WITH row,actual_database_id WHERE row.database_id=actual_database_id
-MATCH (a:ontologyObject {id:row.subject_id}),(b:ontologyObject {id:row.object_id})
+MATCH (a:ontologyObject {id:row.subject_id})
+WITH row,a MATCH (b:ontologyObject {id:row.object_id})
 MERGE (a)-[e:$(row.predicate) {id:row.edge_id}]-&gt;(b)
 ON CREATE SET e.release_id=row.release_id,e.content_hash=row.content_hash
 WITH row,e WHERE e.release_id=row.release_id AND e.content_hash=row.content_hash
@@ -203,7 +204,7 @@ RETURN count(e)=size($rows) AS verified</cypher>
   <transform>
     <type>Abort</type>
     <name>Graph mismatch</name>
-    <message>Ontology graph verification failed. The PostgreSQL active release was not changed. Inspect the log and retry the same release.</message>
+    <message>Flat ontology verification failed; PostgreSQL history is unchanged.</message>
     <always_log_rows>N</always_log_rows>
     <abort_option>ABORT_WITH_ERROR</abort_option>
     <row_threshold>0</row_threshold>

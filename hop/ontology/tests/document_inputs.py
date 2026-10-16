@@ -174,7 +174,7 @@ def main():
     native.run('load_release.hwf',dict(RELEASE_ID=release),'document-native-graph-replay')
     assert graph_before==neo(f"MATCH (:corpusRelease {scoped})-[e:INCLUDES]->(n) RETURN count(n),count(e)")
     assert manifest==json.loads(sql('SELECT manifest FROM ontology.corpus_release WHERE release_id='+q(release)))
-    assert sql(f"SELECT state='PREPARING' AND graph_verified_at IS NOT NULL FROM ontology.corpus_release WHERE release_id={q(release)}")=='t'
+    assert sql(f"SELECT state='PREPARING' AND EXISTS(SELECT 1 FROM ontology.flat_graph_load l WHERE l.release_id=r.release_id AND l.state='VERIFIED') FROM ontology.corpus_release r WHERE release_id={q(release)}")=='t'
     assert sql(f"SELECT count(*) FROM enrichment.attempt WHERE batch_id IN ({q(batch)},{q(eval_batch)}) AND reserved_at IS NOT NULL")=='0'
     assert sql('SELECT count(*) FROM ontology.active_release')=='0'
     result=dict(release_id=release,job_run_id=jobs,bundle_ids=bundles,outcomes=outcomes,manifest=manifest)

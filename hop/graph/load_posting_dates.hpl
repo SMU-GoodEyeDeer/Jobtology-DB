@@ -1,0 +1,272 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>load_posting_dates</name>
+    <description>Project and verify accepted posting ingestion events independently of display names.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>1000</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Snapshot</from>
+      <to>Capture accepted posting events</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Capture accepted posting events</from>
+      <to>Read posting dates</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Read posting dates</from>
+      <to>Set posting dates</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Set posting dates</from>
+      <to>Check result</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Check result</from>
+      <to>Complete</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Check result</from>
+      <to>Check failed</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Snapshot</name>
+    <fields>
+      <field>
+        <name>run_id</name>
+        <variable>${RUN_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>100</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Read posting dates</name>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <sql>SELECT * FROM ingestion.graph_posting_ingestion_dates(?)</sql>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <parameter>
+      <field>
+        <name>run_id</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <replace_vars>N</replace_vars>
+    <connection>jobtology-postgres</connection>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>330</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Neo4jCypherOutput</type>
+    <name>Set posting dates</name>
+    <connection>${NEO4J_CONNECTION}</connection>
+    <cypher>UNWIND $rows AS row
+MATCH (i:entity:jobPosting {id:row.identity_id,kind:'JobPosting'})
+SET i.first_ingested_at=datetime(row.first_ingested_at),i.last_ingested_at=datetime(row.last_ingested_at),
+i.latest_ingestion_run_id=row.latest_ingestion_run_id,i.ingestion_batch_date=date(row.ingestion_batch_date),
+i.ingestion_time_basis=row.ingestion_time_basis,
+i.scraped_at=CASE WHEN row.scraped_at IS NULL THEN NULL ELSE datetime(row.scraped_at) END,
+i.scraped_at_basis=row.scraped_at_basis,i.scraped_at_evidence_reference=row.scraped_at_evidence_reference
+RETURN count(i)=size($rows) AS entity_matches</cypher>
+    <batch_size>500</batch_size>
+    <read_only>N</read_only>
+    <retry>N</retry>
+    <nr_retries_on_error>0</nr_retries_on_error>
+    <cypher_from_field>N</cypher_from_field>
+    <unwind>Y</unwind>
+    <returning_graph>N</returning_graph>
+    <mappings>
+      <mapping>
+        <parameter>identity_id</parameter>
+        <field>identity_id</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>first_ingested_at</parameter>
+        <field>first_ingested_at</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>last_ingested_at</parameter>
+        <field>last_ingested_at</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>latest_ingestion_run_id</parameter>
+        <field>latest_ingestion_run_id</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>ingestion_batch_date</parameter>
+        <field>ingestion_batch_date</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>ingestion_time_basis</parameter>
+        <field>ingestion_time_basis</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>scraped_at</parameter>
+        <field>scraped_at</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>scraped_at_basis</parameter>
+        <field>scraped_at_basis</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>scraped_at_evidence_reference</parameter>
+        <field>scraped_at_evidence_reference</field>
+        <type>String</type>
+      </mapping>
+    </mappings>
+    <returns>
+      <return>
+        <name>entity_matches</name>
+        <type>Boolean</type>
+        <source_type>Boolean</source_type>
+      </return>
+    </returns>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <unwind_map>rows</unwind_map>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>Check result</name>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>entity_matches</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Boolean</type>
+          <text>Y</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <send_true_to>Complete</send_true_to>
+    <send_false_to>Check failed</send_false_to>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>790</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Dummy</type>
+    <name>Complete</name>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>1020</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Abort</type>
+    <name>Check failed</name>
+    <row_threshold>0</row_threshold>
+    <message>A posting identity is missing or its ingestion or collection date provenance differs from accepted events.</message>
+    <always_log_rows>N</always_log_rows>
+    <abort_option>ABORT_WITH_ERROR</abort_option>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>100</xloc>
+      <yloc>270</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+  <transform>
+    <type>DBJoin</type>
+    <name>Capture accepted posting events</name>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <sql>SELECT ingestion.record_posting_ingestion_observations(?) AS captured_observations</sql>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <parameter>
+      <field>
+        <name>run_id</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <replace_vars>N</replace_vars>
+    <connection>jobtology-postgres</connection>
+    <distribute>Y</distribute>
+    <copies>1</copies>
+    <GUI>
+      <xloc>330</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+</pipeline>

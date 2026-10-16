@@ -1,0 +1,226 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>preflight_scope</name>
+    <description>Reject global collisions in the separately owned inferred relationship namespace before any graph writes.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>1000</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Exact O*NET operation options</from>
+      <to>Check frozen graph plan once</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Check frozen graph plan once</from>
+      <to>Read exact graph target</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Read exact graph target</from>
+      <to>Preflight inferred namespace once</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Preflight inferred namespace once</from>
+      <to>Require exact graph result</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Require exact graph result</from>
+      <to>Require exact graph result accepted</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Require exact graph result</from>
+      <to>Require exact graph result rejected</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Exact O*NET operation options</name>
+    <fields>
+      <field>
+        <name>publication_id</name>
+        <variable>${ONET_PUBLICATION_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform>
+    <type>ExecSql</type>
+    <name>Check frozen graph plan once</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT onet_matching.check_graph(?)</sql>
+    <execute_each_row>Y</execute_each_row>
+    <single_statement>Y</single_statement>
+    <set_params>Y</set_params>
+    <replace_variables>N</replace_variables>
+    <quoteString>N</quoteString>
+    <arguments>
+      <argument>
+        <name>publication_id</name>
+      </argument>
+    </arguments>
+    <GUI>
+      <xloc>310</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Read exact graph target</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT database_id,task_id FROM onet_matching.graph_guard WHERE publication_id=?</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>publication_id</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <GUI>
+      <xloc>540</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform>
+    <type>Neo4jCypherOutput</type>
+    <name>Preflight inferred namespace once</name>
+    <connection>${NEO4J_CONNECTION}</connection>
+    <cypher>CALL db.info() YIELD id AS actual_database_id
+OPTIONAL MATCH (a)-[r]-&gt;(b) WHERE r.id STARTS WITH 'urn:jobtology:inferred-onet-occupation:' OR type(r)='INFERRED_ONET_OCCUPATION' OR r.managed_by='jobtology-onet-matching-v1'
+WITH actual_database_id,collect(r IS NULL OR (type(r)='INFERRED_ONET_OCCUPATION' AND r.managed_by='jobtology-onet-matching-v1' AND r.id STARTS WITH 'urn:jobtology:inferred-onet-occupation:' AND a:entity AND a:jobPosting AND b:entity AND b:onetCatalogObject AND b:occupation AND r.occupation_code=b.code AND r.release_id=b.release_id)) AS valid_flags,count(r) AS actual_count,count(DISTINCT r.id) AS unique_count
+RETURN actual_database_id=$database_id AND all(valid IN valid_flags WHERE valid) AND actual_count=unique_count AS verified</cypher>
+    <batch_size>1</batch_size>
+    <read_only>Y</read_only>
+    <retry>N</retry>
+    <nr_retries_on_error>0</nr_retries_on_error>
+    <cypher_from_field>N</cypher_from_field>
+    <unwind>N</unwind>
+    <returning_graph>N</returning_graph>
+    <mappings>
+      <mapping>
+        <parameter>database_id</parameter>
+        <field>database_id</field>
+        <type>String</type>
+      </mapping>
+    </mappings>
+    <returns>
+      <return>
+        <name>verified</name>
+        <type>Boolean</type>
+        <source_type>Boolean</source_type>
+      </return>
+    </returns>
+    <GUI>
+      <xloc>770</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>Require exact graph result</name>
+    <send_true_to>Require exact graph result accepted</send_true_to>
+    <send_false_to>Require exact graph result rejected</send_false_to>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>verified</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Boolean</type>
+          <text>Y</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <GUI>
+      <xloc>1000</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform>
+    <type>Dummy</type>
+    <name>Require exact graph result accepted</name>
+    <GUI>
+      <xloc>1230</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform>
+    <type>Abort</type>
+    <name>Require exact graph result rejected</name>
+    <message>O*NET catalogue graph differs from its exact owned PostgreSQL inventory.</message>
+    <always_log_rows>N</always_log_rows>
+    <abort_option>ABORT_WITH_ERROR</abort_option>
+    <row_threshold>0</row_threshold>
+    <GUI>
+      <xloc>1460</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

@@ -36,7 +36,7 @@ p.chain(vars_for('SOURCE_ID','SELECTION_MODE','AMOUNT','KEEP_LATEST','RAW_BASE')
 p.save()
 entry('preview.hwf','Preview manual snapshot retention',plan_params,[('Create immutable preview','preview.hpl'),('List selected and protected runs','inspect_plan.hpl')])
 p=Pipe('inspect_plan','Preview the last transform for selected snapshots and protection reasons.',{'PLAN_ID':''})
-p.chain(vars_for('PLAN_ID'),db('Snapshot decisions','SELECT run_id,source_id,created_at,selected,reason,record_count,document_count,raw_bytes,graph_deleted FROM retention.plan_run WHERE plan_id=? ORDER BY created_at,run_id',[('plan_id','String')]),
+p.chain(vars_for('PLAN_ID'),db('Snapshot decisions','SELECT run_id,source_id,created_at,selected,reason,record_count,document_count,raw_bytes,source_projection_verified FROM retention.plan_run WHERE plan_id=? ORDER BY created_at,run_id',[('plan_id','String')]),
  log('Snapshot decision',['run_id','created_at','selected','reason','record_count','raw_bytes'],'Retention plan decision'),node('Dummy','Preview decisions here'));p.save()
 
 p=Pipe('begin_execution','Acquire the maintenance fence and revalidate the exact preview. Concurrent writers or stale plans stop here.')
@@ -52,93 +52,22 @@ for t in p.findall('transform'):
  if t.findtext('type')=='ExecSql':put(t,'sql',"SELECT retention.archive(?,?) WHERE EXISTS(SELECT 1 FROM retention.plan WHERE plan_id=? AND state='ACTIVE')");child(t.find('arguments'),'argument',dict(name='plan_id'))
 save(p,OUT/'archive.hpl')
 
-p=Pipe('graph_target','Verify a retained source batch in the configured graph and pin the physical database identity.')
-p.chain(vars_for('PLAN_ID','RETENTION_OWNER_ID'),db('Expected retained graph batch',"SELECT graph_anchor_run_id,source_id FROM retention.plan WHERE plan_id=? AND owner_id=? AND state='ACTIVE'",[('plan_id','String'),('retention_owner_id','String')]),
- cypher('Verify graph database',"""OPTIONAL MATCH (b:ingestionBatch {id:$graph_anchor_run_id})
-WITH count(CASE WHEN b.source_id=$source_id AND b.state='READY' AND b.serving_scope='STAGING' THEN 1 END)=1 AS anchor_valid
-CALL db.info() YIELD id RETURN anchor_valid,id AS graph_database_id""",[('graph_anchor_run_id','String'),('source_id','String')],[('anchor_valid','Boolean'),('graph_database_id','String')],True),
- filt('Expected graph only','anchor_valid','Boolean','Y','Pin graph database','Abort'),
- execute('Pin graph database','SELECT retention.bind_graph(?,?,?)',['plan_id','retention_owner_id','graph_database_id']))
-p.add(abort('Abort','The configured Neo4j database does not contain the retained source batch. No snapshots may be deleted.'))
-p.edges.append(('Expected graph only','Abort'));p.save()
-
-archive_read="""SELECT a.archive_id,a.source_id,a.source_record_id,a.run_id,a.archive_hash,
- a.graph_payload->>'kind' AS kind,a.graph_payload->>'name' AS name,a.graph_payload->>'facts_json' AS facts_json,
- a.source_created_at::text AS source_created_at,jsonb_array_length(a.graph_references)::bigint AS expected_refs
-FROM retention.archive_record a JOIN retention.plan p USING(plan_id)
-WHERE a.plan_id=? AND p.state='ACTIVE' AND p.owner_id=? ORDER BY archive_id"""
-fields=['archive_id','source_id','source_record_id','run_id','archive_hash','kind','name','facts_json','source_created_at']
-args=[(f,'String') for f in fields]+[('expected_refs','Integer')]
-for kind in ('archive_nodes','verify_archive'):
- p=Pipe(kind,'Preserve and verify last-known graph source facts before removing historical batches.')
- p.chain(vars_for('PLAN_ID','RETENTION_OWNER_ID'),db('Archived facts',archive_read,[('plan_id','String'),('retention_owner_id','String')]))
- if kind=='archive_nodes':
-  query="""MERGE (a:archivedRecord {id:$archive_id})
-SET a.source_id=$source_id,a.source_record_id=$source_record_id,a.source_run_id=$run_id,a.archive_hash=$archive_hash,
- a.kind=$kind,a.name=$name,a.facts_json=$facts_json,a.source_created_at=$source_created_at,a.state='LOADING'
-WITH a OPTIONAL MATCH (a)-[r:REFERS_TO]->() DELETE r
-RETURN count(DISTINCT a)=1 AS verified"""
- else:
-  query="""MATCH (a:archivedRecord {id:$archive_id}) WHERE a.source_id=$source_id AND a.source_record_id=$source_record_id
-AND a.source_run_id=$run_id AND a.archive_hash=$archive_hash AND a.facts_json=$facts_json
-AND coalesce(a.name,'')=coalesce($name,'') AND coalesce(a.kind,'')=coalesce($kind,'') AND a.source_created_at=$source_created_at
-OPTIONAL MATCH (a)-[r:REFERS_TO]->() WITH a,count(r) AS refs WHERE refs=$expected_refs
-SET a.state='READY' RETURN count(a)=1 AS verified"""
- p.chain('Archived facts',cypher('Archive graph facts',query,args,[('verified','Boolean')]))
- assertion(p,'Archive graph facts');p.save()
-p=Pipe('archive_references','Preserve last-known facts references; shared business identities must already exist.')
-p.chain(vars_for('PLAN_ID','RETENTION_OWNER_ID'),db('Archived references',"""SELECT archive_id,x->>'identity_id' AS identity_id,x->>'field' AS field
-FROM retention.archive_record a JOIN retention.plan p USING(plan_id)
-CROSS JOIN LATERAL jsonb_array_elements(graph_references) x
-WHERE a.plan_id=? AND p.state='ACTIVE' AND p.owner_id=? ORDER BY archive_id,field,identity_id""",[('plan_id','String'),('retention_owner_id','String')]),
- cypher('Preserve identity reference',"""MATCH (a:archivedRecord {id:$archive_id,state:'LOADING'}) WITH a MATCH (e:entity {id:$identity_id})
-MERGE (a)-[r:REFERS_TO {field:$field}]->(e) RETURN count(r)=1 AS verified""",[(x,'String') for x in ('archive_id','identity_id','field')],[('verified','Boolean')]))
-assertion(p,'Preserve identity reference');p.save()
-
-p=Pipe('graph_constraints','Inspect before creating the archive identity constraint.')
-p.chain(vars_for('PLAN_ID','RETENTION_OWNER_ID'),db('Active execution',"SELECT plan_id AS active_plan FROM retention.plan WHERE plan_id=? AND owner_id=? AND state='ACTIVE'",[('plan_id','String'),('retention_owner_id','String')]),
- cypher('Inspect archive constraint',"""SHOW CONSTRAINTS YIELD name,entityType,type,labelsOrTypes,properties
-RETURN count(CASE WHEN entityType='NODE' AND type IN ['UNIQUENESS','NODE_KEY','NODE_PROPERTY_UNIQUENESS'] AND labelsOrTypes=['archivedRecord'] AND properties=['id'] THEN 1 END)>0 AS correct,
-count(CASE WHEN name='jobtology_archive_id' THEN 1 END) AS name_in_use""",returns=[('correct','Boolean'),('name_in_use','Integer')],readonly=True),
- filt('Constraint exists','correct','Boolean','Y','Done','Name available'))
-p.chain(filt('Name available','name_in_use','Integer','0','Create constraint','Abort'),cypher('Create constraint','CREATE CONSTRAINT jobtology_archive_id FOR (n:archivedRecord) REQUIRE n.id IS UNIQUE'),node('Dummy','Done'))
-p.add(abort('Abort','Archive constraint name is already in use with a different definition.'))
-p.edges += [('Constraint exists','Done'),('Constraint exists','Name available'),('Name available','Abort')];p.save()
-
-p=Pipe('delete_graph','Delete only selected ingestionBatch and ingestionRecord nodes. Keep shared entities, enrichment and archives.')
-p.chain(vars_for('PLAN_ID','RETENTION_OWNER_ID'),db('Selected graph batches',"""SELECT r.run_id,r.source_id,r.record_count FROM retention.plan_run r JOIN retention.plan p USING(plan_id)
-WHERE r.plan_id=? AND p.owner_id=? AND p.state='ACTIVE' AND r.selected AND NOT r.graph_deleted ORDER BY r.created_at,r.run_id""",[('plan_id','String'),('retention_owner_id','String')]),
- cypher('Check deletion ownership',"""OPTIONAL MATCH (b:ingestionBatch {id:$run_id})
-OPTIONAL MATCH (b)-[:HAS_RECORD]->(r:ingestionRecord)
-WITH b,collect(r) AS records
-RETURN (b IS NULL OR (b.source_id=$source_id AND b.state='READY' AND b.serving_scope='STAGING' AND size(records)=$record_count
-AND all(r IN records WHERE r.id STARTS WITH 'hop:'+$run_id+':' AND NOT r:entity AND NOT r:jobEnrichment
-AND NOT EXISTS { MATCH (other:ingestionBatch)-[:HAS_RECORD]->(r) WHERE other<>b }))) AS verified""",[('run_id','String'),('source_id','String'),('record_count','Integer')],[('verified','Boolean')],True),
- filt('Owned snapshot only','verified','Boolean','Y','Delete historical graph batch','Abort'))
-p.chain(cypher('Delete historical graph batch',"""OPTIONAL MATCH (b:ingestionBatch {id:$run_id})
-OPTIONAL MATCH (b)-[:HAS_RECORD]->(r:ingestionRecord)
-WITH b,collect(r) AS records FOREACH (r IN records | DETACH DELETE r)
-DETACH DELETE b RETURN true AS deleted""",[('run_id','String')],[('deleted','Boolean')]),node('Dummy','Deletion submitted'))
-p.edges += [('Owned snapshot only','Delete historical graph batch'),('Owned snapshot only','Abort')]
-p.add(abort('Abort','Graph ownership/count verification failed; nothing outside the selected source batch may be deleted.'));p.save()
-
-# A workflow boundary is required here. Neo4j Cypher emits output rows from inside
-# its transaction callback; a downstream transform could read before commit.
-p=Pipe('verify_deleted_graph','Verify graph deletion after the preceding pipeline has completed and committed.')
-p.chain(vars_for('PLAN_ID','RETENTION_OWNER_ID'),db('Selected graph batches',"""SELECT r.run_id FROM retention.plan_run r JOIN retention.plan p USING(plan_id)
-WHERE r.plan_id=? AND p.owner_id=? AND p.state='ACTIVE' AND r.selected AND NOT r.graph_deleted ORDER BY r.created_at,r.run_id""",[('plan_id','String'),('retention_owner_id','String')]),
- cypher('Verify removed graph batch',"""OPTIONAL MATCH (b:ingestionBatch {id:$run_id})
-WITH count(b) AS batches OPTIONAL MATCH (r:ingestionRecord) WHERE r.id STARTS WITH 'hop:'+$run_id+':'
-WITH batches,count(r) AS records RETURN batches=0 AND records=0 AS graph_absent""",[('run_id','String')],[('graph_absent','Boolean')],True),
- filt('Graph absent','graph_absent','Boolean','Y','Save graph checkpoint','Abort'),
- execute('Save graph checkpoint','SELECT retention.mark_graph(?,?,?)',['plan_id','retention_owner_id','run_id']))
-p.edges.append(('Graph absent','Abort'))
-p.add(abort('Abort','Graph deletion was not verified after commit; resume this exact PLAN_ID.'));p.save()
+# Retire every former standalone graph retention entrypoint. Keeping explicit
+# abort files prevents old workflows or direct pipeline invocation recreating it.
+for retired in ('graph_target','archive_nodes','archive_references','verify_archive',
+                'graph_constraints','delete_graph','verify_deleted_graph'):
+ p=Pipe(retired,'Retired: graph history is permanently batch-free.')
+ p.chain(vars_for('PLAN_ID'),abort('Retired graph retention','Graph retention is retired. Use retention/execute.hwf for PostgreSQL source storage retention.'))
+ p.save()
+p=Pipe('verify_source_projections','Checkpoint exact PostgreSQL source proofs after durable source archival.')
+p.chain(vars_for('PLAN_ID','RETENTION_OWNER_ID'),execute('Verify retained source evidence',
+ 'SELECT retention.verify_source_projections(?,?)',['plan_id','retention_owner_id']))
+p.save()
 
 p=Pipe('delete_files','Remove exact manifest files only. Missing files are safe on retry; empty directories are retained.')
 p.chain(vars_for('PLAN_ID','RETENTION_OWNER_ID'),db('Approved manifest files',"""SELECT f.run_id,f.document_id,f.raw_path,f.raw_sha256 FROM retention.plan_file f JOIN retention.plan p USING(plan_id)
 WHERE f.plan_id=? AND p.owner_id=? AND p.state='ACTIVE' AND f.deleted_at IS NULL
-AND NOT EXISTS(SELECT 1 FROM retention.plan_run r WHERE r.plan_id=p.plan_id AND r.selected AND NOT r.graph_deleted)
+AND NOT EXISTS(SELECT 1 FROM retention.plan_run r WHERE r.plan_id=p.plan_id AND r.selected AND NOT r.source_projection_verified)
 ORDER BY f.run_id,f.document_id""",[('plan_id','String'),('retention_owner_id','String')]),
  node('FileExists','Inspect exact file',filenamefield='raw_path',resultfieldname='file_exists',includefiletype='Y',filetypefieldname='file_type',addresultfilenames='N'),
  filt('File present','file_exists','Boolean','Y','Regular file only','Deletion checkpoint fields'))
@@ -157,10 +86,10 @@ p.chain(execute('Save file checkpoint','SELECT retention.mark_file(?,?,?,?)',['p
 p.add(abort('Abort','Expected an unchanged regular local snapshot file; hash or deletion verification failed.'))
 p.edges += [('File present','Regular file only'),('File present','Deletion checkpoint fields'),('Regular file only','Abort'),('Original file only','Abort'),('File absent','Save file checkpoint'),('File absent','Abort')];p.save()
 
-entry('execute.hwf','Execute or resume a reviewed retention plan',[('PLAN_ID','','Exact saved preview ID; no candidate selection happens during execution.')]+base+[('NEO4J_CONNECTION','jobtology-neo4j','Existing private graph connection.')],
- [('Revalidate plan and fence writers','begin_execution.hpl'),('Verify Neo4j database','graph_target.hpl'),('Archive last-known source records','archive.hpl'),('Check archive constraint','graph_constraints.hpl'),
- ('Archive graph records','archive_nodes.hpl'),('Archive graph references','archive_references.hpl'),('Verify graph archive','verify_archive.hpl'),
- ('Delete selected graph snapshots','delete_graph.hpl'),('Verify committed graph deletions','verify_deleted_graph.hpl'),('Delete selected raw files','delete_files.hpl'),('Commit PostgreSQL cleanup','finish.hpl'),('Report result','report.hpl')])
+entry('execute.hwf','Execute or resume a reviewed PostgreSQL source retention plan',[('PLAN_ID','','Exact saved preview ID; no candidate selection happens during execution.')]+base,
+ [('Revalidate plan and fence writers','begin_execution.hpl'),('Archive last-known source records','archive.hpl'),
+ ('Verify immutable source projection evidence','verify_source_projections.hpl'),('Delete selected raw files','delete_files.hpl'),
+ ('Commit PostgreSQL cleanup','finish.hpl'),('Report result','report.hpl')])
 w=E.parse(OUT/'execute.hwf').getroot()
 for h in w.findall('hops/hop'):
  if h.findtext('to')=='Abort':put(h,'to','Release failed executor')
@@ -183,7 +112,7 @@ entry('recover_stopped_run.hwf','Recover a stopped retention or graph workflow',
  ('CONFIRM_STOPPED','','Enter STOPPED only after checking the old process cannot still run.')],[('Release stopped process','recover_stopped_run.hpl')])
 
 # Shared leases guard manual and scheduled source-graph entry points.
-p=Pipe('enter_graph_writer','Register an active graph writer before it reads or mutates any graph batch.')
+p=Pipe('enter_graph_writer','Register an active graph writer before it reads or mutates business graph entities.')
 p.chain(variables('Writer options',[('target','${RUN_ID}','String')]),db('Writer identity','SELECT gen_random_uuid()::text AS writer_id'),remember_as('writer_id','RETENTION_WRITER_ID'),
  execute('Enter graph writer',"SELECT retention.enter_writer(?,'SOURCE_GRAPH',?)",['writer_id','target']));p.save()
 p=Pipe('enter_llm_graph_writer','Register the exact enrichment batch before publishing derived graph records.')
@@ -228,6 +157,8 @@ for a in list(w.find('actions')):
 hops=w.find('hops');hops.clear()
 a=child(w.find('actions'),'action',dict(name='Install retention SQL',type='SQL',connection='jobtology-postgres',sqlfromfile='Y',sqlfilename='${PROJECT_HOME}/retention/sql/001_retention.sql',sqlfilename_encoding='UTF-8',useVariableSubstitution='N',sendOneStatement='Y',xloc=320,yloc=80,draw='Y',parallel='N'))
 child(w.find('actions'),'action',dict(name='Install scheduler maintenance hook',type='SQL',connection='jobtology-postgres',sqlfromfile='Y',sqlfilename='${PROJECT_HOME}/retention/sql/000_operations.sql',sqlfilename_encoding='UTF-8',useVariableSubstitution='N',sendOneStatement='Y',xloc=80,yloc=240,draw='Y',parallel='N'))
-for a,b,e in [('Start','Install scheduler maintenance hook','Y'),('Install scheduler maintenance hook','Install retention SQL','Y'),('Install scheduler maintenance hook','Abort','N'),('Install retention SQL','Success','Y'),('Install retention SQL','Abort','N')]:child(hops,'hop',{'from':a,'to':b,'enabled':'Y','evaluation':e,'unconditional':'Y' if a=='Start' else 'N'})
+child(w.find('actions'),'action',dict(name='Install graph evidence contracts',type='WORKFLOW',filename='${PROJECT_HOME}/graph/install.hwf',run_configuration='retention-local',wait_until_finished='Y',xloc=560,yloc=80,draw='Y',parallel='N'))
+child(w.find('actions'),'action',dict(name='Install batch-free retention SQL',type='SQL',connection='jobtology-postgres',sqlfromfile='Y',sqlfilename='${PROJECT_HOME}/retention/sql/002_batchfree_retention.sql',sqlfilename_encoding='UTF-8',useVariableSubstitution='N',sendOneStatement='Y',xloc=560,yloc=240,draw='Y',parallel='N'))
+for a,b,e in [('Start','Install scheduler maintenance hook','Y'),('Install scheduler maintenance hook','Install retention SQL','Y'),('Install scheduler maintenance hook','Abort','N'),('Install retention SQL','Install graph evidence contracts','Y'),('Install retention SQL','Abort','N'),('Install graph evidence contracts','Install batch-free retention SQL','Y'),('Install graph evidence contracts','Abort','N'),('Install batch-free retention SQL','Success','Y'),('Install batch-free retention SQL','Abort','N')]:child(hops,'hop',{'from':a,'to':b,'enabled':'Y','evaluation':e,'unconditional':'Y' if a=='Start' else 'N'})
 save(w,OUT/'install.hwf')
 print('Generated manual native Hop retention workflows and writer guards.')

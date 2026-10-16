@@ -1,6 +1,20 @@
 -- Install after schema.sql. These are snapshot/membership checks, in addition to
 -- the field/type/date validators described in the guide. No state changes here.
 -- This script CREATES the validation view; use a SQL workflow action or SQL editor.
+-- Preserve the installed local-source validator when the shared checks replay.
+-- Without the adapter, JobKorea runs fail closed instead of becoming graph-ready.
+DO $local_validator$ BEGIN
+ IF to_regprocedure('ingestion.local_file_validation_issue()') IS NULL THEN
+  EXECUTE $definition$
+   CREATE FUNCTION ingestion.local_file_validation_issue()
+   RETURNS TABLE(run_id text,issue text,location text) LANGUAGE sql STABLE AS $body$
+    SELECT run_id,'JOBKOREA_VALIDATOR_NOT_INSTALLED'::text,''::text
+    FROM ingestion.run WHERE source_id='jobkorea'
+   $body$
+  $definition$;
+ END IF;
+END $local_validator$;
+
 CREATE OR REPLACE VIEW ingestion.validation_issue AS
 WITH selected AS NOT MATERIALIZED (
     SELECT d.* FROM ingestion.document d WHERE d.selected
@@ -63,7 +77,10 @@ SELECT d.run_id, 'DOCUMENT_METADATA_OR_FILE_NOT_VERIFIED', d.document_id
 FROM selected d
 JOIN ingestion.partition p USING (run_id, partition_id)
 JOIN ingestion.run u USING (run_id)
-WHERE d.http_status <> 200 OR d.byte_length = 0 OR d.verified_at IS NULL
+WHERE (coalesce(to_jsonb(d)->>'transport','HTTP')='HTTP' AND d.http_status IS DISTINCT FROM 200)
+   OR (coalesce(to_jsonb(d)->>'transport','HTTP')='LOCAL_FILE' AND
+       (u.source_id<>'jobkorea' OR d.http_status IS NOT NULL OR d.provider_result IS NOT NULL))
+   OR d.byte_length = 0 OR d.verified_at IS NULL
    OR d.item_count IS NULL OR d.effective_page IS DISTINCT FROM d.page_no
    OR (p.kind = 'PAGED' AND (
           d.declared_total IS DISTINCT FROM p.expected_total
@@ -97,7 +114,7 @@ SELECT f.run_id, 'WRONG_RECORD_KIND', f.document_id || ':' || f.locator
 FROM facts f JOIN ingestion.run u USING (run_id)
 WHERE f.normalized->>'kind' IS DISTINCT FROM CASE u.source_id
     WHEN 'alio_organization' THEN 'Organization' WHEN 'job_alio' THEN 'JobPosting'
-    WHEN 'nara_job' THEN 'JobPosting'
+    WHEN 'nara_job' THEN 'JobPosting' WHEN 'jobkorea' THEN 'JobPosting'
     WHEN 'ncs_career_path' THEN 'CareerPath' WHEN 'ncs_competency' THEN 'Competency'
     WHEN 'ncs_qualification' THEN 'QualificationMapping' WHEN 'qnet_schedule' THEN 'ExamSession' END
 UNION ALL
@@ -143,4 +160,6 @@ WHERE l.normalized->>'representation' = 'list'
     OR l.normalized->'date_posted' IS DISTINCT FROM d.normalized->'date_posted'
     OR l.normalized->'closing_date' IS DISTINCT FROM d.normalized->'closing_date'
     OR (d.normalized->>'ongoing' IS NOT NULL
-        AND l.normalized->'ongoing' IS DISTINCT FROM d.normalized->'ongoing'));
+        AND l.normalized->'ongoing' IS DISTINCT FROM d.normalized->'ongoing'))
+UNION ALL
+SELECT run_id,issue,location FROM ingestion.local_file_validation_issue();

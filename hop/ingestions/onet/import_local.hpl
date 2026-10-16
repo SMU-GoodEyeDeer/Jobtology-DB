@@ -1,0 +1,225 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>import_local</name>
+    <description>Verify bounded frozen local source bytes before the atomic O*NET catalogue import.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>1000</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Exact catalogue options</from>
+      <to>Verify local evidence and import catalogue</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Exact catalogue options</name>
+    <fields>
+      <field>
+        <name>input_file</name>
+        <variable>${INPUT_FILE}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>evidence_root</name>
+        <variable>${EVIDENCE_ROOT}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>expected_sha256</name>
+        <variable>${EXPECTED_INPUT_SHA256}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>release_id</name>
+        <variable>${RELEASE_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform>
+    <type>UserDefinedJavaClass</type>
+    <name>Verify local evidence and import catalogue</name>
+    <clear_result_fields>N</clear_result_fields>
+    <java_target_version>17</java_target_version>
+    <definitions>
+      <definition>
+        <class_type>TRANSFORM_CLASS</class_type>
+        <class_name>OnetLocalCatalogueImport</class_name>
+        <class_source>
+void require(boolean condition, String code) throws Exception {
+  if (!condition) throw new Exception(code);
+}
+
+void localPath(java.nio.file.Path path) throws Exception {
+  java.nio.file.Path absolute = path.toAbsolutePath().normalize();
+  java.nio.file.Path current = absolute.getRoot();
+  for (java.nio.file.Path part : absolute) {
+    current = current.resolve(part);
+    require(!java.nio.file.Files.isSymbolicLink(current), "LOCAL_SYMLINK_FORBIDDEN");
+  }
+  require(java.nio.file.Files.isRegularFile(absolute,java.nio.file.LinkOption.NOFOLLOW_LINKS), "LOCAL_FILE_REQUIRED");
+}
+
+byte[] boundedRead(java.nio.file.Path path, long bound) throws Exception {
+  localPath(path);
+  require(java.nio.file.Files.size(path)&gt;0 &amp;&amp; java.nio.file.Files.size(path)&lt;=bound, "LOCAL_FILE_BOUND");
+  java.io.InputStream input = java.nio.file.Files.newInputStream(path,java.nio.file.LinkOption.NOFOLLOW_LINKS);
+  try {
+    java.io.ByteArrayOutputStream output = new java.io.ByteArrayOutputStream();
+    byte[] buffer = new byte[8192]; int count;
+    while ((count=input.read(buffer))!=-1) {
+      require((long)output.size()+count&lt;=bound,"LOCAL_FILE_BOUND");
+      output.write(buffer,0,count);
+    }
+    return output.toByteArray();
+  } finally { input.close(); }
+}
+
+String digest(byte[] bytes) throws Exception {
+  byte[] hash=java.security.MessageDigest.getInstance("SHA-256").digest(bytes);
+  StringBuilder value=new StringBuilder();
+  for (int i=0;i&lt;hash.length;i++) {
+    int part=hash[i]&amp;255; if (part&lt;16) value.append('0'); value.append(Integer.toHexString(part));
+  }
+  return value.toString();
+}
+
+com.fasterxml.jackson.databind.JsonNode json(byte[] bytes) throws Exception {
+  String body=java.nio.charset.StandardCharsets.UTF_8.newDecoder()
+    .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+    .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT)
+    .decode(java.nio.ByteBuffer.wrap(bytes)).toString();
+  com.fasterxml.jackson.core.JsonFactory factory=new com.fasterxml.jackson.core.JsonFactory();
+  factory.enable(com.fasterxml.jackson.core.JsonParser.Feature.STRICT_DUPLICATE_DETECTION);
+  com.fasterxml.jackson.databind.ObjectMapper mapper=new com.fasterxml.jackson.databind.ObjectMapper(factory);
+  mapper.enable(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
+  return mapper.readTree(body);
+}
+
+public boolean processRow() throws HopException {
+  Object[] row=getRow();
+  if (row==null) { setOutputDone(); return false; }
+  String stage="LOCAL_INPUT_FAILED";
+  org.apache.hop.core.database.Database db=null;
+  try {
+    String input=get(Fields.In,"input_file").getString(row);
+    String root=get(Fields.In,"evidence_root").getString(row);
+    String expected=get(Fields.In,"expected_sha256").getString(row);
+    String release=get(Fields.In,"release_id").getString(row);
+    require(input!=null &amp;&amp; input.startsWith("/") &amp;&amp; root!=null &amp;&amp; root.startsWith("/"),"ABSOLUTE_LOCAL_PATH_REQUIRED");
+    require(expected!=null &amp;&amp; expected.matches("[0-9a-f]{64}"),"EXPECTED_INPUT_HASH_REQUIRED");
+    long bound=Long.parseLong(getVariable("MAX_FILE_BYTES","16777216"));
+    require(bound&gt;0 &amp;&amp; bound&lt;=67108864,"INPUT_BOUND_INVALID");
+    java.nio.file.Path evidence=java.nio.file.Paths.get(root).toAbsolutePath().normalize();
+    java.nio.file.Path path=java.nio.file.Paths.get(input).toAbsolutePath().normalize();
+    require(path.startsWith(evidence),"INPUT_OUTSIDE_EVIDENCE_ROOT");
+    byte[] bytes=boundedRead(path,bound);
+    require(expected.equals(digest(bytes)),"INPUT_HASH_MISMATCH");
+    com.fasterxml.jackson.databind.JsonNode payload=json(bytes);
+    require(payload.isObject() &amp;&amp; release!=null &amp;&amp; release.equals(payload.path("release_id").asText()),"RELEASE_PIN_MISMATCH");
+    require(payload.path("sources").isArray() &amp;&amp; payload.path("sources").size()==3,"SOURCE_INVENTORY_REQUIRED");
+    stage="LOCAL_EVIDENCE_FAILED";
+    java.util.HashSet paths=new java.util.HashSet();
+    for (com.fasterxml.jackson.databind.JsonNode source : payload.path("sources")) {
+      String relative=source.path("archive_path").asText();
+      require(relative.matches("sources/[A-Za-z0-9_.-]+") &amp;&amp; paths.add(relative),"SOURCE_PATH_INVALID");
+      java.nio.file.Path archived=evidence.resolve(relative).normalize();
+      require(archived.startsWith(evidence),"SOURCE_ARCHIVE_ESCAPE");
+      byte[] sourceBytes=boundedRead(archived,16777216);
+      require(source.path("byte_length").isIntegralNumber() &amp;&amp; source.path("byte_length").asLong()==sourceBytes.length
+        &amp;&amp; source.path("sha256").asText().equals(digest(sourceBytes)),"SOURCE_ARCHIVE_HASH_MISMATCH");
+      String fileId=source.path("file_id").asText();
+      require(fileId.matches("[a-z_]+"),"SOURCE_ID_INVALID");
+      com.fasterxml.jackson.databind.JsonNode receipt=json(boundedRead(evidence.resolve("sources/"+fileId+".receipt.json"),1048576));
+      require(receipt.path("url").asText().equals(source.path("source_uri").asText())
+        &amp;&amp; receipt.path("sha256").asText().equals(source.path("sha256").asText())
+        &amp;&amp; receipt.path("byte_count").asLong()==sourceBytes.length
+        &amp;&amp; receipt.path("retrieved_at").asText().equals(source.path("downloaded_at").asText()),"DOWNLOAD_RECEIPT_MISMATCH");
+    }
+    require(expected.equals(digest(boundedRead(path,bound))),"INPUT_CHANGED_BEFORE_IMPORT");
+    stage="DATABASE_IMPORT_FAILED";
+    org.apache.hop.core.database.DatabaseMeta connection=(org.apache.hop.core.database.DatabaseMeta)
+      getPipelineMeta().getMetadataProvider().getSerializer(org.apache.hop.core.database.DatabaseMeta.class).load("jobtology-postgres");
+    db=new org.apache.hop.core.database.Database(getParent(),getParent(),connection);
+    db.connect();
+    java.sql.PreparedStatement statement=db.getConnection().prepareStatement("SELECT classification.import_onet_catalog(?::jsonb)");
+    String imported;
+    try {
+      statement.setString(1,new String(bytes,java.nio.charset.StandardCharsets.UTF_8));
+      java.sql.ResultSet result=statement.executeQuery();
+      try { require(result.next(),"IMPORT_RESULT_REQUIRED"); imported=result.getString(1); require(release.equals(imported),"IMPORT_RESULT_MISMATCH"); }
+      finally { result.close(); }
+    } finally { statement.close(); }
+    Object[] output=createOutputRow(row,data.outputRowMeta.size());
+    get(Fields.Out,"catalog_release_id").setValue(output,imported);
+    get(Fields.Out,"catalogue_sha256").setValue(output,expected);
+    get(Fields.Out,"term_count").setValue(output,Long.valueOf(payload.path("terms").size()));
+    putRow(data.outputRowMeta,output); return true;
+  } catch (Exception failure) {
+    throw new HopException("O*NET local catalogue import failed: "+stage+" ("+failure.getClass().getSimpleName()+")");
+  } finally { if (db!=null) db.close(); }
+}
+</class_source>
+      </definition>
+    </definitions>
+    <fields>
+      <field>
+        <field_name>catalog_release_id</field_name>
+        <field_type>String</field_type>
+        <field_length>-1</field_length>
+        <field_precision>-1</field_precision>
+      </field>
+      <field>
+        <field_name>catalogue_sha256</field_name>
+        <field_type>String</field_type>
+        <field_length>-1</field_length>
+        <field_precision>-1</field_precision>
+      </field>
+      <field>
+        <field_name>term_count</field_name>
+        <field_type>Integer</field_type>
+        <field_length>-1</field_length>
+        <field_precision>-1</field_precision>
+      </field>
+    </fields>
+    <GUI>
+      <xloc>310</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

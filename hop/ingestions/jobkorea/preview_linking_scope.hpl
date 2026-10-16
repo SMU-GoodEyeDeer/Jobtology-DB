@@ -1,0 +1,124 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>preview_linking_scope</name>
+    <description>Read-only IT/software/data scope coverage; no keys or model requests.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Pilot options</from>
+      <to>Read source and pilot coverage</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Read source and pilot coverage</from>
+      <to>Scope coverage</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Pilot options</name>
+    <fields>
+      <field>
+        <name>jobs</name>
+        <variable>${JOB_RUN_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>ncs</name>
+        <variable>${NCS_RUN_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>cap</name>
+        <variable>${PILOT_LIMIT}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Read source and pilot coverage</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT enrichment.jobkorea_linking_preview(?,?,?::integer)::text AS preview_json</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>jobs</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>ncs</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>cap</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <GUI>
+      <xloc>340</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform>
+    <type>WriteToLog</type>
+    <name>Scope coverage</name>
+    <displayHeader>Y</displayHeader>
+    <limitRows>N</limitRows>
+    <limitRowsNumber>0</limitRowsNumber>
+    <logmessage>Metadata scope candidates remain unverified. Missing descriptions require duty abstention.</logmessage>
+    <loglevel>Basic</loglevel>
+    <fields>
+      <field>
+        <name>preview_json</name>
+      </field>
+    </fields>
+    <GUI>
+      <xloc>600</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

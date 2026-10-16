@@ -1,0 +1,143 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>fail_inferred_occupation_graph</name>
+    <description>Fail only this token and release its own writer.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Exact projection pins</from>
+      <to>Mark own projection failed</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Mark own projection failed</from>
+      <to>Release failed own writer</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Exact projection pins</name>
+    <fields>
+      <field>
+        <name>jobs</name>
+        <variable>${JOB_RUN_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>ncs</name>
+        <variable>${NCS_RUN_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>include_unreviewed</name>
+        <variable>${INCLUDE_UNREVIEWED}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>graph_token</name>
+        <variable>${GRAPH_TOKEN}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform>
+    <type>Neo4jCypherOutput</type>
+    <name>Mark own projection failed</name>
+    <connection>${NEO4J_CONNECTION}</connection>
+    <cypher>
+OPTIONAL MATCH (m:metadataOccupationProjection {managed_by:'jobtology-metadata-occupation',
+projection_token:$graph_token})
+SET m.state='FAILED'
+WITH m OPTIONAL MATCH ()-[r:INFERRED_NCS_OCCUPATION {managed_by:'jobtology-metadata-occupation',
+projection_token:$graph_token}]-&gt;()
+SET r.current=false,r.projection_state='FAILED'
+RETURN true AS verified</cypher>
+    <batch_size>1</batch_size>
+    <read_only>N</read_only>
+    <retry>N</retry>
+    <nr_retries_on_error>0</nr_retries_on_error>
+    <cypher_from_field>N</cypher_from_field>
+    <unwind>N</unwind>
+    <returning_graph>N</returning_graph>
+    <mappings>
+      <mapping>
+        <parameter>graph_token</parameter>
+        <field>graph_token</field>
+        <type>String</type>
+      </mapping>
+    </mappings>
+    <returns>
+      <return>
+        <name>verified</name>
+        <type>Boolean</type>
+        <source_type>Boolean</source_type>
+      </return>
+    </returns>
+    <GUI>
+      <xloc>340</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform>
+    <type>ExecSql</type>
+    <name>Release failed own writer</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT enrichment.finish_metadata_occupation_graph(?,true)</sql>
+    <execute_each_row>Y</execute_each_row>
+    <single_statement>Y</single_statement>
+    <set_params>Y</set_params>
+    <replace_variables>N</replace_variables>
+    <quoteString>N</quoteString>
+    <arguments>
+      <argument>
+        <name>graph_token</name>
+      </argument>
+    </arguments>
+    <GUI>
+      <xloc>600</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

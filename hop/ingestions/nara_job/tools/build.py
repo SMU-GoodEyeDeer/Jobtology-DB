@@ -307,6 +307,58 @@ for a in (position_action,file_action):
 save(root, OUT / "full.hwf")
 
 
+# Keep source actions in this workflow: start_run publishes NARA_JOB_RUN_ID to
+# its parent workflow, so wrapping full.hwf as a child would lose the handoff.
+refresh = deepcopy(root)
+put(refresh, "name", "Refresh nara_job and graph")
+put(refresh, "description",
+    "Create a bounded READY Nara snapshot, verify its graph load, and record the completed checkpoint.")
+put(refresh, "extended_description",
+    "Use nara-job-local and Basic logging. FULL fetches a bounded recent index and companion "
+    "metadata for open postings, then verifies the graph and saves its checkpoint. "
+    "Use the source full.hwf for SMOKE.")
+mode = next(p for p in refresh.findall("./parameters/parameter") if p.findtext("name") == "MODE")
+put(mode, "description", "Use FULL only; use the source full.hwf for SMOKE.")
+actions = refresh.find("actions")
+template = E.parse(ROOT / "hop/operations/export_pending.hwf").getroot()
+for name, new_name in [("Load graph", "Load accepted snapshot to graph"),
+                       ("Save checkpoint", "Save graph checkpoint")]:
+    a = deepcopy(next(a for a in template.findall("./actions/action")
+                      if a.findtext("name") == name))
+    rename(a, new_name)
+    put(a.find("./parameters/parameter"), "value", "${NARA_JOB_RUN_ID}")
+    actions.append(a)
+hops = refresh.find("hops")
+for h in hops.findall("hop"):
+    if h.findtext("from") == "Validate and finish" and h.findtext("to") == "Success":
+        put(h, "to", "Load accepted snapshot to graph")
+for a, b, ok in [("Load accepted snapshot to graph", "Save graph checkpoint", "Y"),
+                 ("Load accepted snapshot to graph", "Abort", "N"),
+                 ("Save graph checkpoint", "Success", "Y"),
+                 ("Save graph checkpoint", "Abort", "N")]:
+    h = E.SubElement(hops, "hop")
+    put(h, "from", a)
+    put(h, "to", b)
+    put(h, "enabled", "Y")
+    put(h, "evaluation", ok)
+    put(h, "unconditional", "N")
+# Lay out the complete success chain for editing in Hop Web. Source resource
+# actions are cloned at the same coordinates; keep all refresh actions distinct.
+by_name = {a.findtext("name"): a for a in actions.findall("action")}
+for index, name in enumerate([
+    "Start", "Create run and pin date window", "Fetch first list page",
+    "Fetch remaining list pages", "Verify list files", "Validate list and plan resources",
+    "Fetch every posting detail", "Fetch every posting position", "Fetch every posting file list",
+    "Verify all archived files", "Validate and finish", "Load accepted snapshot to graph",
+    "Save graph checkpoint", "Success",
+]):
+    put(by_name[name], "xloc", 48 + 144 * index)
+    put(by_name[name], "yloc", 48)
+put(by_name["Record failure"], "xloc", 1920)
+put(by_name["Abort"], "xloc", 2064)
+save(refresh, ROOT / "hop/operations/refresh_nara_job.hwf")
+
+
 # One-click additive database installation from Hop Web.
 workflow = E.Element("workflow")
 for tag,value in (("name","Install 나라일터 ingestion"),("description","Install the source adapter and request policy."),

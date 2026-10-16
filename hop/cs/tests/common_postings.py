@@ -1,9 +1,10 @@
 """Synthetic PostgreSQL contract test; no provider requests or live deployment."""
-from pathlib import Path
 import json
+import os
 import subprocess
 import time
 import uuid
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 NAME = "jobtology-common-source-" + uuid.uuid4().hex[:10]
@@ -33,7 +34,9 @@ CREATE TABLE ingestion.job_posting (
 CREATE TABLE ingestion.nara_job_posting (
  run_id text,posting_id text,list_document_id text,list_locator text,
  detail_document_id text,detail_locator text,normalized jsonb,field_origin jsonb);
-CREATE TABLE ingestion.ready_record (run_id text,source_record_id text,source_id text,source_payload jsonb);
+CREATE TABLE ingestion.ready_record (
+ run_id text,source_record_id text,source_id text,source_payload jsonb,
+ normalized jsonb,document_id text,locator text,field_lineage jsonb,quality_flags jsonb);
 CREATE VIEW ingestion.latest_ready_run AS
  SELECT run_id,source_id FROM ingestion.run WHERE state='READY' AND mode<>'SMOKE';
 CREATE TABLE enrichment.batch (batch_id text,mode text,job_run_id text,created_at timestamptz);
@@ -66,7 +69,7 @@ INSERT INTO ingestion.job_posting VALUES
  ('alio-snapshot','123','list-document','row-1','detail-document','row-1',
   '{"posting_id":"123","title":"데이터 엔지니어","organization_name":"기관 A","duties_text":"DB 구축","ignored_field":"do not hash"}',
   '{"title":"list","duties_text":"detail"}');
-INSERT INTO ingestion.ready_record VALUES
+INSERT INTO ingestion.ready_record(run_id,source_record_id,source_id,source_payload) VALUES
  ('alio-snapshot','123:detail','job_alio','{"files":[{"name":"notice.hwp"}]}');
 INSERT INTO enrichment.batch VALUES ('legacy-batch','ENRICH','alio-snapshot',clock_timestamp());
 INSERT INTO enrichment.item VALUES
@@ -78,7 +81,7 @@ INSERT INTO enrichment.extraction_review_state VALUES
 
 def main():
     try:
-        run(["docker", "run", "-d", "--name", NAME, "-e", "POSTGRES_HOST_AUTH_METHOD=trust", "postgres:17-alpine"])
+        run(["docker", "run", "-d", "--pull", "never", "--network", "none", "--name", NAME, "-e", "POSTGRES_HOST_AUTH_METHOD=trust", os.environ.get("JOBTOLOGY_TEST_POSTGRES_IMAGE", "postgres:18-alpine")])
         for _ in range(50):
             try:
                 logs = run(["docker", "logs", NAME])
@@ -140,7 +143,32 @@ FROM cs.posting_work_lineage;
         sql((ROOT / "hop/cs/sql/003_completion_report.sql").read_text())
         report = json.loads(sql("SELECT cs.assess_v1(10)"))
         assert {r["source_id"] for r in report["summary"]} == {"job_alio", "feed_a", "feed_b"}, report
-        print("common posting interface: ALIO lineage, source collisions, READY gating and replay passed")
+        # Native JobKorea rows use the same ready-record publication gate and a
+        # separate source-field contract, retaining old hashes and saved lineage.
+        legacy = sql("SELECT jsonb_agg(to_jsonb(c) ORDER BY source_id)::text FROM cs.common_posting c")
+        sql("""
+INSERT INTO ingestion.ready_record(run_id,source_record_id,source_id,source_payload,
+ normalized,document_id,locator,field_lineage,quality_flags) VALUES
+ ('local-ready','123','jobkorea','{"private_url":"signed-token"}',
+ '{"posting_id":"123","title":"백엔드 개발자","company_name_raw":"중소기업",
+ "employer_identity_kind":"CATEGORY_ONLY","salary_raw":"연봉 협의","experience_raw":"신입",
+ "content_status":"MISSING","deadline_kind":"ROLLING","deadline_basis":"USER_POLICY",
+ "source_url":"private-ref","unapproved_field":"signed-token"}',
+ 'local-json','/0','{"title":"/0/job_title"}','["DESCRIPTION_MISSING"]');
+""")
+        local = json.loads(sql("SELECT to_jsonb(c) FROM cs.common_posting c WHERE source_id='jobkorea'"))
+        assert local["source_posting_id"] == "123" and local["employer"] is None, local
+        assert local["posting_identity"] == sql("SELECT cs.external_posting_identity('jobkorea','123')")
+        assert local["posting_identity"] != alio["identity"]
+        assert local["source_data"]["salary_raw"] == "연봉 협의"
+        assert local["source_data"]["content_status"] == "MISSING"
+        assert "signed-token" not in json.dumps(local["source_data"])
+        assert "source_url" not in local["source_data"] and local["attachment_refs"] == []
+        assert local["inline_source_hash"] == local["content_hash"]
+        sql(module)
+        assert local == json.loads(sql("SELECT to_jsonb(c) FROM cs.common_posting c WHERE source_id='jobkorea'"))
+        assert legacy == sql("SELECT jsonb_agg(to_jsonb(c) ORDER BY source_id)::text FROM cs.common_posting c WHERE source_id<>'jobkorea'")
+        print("common posting interface: legacy lineage/hashes, source collisions, READY gating, JobKorea privacy/identity and replay passed")
     finally:
         subprocess.run(["docker", "rm", "-f", NAME], capture_output=True)
 

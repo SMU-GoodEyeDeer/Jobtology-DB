@@ -1,0 +1,527 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<workflow>
+  <name>prepare_linking</name>
+  <description>Prepare a small pinned IT/software/data pilot. Default N produces requests and budget preview with no HTTP or key reads.</description>
+  <workflow_version>1</workflow_version>
+  <workflow_status>0</workflow_status>
+  <parameters>
+    <parameter>
+      <name>JOB_RUN_ID</name>
+      <default_value>LATEST</default_value>
+      <description>Resolve once, then pin the exact READY JobKorea supplied-file run.</description>
+    </parameter>
+    <parameter>
+      <name>NCS_RUN_ID</name>
+      <default_value>LATEST</default_value>
+      <description>Resolve once, then pin the exact READY NCS competency run.</description>
+    </parameter>
+    <parameter>
+      <name>PILOT_LIMIT</name>
+      <default_value>5</default_value>
+      <description>Small IT/software/data candidate pilot, 1..25. Scope remains unverified.</description>
+    </parameter>
+    <parameter>
+      <name>EXTRACT_MODEL</name>
+      <default_value>openai/gpt-5.6-luna</default_value>
+      <description>Configurable OpenRouter OpenAI BYOK extraction model.</description>
+    </parameter>
+    <parameter>
+      <name>CATEGORIZE_MODEL</name>
+      <default_value>openai/gpt-5.6-luna</default_value>
+      <description>Configurable OpenRouter OpenAI BYOK NCS matching model.</description>
+    </parameter>
+    <parameter>
+      <name>ENDPOINT</name>
+      <default_value>https://openrouter.ai/api/v1/chat/completions</default_value>
+      <description>Existing OpenRouter/BYOK chat-completions endpoint.</description>
+    </parameter>
+    <parameter>
+      <name>API_KEY_FILE</name>
+      <default_value>${HOP_CONFIG_FOLDER}/secrets/openrouter.csv</default_value>
+      <description>Existing protected key file; preview never reads it.</description>
+    </parameter>
+    <parameter>
+      <name>EXECUTE_REQUESTS</name>
+      <default_value>N</default_value>
+      <description>N prepares requests with zero HTTP. Y explicitly enables existing native runners.</description>
+    </parameter>
+    <parameter>
+      <name>MAX_COST_USD</name>
+      <default_value>0.25</default_value>
+      <description>Batch accounting cap. Reservations can stop later matching before this cap.</description>
+    </parameter>
+    <parameter>
+      <name>DAILY_BUDGET_USD</name>
+      <default_value>0.25</default_value>
+      <description>Rolling accounting cap; raise explicitly only when desired.</description>
+    </parameter>
+    <parameter>
+      <name>REQUEST_RESERVE_USD</name>
+      <default_value>0.05</default_value>
+      <description>Conservative per-request accounting reservation; unknown cost stays reserved.</description>
+    </parameter>
+    <parameter>
+      <name>MAX_REQUESTS</name>
+      <default_value>10</default_value>
+      <description>Charged or uncertain requests; no automatic retries.</description>
+    </parameter>
+    <parameter>
+      <name>MAX_INPUT_CHARS</name>
+      <default_value>24000</default_value>
+      <description>Complete input bound; oversized inputs are rejected, never truncated.</description>
+    </parameter>
+    <parameter>
+      <name>MAX_OUTPUT_TOKENS</name>
+      <default_value>3000</default_value>
+      <description>Maximum output tokens per request.</description>
+    </parameter>
+    <parameter>
+      <name>CANDIDATE_LIMIT</name>
+      <default_value>20</default_value>
+      <description>NCS shortlist size.</description>
+    </parameter>
+    <parameter>
+      <name>MAX_MATCHES</name>
+      <default_value>5</default_value>
+      <description>Maximum supported NCS matches per posting.</description>
+    </parameter>
+    <parameter>
+      <name>TEMPERATURE</name>
+      <default_value />
+      <description>Optional model temperature.</description>
+    </parameter>
+    <parameter>
+      <name>REASONING_EFFORT</name>
+      <default_value />
+      <description>Optional model reasoning effort; blank uses configured-provider defaults.</description>
+    </parameter>
+    <parameter>
+      <name>PROVIDER_ONLY</name>
+      <default_value>openai</default_value>
+      <description>Existing OpenRouter provider routing for OpenAI BYOK; configurable.</description>
+    </parameter>
+    <parameter>
+      <name>EXTRA_PARAMS_JSON</name>
+      <default_value>{}</default_value>
+      <description>Optional compatible numeric model settings.</description>
+    </parameter>
+    <parameter>
+      <name>REUSE_CACHE</name>
+      <default_value>Y</default_value>
+      <description>Reuse validated exact source/prompt/model/options outputs.</description>
+    </parameter>
+    <parameter>
+      <name>REQUEST_DELAY_MS</name>
+      <default_value>250</default_value>
+      <description>Spacing between sequential requests when execution is enabled.</description>
+    </parameter>
+    <parameter>
+      <name>READ_TIMEOUT_MS</name>
+      <default_value>180000</default_value>
+      <description>Finite request timeout.</description>
+    </parameter>
+  </parameters>
+  <actions>
+    <action>
+      <name>Start</name>
+      <type>SPECIAL</type>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <attributes />
+      <start>Y</start>
+      <repeat>N</repeat>
+      <schedulerType>0</schedulerType>
+      <intervalSeconds>0</intervalSeconds>
+      <intervalMinutes>60</intervalMinutes>
+      <DayOfMonth>1</DayOfMonth>
+      <weekDay>1</weekDay>
+      <minutes>0</minutes>
+      <hour>12</hour>
+    </action>
+    <action>
+      <name>Prepare exact pilot inputs</name>
+      <type>PIPELINE</type>
+      <xloc>320</xloc>
+      <yloc>100</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <attributes />
+      <filename>${PROJECT_HOME}/ingestions/jobkorea/prepare_linking_pilot.hpl</filename>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <run_configuration>jobkorea-local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+    </action>
+    <action>
+      <name>Freeze inputs and options</name>
+      <type>PIPELINE</type>
+      <xloc>560</xloc>
+      <yloc>100</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <attributes />
+      <filename>${PROJECT_HOME}/llm/start_batch.hpl</filename>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <run_configuration>jobkorea-local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+        <parameter>
+          <name>JOB_RUN_ID</name>
+          <value>${JOBKOREA_PINNED_JOB_RUN_ID}</value>
+        </parameter>
+        <parameter>
+          <name>NCS_RUN_ID</name>
+          <value>${JOBKOREA_PINNED_NCS_RUN_ID}</value>
+        </parameter>
+        <parameter>
+          <name>POSTING_IDS</name>
+          <value>${JOBKOREA_PILOT_POSTING_IDS}</value>
+        </parameter>
+        <parameter>
+          <name>INPUT_BUNDLE_IDS</name>
+          <value>${JOBKOREA_PILOT_BUNDLE_IDS}</value>
+        </parameter>
+        <parameter>
+          <name>POSTING_LIMIT</name>
+          <value>${JOBKOREA_PILOT_COUNT}</value>
+        </parameter>
+        <parameter>
+          <name>JOB_SOURCE_ID</name>
+          <value>jobkorea</value>
+        </parameter>
+        <parameter>
+          <name>RUN_MODE</name>
+          <value>ENRICH</value>
+        </parameter>
+        <parameter>
+          <name>DATASET_ID</name>
+          <value />
+        </parameter>
+        <parameter>
+          <name>PROMPT_VERSION</name>
+          <value>ko-link-v1</value>
+        </parameter>
+        <parameter>
+          <name>ACCEPTANCE_POLICY</name>
+          <value>REVIEW</value>
+        </parameter>
+        <parameter>
+          <name>REPAIR_BATCH_ID</name>
+          <value />
+        </parameter>
+      </parameters>
+    </action>
+    <action>
+      <name>Plan extraction</name>
+      <type>PIPELINE</type>
+      <xloc>800</xloc>
+      <yloc>100</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <attributes />
+      <filename>${PROJECT_HOME}/llm/plan_extract.hpl</filename>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <run_configuration>jobkorea-local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+    </action>
+    <action>
+      <name>Extract supported facts</name>
+      <type>PIPELINE</type>
+      <xloc>1040</xloc>
+      <yloc>100</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <attributes />
+      <filename>${PROJECT_HOME}/llm/run_extract.hpl</filename>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <run_configuration>jobkorea-local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+    </action>
+    <action>
+      <name>Retrieve NCS and plan matches</name>
+      <type>PIPELINE</type>
+      <xloc>80</xloc>
+      <yloc>280</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <attributes />
+      <filename>${PROJECT_HOME}/llm/plan_categorize.hpl</filename>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <run_configuration>jobkorea-local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+    </action>
+    <action>
+      <name>Categorize explicit duties</name>
+      <type>PIPELINE</type>
+      <xloc>320</xloc>
+      <yloc>280</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <attributes />
+      <filename>${PROJECT_HOME}/llm/run_categorize.hpl</filename>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <run_configuration>jobkorea-local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+    </action>
+    <action>
+      <name>Validate and report</name>
+      <type>PIPELINE</type>
+      <xloc>560</xloc>
+      <yloc>280</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <attributes />
+      <filename>${PROJECT_HOME}/llm/finish_batch.hpl</filename>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <run_configuration>jobkorea-local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+    </action>
+    <action>
+      <name>Read prepared requests and budget</name>
+      <type>PIPELINE</type>
+      <xloc>800</xloc>
+      <yloc>280</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <attributes />
+      <filename>${PROJECT_HOME}/ingestions/jobkorea/preview_linking_requests.hpl</filename>
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <set_logfile>N</set_logfile>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <run_configuration>jobkorea-local</run_configuration>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+    </action>
+    <action>
+      <name>Success</name>
+      <type>SUCCESS</type>
+      <xloc>560</xloc>
+      <yloc>240</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <attributes />
+    </action>
+    <action>
+      <name>Abort</name>
+      <type>ABORT</type>
+      <xloc>1040</xloc>
+      <yloc>240</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <attributes />
+      <message>JobKorea pilot preparation failed. Inspect pinned inputs and the batch report before retrying.</message>
+    </action>
+    <action>
+      <name>Pilot needs processing</name>
+      <type>SIMPLE_EVAL</type>
+      <valuetype>variable</valuetype>
+      <fieldtype>string</fieldtype>
+      <variablename>${JOBKOREA_PILOT_RUN_NEEDED}</variablename>
+      <comparevalue>Y</comparevalue>
+      <successcondition>equal</successcondition>
+      <successwhenvarset>N</successwhenvarset>
+      <xloc>350</xloc>
+      <yloc>400</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <attributes />
+    </action>
+  </actions>
+  <hops>
+    <hop>
+      <from>Start</from>
+      <to>Prepare exact pilot inputs</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>Y</unconditional>
+    </hop>
+    <hop>
+      <from>Prepare exact pilot inputs</from>
+      <to>Pilot needs processing</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Prepare exact pilot inputs</from>
+      <to>Abort</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Freeze inputs and options</from>
+      <to>Plan extraction</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Freeze inputs and options</from>
+      <to>Abort</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Plan extraction</from>
+      <to>Extract supported facts</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Plan extraction</from>
+      <to>Abort</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Extract supported facts</from>
+      <to>Retrieve NCS and plan matches</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Extract supported facts</from>
+      <to>Abort</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Retrieve NCS and plan matches</from>
+      <to>Categorize explicit duties</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Retrieve NCS and plan matches</from>
+      <to>Abort</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Categorize explicit duties</from>
+      <to>Validate and report</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Categorize explicit duties</from>
+      <to>Abort</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Validate and report</from>
+      <to>Read prepared requests and budget</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Validate and report</from>
+      <to>Abort</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Read prepared requests and budget</from>
+      <to>Success</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Read prepared requests and budget</from>
+      <to>Abort</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Pilot needs processing</from>
+      <to>Freeze inputs and options</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Pilot needs processing</from>
+      <to>Success</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+  </hops>
+  <notepads />
+  <attributes />
+</workflow>

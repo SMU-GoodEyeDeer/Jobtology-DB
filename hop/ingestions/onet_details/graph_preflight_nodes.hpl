@@ -1,0 +1,304 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<pipeline>
+  <info>
+    <name>graph_preflight_nodes</name>
+    <description>Reject every reserved node collision before the first graph write.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>1000</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Exact catalogue options</from>
+      <to>Require own running writer</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Require own running writer</from>
+      <to>Read immutable planned inventory</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Read immutable planned inventory</from>
+      <to>Check exact catalogue rows</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Check exact catalogue rows</from>
+      <to>Require exact graph result</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Require exact graph result</from>
+      <to>Require exact graph result accepted</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Require exact graph result</from>
+      <to>Require exact graph result rejected</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Exact catalogue options</name>
+    <fields>
+      <field>
+        <name>load_id</name>
+        <variable>${ONET_LOAD_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Require own running writer</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT onet_detail.assert_running_graph_load(?) AS checked_token</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>load_id</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <GUI>
+      <xloc>310</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Read immutable planned inventory</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT context.database_id,expected.*,array_to_string(labels,'|') AS expected_labels,array_to_string(previous_labels,'|') AS baseline_labels,
+(SELECT string_agg(replace(replace(coalesce(key,''),'%','%25'),'|','%7C')||'|'||(CASE jsonb_typeof(value) WHEN 'string' THEN 'string' WHEN 'boolean' THEN 'boolean' WHEN 'number' THEN CASE WHEN value::text ~ '^-?[0-9]+$' THEN 'integer' ELSE 'number' END ELSE 'invalid' END)||'|'||replace(replace(coalesce(value#&gt;&gt;'{}',''),'%','%25'),'|','%7C'),'|' ORDER BY key COLLATE "C") FROM jsonb_each(properties)) AS property_data,
+(SELECT string_agg(replace(replace(coalesce(key,''),'%','%25'),'|','%7C')||'|'||(CASE jsonb_typeof(value) WHEN 'string' THEN 'string' WHEN 'boolean' THEN 'boolean' WHEN 'number' THEN CASE WHEN value::text ~ '^-?[0-9]+$' THEN 'integer' ELSE 'number' END ELSE 'invalid' END)||'|'||replace(replace(coalesce(value#&gt;&gt;'{}',''),'%','%25'),'|','%7C'),'|' ORDER BY key COLLATE "C") FROM jsonb_each(previous_properties)) AS baseline_data,
+(SELECT count(*) FROM jsonb_object_keys(properties))::bigint AS property_count,
+(SELECT count(*) FROM jsonb_object_keys(previous_properties))::bigint AS baseline_count
+FROM onet_detail.graph_load_context(?) context
+CROSS JOIN LATERAL onet_detail.graph_load_nodes(context.load_id) expected
+ORDER BY node_id COLLATE "C"
+</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>load_id</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <GUI>
+      <xloc>540</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform>
+    <type>Neo4jCypherOutput</type>
+    <name>Check exact catalogue rows</name>
+    <connection>${NEO4J_CONNECTION}</connection>
+    <cypher>CALL db.info() YIELD id AS actual_database_id
+UNWIND $rows AS row
+WITH row,actual_database_id WHERE actual_database_id=row.database_id
+WITH row,split(coalesce(row.property_data,''),'|') AS fields,split(coalesce(row.baseline_data,''),'|') AS old_fields
+WHERE row.property_count&gt;0 AND size(fields)=row.property_count*3
+AND (row.baseline_count=0 OR size(old_fields)=row.baseline_count*3)
+WITH row,[i IN range(0,size(fields)-1,3) | {
+ key:replace(replace(fields[i],'%7C','|'),'%25','%'),type:fields[i+1],
+ text:replace(replace(fields[i+2],'%7C','|'),'%25','%')}] AS expected_properties,
+CASE WHEN row.baseline_count=0 THEN [] ELSE [i IN range(0,size(old_fields)-1,3) | {
+ key:replace(replace(old_fields[i],'%7C','|'),'%25','%'),type:old_fields[i+1],
+ text:replace(replace(old_fields[i+2],'%7C','|'),'%25','%')}] END AS previous_properties
+WITH row,[p IN expected_properties | {key:p.key,valid:p.type IN ['string','integer','number','boolean'],
+ value:CASE p.type WHEN 'string' THEN p.text WHEN 'integer' THEN toInteger(p.text)
+ WHEN 'number' THEN toFloat(p.text) WHEN 'boolean' THEN toBoolean(p.text) END}] AS expected_properties,
+[p IN previous_properties | {key:p.key,valid:p.type IN ['string','integer','number','boolean'],
+ value:CASE p.type WHEN 'string' THEN p.text WHEN 'integer' THEN toInteger(p.text)
+ WHEN 'number' THEN toFloat(p.text) WHEN 'boolean' THEN toBoolean(p.text) END}] AS previous_properties
+WHERE all(p IN expected_properties WHERE p.valid AND p.value IS NOT NULL)
+AND all(p IN previous_properties WHERE p.valid AND p.value IS NOT NULL)
+CALL (row,expected_properties,previous_properties) {
+OPTIONAL MATCH (object:entity {id:row.node_id})
+RETURN count(object)&lt;=1 AND all(ok IN collect(CASE WHEN object IS NULL THEN true ELSE coalesce(
+ object.managed_by='jobtology-onet-details-v1' AND object.scheme_id='ONET' AND
+ ((object.content_hash=row.content_hash AND size(keys(object))=row.property_count AND all(p IN expected_properties WHERE object[p.key]=p.value AND valueType(object[p.key])=valueType(p.value)) AND size(labels(object))=size(split(row.expected_labels,'|')) AND all(label IN split(row.expected_labels,'|') WHERE label IN labels(object))) OR (row.baseline_count&gt;0 AND object.content_hash=row.previous_content_hash AND size(keys(object))=row.baseline_count AND all(p IN previous_properties WHERE object[p.key]=p.value AND valueType(object[p.key])=valueType(p.value)) AND size(labels(object))=size(split(row.baseline_labels,'|')) AND all(label IN split(row.baseline_labels,'|') WHERE label IN labels(object)))),false) END) WHERE ok) AS row_matches
+}
+RETURN count(*)=size($rows) AND all(ok IN collect(row_matches) WHERE ok) AS verified</cypher>
+    <batch_size>500</batch_size>
+    <read_only>Y</read_only>
+    <retry>N</retry>
+    <nr_retries_on_error>0</nr_retries_on_error>
+    <cypher_from_field>N</cypher_from_field>
+    <unwind>Y</unwind>
+    <returning_graph>N</returning_graph>
+    <unwind_map>rows</unwind_map>
+    <mappings>
+      <mapping>
+        <parameter>database_id</parameter>
+        <field>database_id</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>node_id</parameter>
+        <field>node_id</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>expected_labels</parameter>
+        <field>expected_labels</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>baseline_labels</parameter>
+        <field>baseline_labels</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>property_data</parameter>
+        <field>property_data</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>baseline_data</parameter>
+        <field>baseline_data</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>content_hash</parameter>
+        <field>content_hash</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>previous_content_hash</parameter>
+        <field>previous_content_hash</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>property_count</parameter>
+        <field>property_count</field>
+        <type>Integer</type>
+      </mapping>
+      <mapping>
+        <parameter>baseline_count</parameter>
+        <field>baseline_count</field>
+        <type>Integer</type>
+      </mapping>
+    </mappings>
+    <returns>
+      <return>
+        <name>verified</name>
+        <type>Boolean</type>
+        <source_type>Boolean</source_type>
+      </return>
+    </returns>
+    <GUI>
+      <xloc>770</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>Require exact graph result</name>
+    <send_true_to>Require exact graph result accepted</send_true_to>
+    <send_false_to>Require exact graph result rejected</send_false_to>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>verified</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Boolean</type>
+          <text>Y</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <GUI>
+      <xloc>1000</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform>
+    <type>Dummy</type>
+    <name>Require exact graph result accepted</name>
+    <GUI>
+      <xloc>1230</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform>
+    <type>Abort</type>
+    <name>Require exact graph result rejected</name>
+    <message>O*NET catalogue graph differs from its exact owned PostgreSQL inventory.</message>
+    <always_log_rows>N</always_log_rows>
+    <abort_option>ABORT_WITH_ERROR</abort_option>
+    <row_threshold>0</row_threshold>
+    <GUI>
+      <xloc>1460</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

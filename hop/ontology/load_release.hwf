@@ -1,14 +1,14 @@
 <?xml version='1.0' encoding='UTF-8'?>
 <workflow>
-  <name>Load and verify a sealed ontology graph candidate</name>
-  <description>Load and verify a sealed ontology graph candidate</description>
+  <name>Native flat ontology load_release</name>
+  <description>Native flat ontology load_release</description>
   <workflow_version>1</workflow_version>
   <workflow_status>0</workflow_status>
   <parameters>
     <parameter>
       <name>RELEASE_ID</name>
       <default_value />
-      <description>Exact release with assembled and frozen independent reviews.</description>
+      <description>Exact sealed release; older current projection replay is refused.</description>
     </parameter>
     <parameter>
       <name>NEO4J_CONNECTION</name>
@@ -78,7 +78,7 @@
       </parameters>
     </action>
     <action>
-      <name>Begin graph root</name>
+      <name>Check release root</name>
       <type>PIPELINE</type>
       <xloc>800</xloc>
       <yloc>80</yloc>
@@ -394,7 +394,7 @@
       <name>Record failed load</name>
       <type>PIPELINE</type>
       <xloc>80</xloc>
-      <yloc>720</yloc>
+      <yloc>880</yloc>
       <draw>Y</draw>
       <parallel>N</parallel>
       <attributes />
@@ -443,20 +443,20 @@
     </hop>
     <hop>
       <from>Check uniqueness constraint</from>
-      <to>Begin graph root</to>
+      <to>Check release root</to>
       <enabled>Y</enabled>
       <evaluation>Y</evaluation>
       <unconditional>N</unconditional>
     </hop>
     <hop>
-      <from>Begin graph root</from>
+      <from>Check release root</from>
       <to>Record failed load</to>
       <enabled>Y</enabled>
       <evaluation>N</evaluation>
       <unconditional>N</unconditional>
     </hop>
     <hop>
-      <from>Begin graph root</from>
+      <from>Check release root</from>
       <to>Load graph objects</to>
       <enabled>Y</enabled>
       <evaluation>Y</evaluation>

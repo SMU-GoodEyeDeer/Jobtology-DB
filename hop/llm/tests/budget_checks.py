@@ -9,6 +9,11 @@ def check_budget(sql, js, q):
       enrichment.response_cost('{"usage":{"cost":0,"is_byok":true,"cost_details":{"upstream_inference_cost":0.003}}}'),
       enrichment.response_cost('{"usage":{"cost":0,"is_byok":true}}'))""")) == [0.002, 0.003, None]
     assert json.loads(sql("""SELECT jsonb_build_array(
+      enrichment.response_cost('{"usage":{"cost":0.0002,"is_byok":true,"cost_details":{"upstream_inference_cost":0.003}}}'),
+      enrichment.response_cost('{"usage":{"is_byok":true,"cost_details":{"upstream_inference_cost":0.003}}}'),
+      enrichment.response_cost('{"usage":{"cost":-0.0002,"is_byok":true,"cost_details":{"upstream_inference_cost":0.003}}}'),
+      enrichment.response_cost('{"usage":{"cost":0,"is_byok":true,"cost_details":{"upstream_inference_cost":-0.003}}}'))""")) == [0.0032, None, None, None]
+    assert json.loads(sql("""SELECT jsonb_build_array(
       enrichment.accounted_cost('VALIDATED',0.001,0.05),
       enrichment.accounted_cost('REJECTED',0.002,0.05),
       enrichment.accounted_cost('ERROR',NULL,0.05),

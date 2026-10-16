@@ -83,21 +83,25 @@ BEGIN
  RETURN errors;
 END $$;
 
--- OpenRouter-funded calls report usage.cost. BYOK calls deliberately report
--- usage.cost=0 and expose the actual provider charge separately. Returning NULL
+-- OpenRouter-funded calls report usage.cost. BYOK calls expose upstream charges
+-- separately from usage.cost router fees; account for both. Returning NULL
 -- for an incomplete cost record preserves the existing request reservation.
 CREATE OR REPLACE FUNCTION enrichment.response_cost(envelope jsonb) RETURNS numeric
 LANGUAGE plpgsql IMMUTABLE AS $$
-DECLARE value jsonb; result numeric;
+DECLARE value jsonb; result numeric; router jsonb; router_cost numeric:=0;
 BEGIN
  IF envelope#>'{usage,is_byok}' = 'true'::jsonb THEN
   value:=envelope#>'{usage,cost_details,upstream_inference_cost}';
+  router:=envelope#>'{usage,cost}';
+  IF jsonb_typeof(router) IS DISTINCT FROM 'number' THEN RETURN NULL; END IF;
+  router_cost:=(router#>>'{}')::numeric;
+  IF router_cost<0 THEN RETURN NULL; END IF;
  ELSE
   value:=envelope#>'{usage,cost}';
  END IF;
  IF jsonb_typeof(value) IS DISTINCT FROM 'number' THEN RETURN NULL; END IF;
  result:=(value#>>'{}')::numeric;
- RETURN CASE WHEN result>=0 THEN result END;
+ RETURN CASE WHEN result>=0 THEN result+router_cost END;
 EXCEPTION WHEN OTHERS THEN RETURN NULL;
 END $$;
 
@@ -169,7 +173,14 @@ BEGIN
     SELECT r.extraction INTO STRICT ext FROM enrichment.revision_input binding JOIN enrichment.extraction_revision r USING(revision_id)
     WHERE binding.item_id=i.item_id;
    ELSE SELECT parsed_output INTO ext FROM enrichment.attempt WHERE attempt_id=i.extraction_id; END IF;
-   IF a.stage='extract' AND b.settings->>'prompt_version'='ko-v7' THEN
+   IF b.settings->>'metadata_scope'='NCS_OCCUPATION_INFERENCE_V1' THEN
+    IF a.stage<>'categorize' OR i.extraction_id IS NOT NULL THEN
+     errors:='["INVALID_METADATA_OCCUPATION_STAGE"]'::jsonb;
+    ELSE
+     errors:=enrichment.metadata_occupation_output_issues(output,i.source_data,a.candidates,
+      (b.settings->>'max_matches')::integer);
+    END IF;
+   ELSIF a.stage='extract' AND b.settings->>'prompt_version'='ko-v7' THEN
     errors:=enrichment.output_issues_v7(output,i.source_data);
     IF errors='[]' THEN output:=enrichment.hydrate_v7(output,i.source_data); END IF;
    ELSIF a.stage='extract' AND b.settings->>'prompt_version'='ko-v6' THEN

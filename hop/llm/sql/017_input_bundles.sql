@@ -1,5 +1,9 @@
 -- Immutable attachment-aware source inputs. Historical inline items are unchanged.
 BEGIN;
+-- Contracts added by later source adapters replace this dispatcher. Attachment
+-- verification retains its original contract and remains the bootstrap default.
+CREATE OR REPLACE FUNCTION enrichment.verify_input_bundle(id text) RETURNS void
+LANGUAGE plpgsql AS $$ BEGIN PERFORM attachment.verify_input_bundle(id); END $$;
 CREATE OR REPLACE FUNCTION enrichment.verify_item_input(id text) RETURNS void LANGUAGE plpgsql AS $$
 DECLARE i enrichment.item;b enrichment.input_bundle;j text; BEGIN
  SELECT * INTO STRICT i FROM enrichment.item WHERE item_id=id;
@@ -11,14 +15,14 @@ DECLARE i enrichment.item;b enrichment.input_bundle;j text; BEGIN
  SELECT job_run_id INTO STRICT j FROM enrichment.batch WHERE batch_id=i.batch_id;
  IF b.job_run_id<>j OR b.posting_id<>i.posting_id OR b.source_data IS DISTINCT FROM i.source_data
   OR b.source_hash IS DISTINCT FROM i.source_hash THEN RAISE EXCEPTION 'ITEM_INPUT_BUNDLE_MISMATCH'; END IF;
- PERFORM attachment.verify_input_bundle(b.bundle_id);
+ PERFORM enrichment.verify_input_bundle(b.bundle_id);
 END $$;
 CREATE OR REPLACE FUNCTION enrichment.prepare_input_dataset(id text,ncs text,ids text[]) RETURNS void LANGUAGE plpgsql AS $$
 DECLARE jobs text;n text;b text;expected jsonb;actual jsonb; BEGIN
  PERFORM retention.gate();
  IF id !~ '^[A-Za-z0-9][A-Za-z0-9_.-]{0,99}$' OR cardinality(ids) IS NULL OR cardinality(ids) NOT BETWEEN 1 AND 1000
   OR cardinality(ids)<>(SELECT count(DISTINCT x) FROM unnest(ids) x) THEN RAISE EXCEPTION 'INVALID_INPUT_DATASET_SELECTION'; END IF;
- FOREACH b IN ARRAY ids LOOP PERFORM attachment.verify_input_bundle(b); END LOOP;
+ FOREACH b IN ARRAY ids LOOP PERFORM enrichment.verify_input_bundle(b); END LOOP;
  IF (SELECT count(DISTINCT job_run_id) FROM enrichment.input_bundle WHERE bundle_id=ANY(ids))<>1 OR
   (SELECT count(DISTINCT posting_id) FROM enrichment.input_bundle WHERE bundle_id=ANY(ids))<>cardinality(ids)
  THEN RAISE EXCEPTION 'INPUT_DATASET_REQUIRES_ONE_SNAPSHOT_AND_UNIQUE_POSTINGS'; END IF;

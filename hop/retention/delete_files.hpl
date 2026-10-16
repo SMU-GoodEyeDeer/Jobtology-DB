@@ -128,7 +128,7 @@
     <connection>jobtology-postgres</connection>
     <sql>SELECT f.run_id,f.document_id,f.raw_path,f.raw_sha256 FROM retention.plan_file f JOIN retention.plan p USING(plan_id)
 WHERE f.plan_id=? AND p.owner_id=? AND p.state='ACTIVE' AND f.deleted_at IS NULL
-AND NOT EXISTS(SELECT 1 FROM retention.plan_run r WHERE r.plan_id=p.plan_id AND r.selected AND NOT r.graph_deleted)
+AND NOT EXISTS(SELECT 1 FROM retention.plan_run r WHERE r.plan_id=p.plan_id AND r.selected AND NOT r.source_projection_verified)
 ORDER BY f.run_id,f.document_id</sql>
     <cache>N</cache>
     <cache_size>0</cache_size>

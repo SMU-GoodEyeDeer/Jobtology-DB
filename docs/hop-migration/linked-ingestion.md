@@ -1,5 +1,10 @@
 # Complete source ingestion and NCS linking
 
+For the October 7 runtime assessment and next work, read the
+[current handoff](current-handoff.md). New prefetched job-board exports follow
+the [dataset-only contract](prefetched-postings.md); the historical fetching
+procedures here do not authorize requests to those sources.
+
 The [IT/AI/data completion plan](cs-posting-completion-plan.md) and
 [live execution record](cs-execution-20260915.md) describe the scoped CS-role
 selection, paid-output reuse, qualification joins and remaining evidence gaps.

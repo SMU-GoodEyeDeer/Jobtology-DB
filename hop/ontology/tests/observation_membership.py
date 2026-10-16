@@ -114,7 +114,7 @@ def main():
         graph.neo("CREATE (p:Person {person_id:'keep-private'})")
         native.run('load_release.hwf',dict(RELEASE_ID='historical-native'),'native-historical-graph')
         assert graph.neo("MATCH (s:entityObservationState {release_id:'historical-native'})-[:FOR_ENTITY]->(p:jobPosting) RETURN count(s)").splitlines()[-1]=='7'
-        checked=graph.neo("MATCH (s:entityObservationState {release_id:'historical-native',entity_id:'urn:jobtology:jobPosting:job_alio:001'})-[:SELECTS_REVISION]->(v:jobPostingRevision) RETURN s.serving_state='NOT_SEEN' AND s.last_seen_at=datetime('2026-09-01T00:00:30Z') AND s.evaluated_at=datetime('2026-09-03T01:00:00.12Z') AND v.revision_id="+json.dumps(old_revision)+" AS ok")
+        checked=graph.neo("MATCH (s:entityObservationState {release_id:'historical-native',entity_id:'urn:jobtology:jobPosting:job_alio:001'})-[e:SELECTS_ENTITY]->(v:jobPosting) RETURN s.serving_state='NOT_SEEN' AND s.last_seen_at=datetime('2026-09-01T00:00:30Z') AND s.evaluated_at=datetime('2026-09-03T01:00:00.12Z') AND e.object_revision_id="+json.dumps(old_revision)+" AND v.selected_revision_id="+json.dumps(old_revision)+" AS ok")
         assert checked.splitlines()[-1].lower()=='true',checked
         before_graph=graph.neo('MATCH (n) OPTIONAL MATCH (n)-[e]->() RETURN count(DISTINCT n),count(e)')
         native.run('load_release.hwf',dict(RELEASE_ID='historical-native'),'native-historical-graph-replay')

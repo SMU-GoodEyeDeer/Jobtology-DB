@@ -76,7 +76,7 @@ def check(native):
         native.run('load_release.hwf',dict(RELEASE_ID=release),'nine-condition-native-graph')
         assert neo_fixture.neo("MATCH (n:normalizedRequirementClaim) RETURN count(n)=9 AND count(DISTINCT n.requirement_kind)=9 AND all(x IN collect(n) WHERE x.confidence IS NULL AND x.confidence_state='UNASSESSED') AS verified").splitlines()[-1].lower()=='true'
         assert neo_fixture.neo("MATCH (n:typedCondition {kind:'AVAILABILITY'}) RETURN n.earliest_start=date('2026-10-01') AS verified").splitlines()[-1].lower()=='true'
-        assert neo_fixture.neo("MATCH (n:normalizedRequirementClaim {requirement_kind:'LANGUAGE'})-[:TARGETS]->(s:skill), (n)-[:USES_TARGET_BINDING]->(b:requirementTargetBinding)-[:SELECTS_REVISION]->(v:skillRevision) RETURN b.target_subkind='LANGUAGE' AND b.entity_id=s.entity_id AND v.entity_id=s.entity_id AS verified").splitlines()[-1].lower()=='true'
+        assert neo_fixture.neo("MATCH (n:normalizedRequirementClaim {requirement_kind:'LANGUAGE'})-[:TARGETS]->(s:skill), (n)-[:USES_TARGET_BINDING]->(b:requirementTargetBinding)-[e:SELECTS_ENTITY]->(v:skill) RETURN b.target_subkind='LANGUAGE' AND b.entity_id=s.entity_id AND v.entity_id=s.entity_id AND e.object_revision_id=v.selected_revision_id AS verified").splitlines()[-1].lower()=='true'
         sealed=sql('SELECT manifest_hash FROM ontology.corpus_release WHERE release_id='+q(release))
         native.run('load_release.hwf',dict(RELEASE_ID=release),'nine-condition-native-graph-replay')
         assert sealed==sql('SELECT manifest_hash FROM ontology.corpus_release WHERE release_id='+q(release))

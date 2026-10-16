@@ -2,7 +2,7 @@
 <pipeline>
   <info>
     <name>graph_nodes</name>
-    <description>Merge typed ontology object identities and labels in native UNWIND batches.</description>
+    <description>Merge canonical identities, retain their baseline fields, and remove only stale flat-owned keys.</description>
     <pipeline_type>Normal</pipeline_type>
     <size_rowset>100</size_rowset>
     <parameters />
@@ -63,7 +63,7 @@
     <type>TableInput</type>
     <name>Expected graph nodes</name>
     <connection>jobtology-postgres</connection>
-    <sql>SELECT l.load_id,l.release_id,l.database_id,l.manifest_hash,r.manifest-&gt;&gt;'data_as_of' AS data_as_of,(r.manifest-&gt;&gt;'nodes')::bigint AS expected_nodes,(r.manifest-&gt;&gt;'edges')::bigint AS expected_edges,n.node_id,n.content_hash,array_to_string(n.labels,'|') AS labels FROM ontology.graph_load l JOIN ontology.corpus_release r USING(release_id) JOIN ontology.graph_node n ON n.release_id=l.release_id WHERE l.load_id=? AND l.state='RUNNING' ORDER BY n.node_id</sql>
+    <sql>SELECT l.load_id,l.release_id,l.database_id,l.manifest_hash,l.source_manifest_hash,r.manifest-&gt;&gt;'data_as_of' AS data_as_of,projection.node_count AS expected_nodes,projection.edge_count AS expected_edges,(projection.manifest-&gt;&gt;'bindings')::bigint AS legacy_nodes,(projection.manifest-&gt;&gt;'legacy_edges')::bigint AS legacy_edges,n.node_id,n.content_hash,n.flat_content_hash,array_to_string(n.labels,'|') AS labels,array_to_string(ARRAY(SELECT jsonb_object_keys(n.owned_properties) ORDER BY 1),'|') AS owned_keys,'ontologyEntity'=ANY(n.labels) AS managed,previous_node.node_id IS NOT NULL AS has_previous,previous_node.flat_content_hash AS previous_flat_content_hash,array_to_string(ARRAY(SELECT jsonb_object_keys(previous_node.owned_properties) ORDER BY 1),'|') AS previous_owned_keys FROM ontology.flat_graph_load l JOIN ontology.flat_graph_projection projection USING(release_id) JOIN ontology.corpus_release r USING(release_id) JOIN ontology.flat_graph_node n ON n.release_id=l.release_id LEFT JOIN LATERAL ( SELECT old.release_id FROM ontology.flat_graph_load old WHERE old.database_id=l.database_id AND old.state='VERIFIED' ORDER BY old.finished_at DESC,old.load_id DESC LIMIT 1) previous_load ON true LEFT JOIN ontology.flat_graph_node previous_node ON previous_node.release_id=previous_load.release_id AND previous_node.node_id=n.node_id WHERE l.load_id=? AND l.state IN ('RUNNING','STAGED') ORDER BY n.node_id</sql>
     <limit>0</limit>
     <lookup>Load token</lookup>
     <execute_each_row>Y</execute_each_row>
@@ -88,7 +88,16 @@ UNWIND $rows AS row
 WITH row,actual_database_id WHERE row.database_id=actual_database_id
 MERGE (n:ontologyObject {id:row.node_id})
 ON CREATE SET n.content_hash=row.content_hash
-WITH row,n WHERE n.content_hash=row.content_hash
+WITH row,n,CASE WHEN coalesce(row.owned_keys,'')='' THEN [] ELSE split(row.owned_keys,'|') END AS owned,
+ CASE WHEN coalesce(row.previous_owned_keys,'')='' THEN [] ELSE split(row.previous_owned_keys,'|') END AS previous_owned
+WHERE n.content_hash=row.content_hash AND
+ (NOT row.managed OR (((NOT row.has_previous AND n.flat_content_hash IS NULL AND n.flat_owned_keys IS NULL) OR
+  (n.flat_content_hash=row.flat_content_hash AND n.flat_owned_keys=owned) OR
+  (row.has_previous AND n.flat_content_hash=row.previous_flat_content_hash AND n.flat_owned_keys=previous_owned)) AND
+ all(k IN coalesce(n.flat_owned_keys,[]) WHERE NOT k IN ['id','content_hash','entity_id','kind','code','scheme_id','flat_content_hash','flat_owned_keys']) AND
+ all(k IN owned WHERE n[k] IS NULL OR k IN coalesce(n.flat_owned_keys,[]))))
+FOREACH (k IN CASE WHEN row.managed THEN [k IN coalesce(n.flat_owned_keys,[]) WHERE NOT k IN owned] ELSE [] END | SET n[k]=null)
+FOREACH (_ IN CASE WHEN row.managed THEN [1] ELSE [] END | SET n.flat_content_hash=row.flat_content_hash,n.flat_owned_keys=owned)
 SET n:$(split(row.labels,'|'))
 RETURN count(n)=size($rows) AS verified</cypher>
     <batch_size>500</batch_size>
@@ -115,9 +124,39 @@ RETURN count(n)=size($rows) AS verified</cypher>
         <type>String</type>
       </mapping>
       <mapping>
+        <parameter>flat_content_hash</parameter>
+        <field>flat_content_hash</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
         <parameter>labels</parameter>
         <field>labels</field>
         <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>owned_keys</parameter>
+        <field>owned_keys</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>previous_flat_content_hash</parameter>
+        <field>previous_flat_content_hash</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>previous_owned_keys</parameter>
+        <field>previous_owned_keys</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>managed</parameter>
+        <field>managed</field>
+        <type>Boolean</type>
+      </mapping>
+      <mapping>
+        <parameter>has_previous</parameter>
+        <field>has_previous</field>
+        <type>Boolean</type>
       </mapping>
     </mappings>
     <returns>
@@ -188,7 +227,7 @@ RETURN count(n)=size($rows) AS verified</cypher>
   <transform>
     <type>Abort</type>
     <name>Graph mismatch</name>
-    <message>Ontology graph verification failed. The PostgreSQL active release was not changed. Inspect the log and retry the same release.</message>
+    <message>Flat ontology verification failed; PostgreSQL history is unchanged.</message>
     <always_log_rows>N</always_log_rows>
     <abort_option>ABORT_WITH_ERROR</abort_option>
     <row_threshold>0</row_threshold>

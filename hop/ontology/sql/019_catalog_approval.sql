@@ -31,6 +31,8 @@ RETURNS text LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_
 DECLARE selected catalog.catalog_approval%ROWTYPE; r ontology.corpus_release%ROWTYPE;
  latest ontology.graph_load%ROWTYPE;
 BEGIN
+ IF to_regclass('ontology.flat_graph_projection') IS NOT NULL
+ THEN RAISE EXCEPTION 'CATALOG_FLAT_COMPATIBILITY_REQUIRED'; END IF;
  SELECT a.* INTO selected FROM catalog.catalog_active_release p
  JOIN catalog.catalog_approval a USING(approval_id) WHERE p.singleton;
  IF NOT FOUND OR (nullif(btrim(release_choice),'') IS NOT NULL AND selected.release_id<>release_choice)

@@ -4,7 +4,7 @@ BEGIN;
 
 ALTER TABLE ingestion.run DROP CONSTRAINT IF EXISTS run_source_id_check;
 ALTER TABLE ingestion.run ADD CONSTRAINT run_source_id_check CHECK (source_id IN (
-  'alio_organization','job_alio','nara_job','ncs_career_path',
+  'alio_organization','job_alio','nara_job','jobkorea','ncs_career_path',
   'ncs_competency','ncs_qualification','qnet_schedule'));
 
 CREATE OR REPLACE FUNCTION ingestion.nara_date(value text) RETURNS date

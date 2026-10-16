@@ -1,0 +1,103 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>finish_inferred_occupations</name>
+    <description>Capture evidence-validated inferred outcomes without semantic approval; report actual shared-ledger cost.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Pilot options</from>
+      <to>Finish separate inference batch</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Finish separate inference batch</from>
+      <to>Inference batch report</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Pilot options</name>
+    <fields>
+      <field>
+        <name>batch_id</name>
+        <variable>${METADATA_OCCUPATION_BATCH_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Finish separate inference batch</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT enrichment.finish_metadata_occupation_batch(?)::text AS report_json</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>batch_id</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <GUI>
+      <xloc>340</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform>
+    <type>WriteToLog</type>
+    <name>Inference batch report</name>
+    <displayHeader>Y</displayHeader>
+    <limitRows>N</limitRows>
+    <limitRowsNumber>0</limitRowsNumber>
+    <logmessage>Inferred occupation outcomes recorded with METADATA_INFERRED basis and unassessed confidence. Independent review remains explicit.</logmessage>
+    <loglevel>Basic</loglevel>
+    <fields>
+      <field>
+        <name>batch_id</name>
+      </field>
+      <field>
+        <name>report_json</name>
+      </field>
+    </fields>
+    <GUI>
+      <xloc>600</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

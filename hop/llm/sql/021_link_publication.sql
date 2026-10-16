@@ -10,7 +10,21 @@ LANGUAGE plpgsql STABLE AS $$ DECLARE value jsonb; BEGIN
 END $$;
 CREATE OR REPLACE FUNCTION enrichment.linking_input_hash(jobs text,posting text) RETURNS text
 LANGUAGE plpgsql STABLE AS $$
-DECLARE inline_hash text; current_files jsonb; chosen text; source text; BEGIN
+DECLARE inline_hash text; current_files jsonb; chosen text; bundle text; source text; BEGIN
+ -- Identify the local adapter through the run PK before touching the broad
+ -- legacy posting UNION. Each local listing then uses its indexed exact row.
+ SELECT source_id INTO source FROM ingestion.run WHERE run_id=jobs;
+ IF source='jobkorea' THEN
+  -- Local metadata/narrative preparation is a distinct evidence contract. Its
+  -- current hash is never replaced by the legacy inline whitelist hash.
+  inline_hash:=enrichment.hash((enrichment.build_jobkorea_input(jobs,posting)->'source_data')::text);
+  SELECT b.bundle_id,b.source_hash INTO bundle,chosen FROM enrichment.input_bundle b
+  WHERE b.job_run_id=jobs AND b.posting_id=posting AND b.source_hash=inline_hash
+   AND b.source_data#>>'{_input,contract}'='jobkorea-input-v1'
+  ORDER BY b.created_at DESC,b.bundle_id DESC LIMIT 1;
+  IF bundle IS NOT NULL THEN PERFORM enrichment.verify_input_bundle(bundle); END IF;
+  RETURN coalesce(chosen,inline_hash);
+ END IF;
  inline_hash:=enrichment.hash(enrichment.inline_posting_source(jobs,posting)::text);
  SELECT source_id INTO source FROM ingestion.llm_posting
  WHERE run_id=jobs AND posting_id=posting;
@@ -38,7 +52,10 @@ SELECT p.run_id AS job_run_id,p.posting_id,p.normalized->>'title' AS title,
  n.run_id AS ncs_run_id,h.source_hash,r.revision_id,r.item_id,r.decision,r.decision_id,
  CASE WHEN r.decision='ACCEPT' THEN r.extraction END AS extraction,
  coalesce(links.matches,'[]'::jsonb) AS ncs_links,
- CASE WHEN r.revision_id IS NULL THEN
+ CASE WHEN p.source_id='jobkorea' AND NOT EXISTS(SELECT 1 FROM enrichment.input_bundle b
+    WHERE b.job_run_id=p.run_id AND b.posting_id=p.posting_id AND b.source_hash=h.source_hash
+     AND b.source_data#>>'{_input,contract}'='jobkorea-input-v1') THEN 'INPUT_NOT_PREPARED'
+  WHEN r.revision_id IS NULL THEN
    CASE WHEN a.state IN ('REJECTED','ERROR','BUDGET_BLOCKED') THEN 'EXTRACTION_FAILED'
         WHEN a.state='VALIDATED' THEN 'EXTRACTION_REVIEW' ELSE 'PENDING_EXTRACTION' END
   WHEN r.decision IS DISTINCT FROM 'ACCEPT' THEN 'EXTRACTION_REVIEW'
@@ -64,7 +81,7 @@ SELECT p.run_id AS job_run_id,p.posting_id,p.normalized->>'title' AS title,
   ELSE 'PENDING_CATEGORIZATION' END AS outcome,
  p.source_id,p.normalized->>'posting_id' AS source_posting_id
 FROM ingestion.llm_posting p JOIN ingestion.latest_ready_run j ON j.run_id=p.run_id AND j.source_id=p.source_id
- AND j.source_id IN('job_alio','nara_job')
+ AND j.source_id IN('job_alio','nara_job','jobkorea')
 CROSS JOIN (SELECT run_id FROM ingestion.latest_ready_run WHERE source_id='ncs_competency') n
 CROSS JOIN LATERAL (SELECT enrichment.linking_input_hash(p.run_id,p.posting_id) AS source_hash) h
 LEFT JOIN LATERAL (
@@ -144,7 +161,7 @@ END $upgrade$;
 CREATE OR REPLACE FUNCTION enrichment.link_source_hash() RETURNS text LANGUAGE sql STABLE AS $$
  SELECT enrichment.hash(jsonb_build_object(
   'jobs',(SELECT jsonb_object_agg(source_id,run_id ORDER BY source_id) FROM ingestion.latest_ready_run
-          WHERE source_id IN('job_alio','nara_job')),
+          WHERE source_id IN('job_alio','nara_job','jobkorea')),
   'ncs',(SELECT run_id FROM ingestion.latest_ready_run WHERE source_id='ncs_competency'),
   'rows',(SELECT coalesce(jsonb_agg(payload ORDER BY posting_id),'[]') FROM enrichment.link_publication_source))::text)
 $$;
@@ -159,11 +176,11 @@ DECLARE h text:=enrichment.link_source_hash();existing text; BEGIN
  ELSE
   INSERT INTO enrichment.link_publication(publication_id,source_hash,job_run_id,ncs_run_id,state)
   SELECT id,h,j.run_id,n.run_id,'PREPARED' FROM
-   (SELECT run_id FROM ingestion.latest_ready_run WHERE source_id IN('job_alio','nara_job') ORDER BY source_id LIMIT 1) j
+   (SELECT run_id FROM ingestion.latest_ready_run WHERE source_id IN('job_alio','nara_job','jobkorea') ORDER BY source_id LIMIT 1) j
    CROSS JOIN (SELECT run_id FROM ingestion.latest_ready_run WHERE source_id='ncs_competency') n;
   IF NOT FOUND THEN RAISE EXCEPTION 'CURRENT_SOURCE_SNAPSHOTS_REQUIRED'; END IF;
   INSERT INTO enrichment.link_publication_source_run
-  SELECT id,source_id,run_id FROM ingestion.latest_ready_run WHERE source_id IN('job_alio','nara_job');
+  SELECT id,source_id,run_id FROM ingestion.latest_ready_run WHERE source_id IN('job_alio','nara_job','jobkorea');
   INSERT INTO enrichment.link_publication_item
   SELECT id,posting_id,enrichment_id,posting_identity,name,payload,enrichment.hash(payload::text) FROM enrichment.link_publication_source;
  END IF;

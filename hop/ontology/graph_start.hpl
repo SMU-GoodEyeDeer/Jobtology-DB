@@ -2,7 +2,7 @@
 <pipeline>
   <info>
     <name>graph_start</name>
-    <description>Register one writer for the exact Neo4j database and freeze the graph inventory.</description>
+    <description>Register the exact flat projection writer without changing original release history.</description>
     <pipeline_type>Normal</pipeline_type>
     <size_rowset>100</size_rowset>
     <parameters />
@@ -134,7 +134,7 @@
     <type>ExecSql</type>
     <name>Register graph writer</name>
     <connection>jobtology-postgres</connection>
-    <sql>SELECT ontology.begin_graph_load(?,?,?)</sql>
+    <sql>SELECT ontology.begin_flat_graph_load(?,?,?)</sql>
     <execute_each_row>Y</execute_each_row>
     <single_statement>Y</single_statement>
     <set_params>Y</set_params>

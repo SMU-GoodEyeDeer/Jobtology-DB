@@ -1,0 +1,162 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>preview_linking_requests</name>
+    <description>Redacted prepared-request counts and conservative reservation coverage; no API or key reads.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Pilot options</from>
+      <to>Read prepared request accounting</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Read prepared request accounting</from>
+      <to>Prepared pilot and budget</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Pilot options</name>
+    <fields>
+      <field>
+        <name>batch_id</name>
+        <variable>${LLM_BATCH_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Read prepared request accounting</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT b.batch_id,b.state,b.job_run_id,b.ncs_run_id,
+ (SELECT count(*) FROM enrichment.item i WHERE i.batch_id=b.batch_id) AS pilot_postings,
+ (SELECT count(*) FROM enrichment.attempt a WHERE a.batch_id=b.batch_id AND a.stage='extract') AS extraction_requests,
+ (SELECT count(*) FROM enrichment.attempt a WHERE a.batch_id=b.batch_id AND a.stage='categorize') AS matching_requests,
+ (SELECT count(*) FROM enrichment.attempt a WHERE a.batch_id=b.batch_id AND a.reserved_at IS NOT NULL) AS charged_or_uncertain_requests,
+ b.settings-&gt;&gt;'execute_requests' AS execute_requests,b.settings-&gt;&gt;'endpoint' AS endpoint,
+ b.settings-&gt;&gt;'extract_model' AS extract_model,b.settings-&gt;&gt;'categorize_model' AS categorize_model,
+ b.settings-&gt;&gt;'max_cost_usd' AS batch_cap_usd,b.settings-&gt;&gt;'request_reserve_usd' AS request_reserve_usd,
+ b.settings-&gt;&gt;'max_requests' AS request_cap,
+ (SELECT count(*) FROM enrichment.attempt a WHERE a.batch_id=b.batch_id AND a.stage='extract')
+  * (b.settings-&gt;&gt;'request_reserve_usd')::numeric AS extraction_reservation_usd,
+ floor(greatest(0,least((b.settings-&gt;&gt;'max_cost_usd')::numeric / (b.settings-&gt;&gt;'request_reserve_usd')::numeric,
+  (b.settings-&gt;&gt;'max_requests')::numeric)
+  - (SELECT count(*) FROM enrichment.attempt a WHERE a.batch_id=b.batch_id AND a.stage='extract')))::integer AS conservative_batch_matching_capacity
+FROM enrichment.batch b WHERE b.batch_id=?</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>batch_id</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <GUI>
+      <xloc>340</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform>
+    <type>WriteToLog</type>
+    <name>Prepared pilot and budget</name>
+    <displayHeader>Y</displayHeader>
+    <limitRows>N</limitRows>
+    <limitRowsNumber>0</limitRowsNumber>
+    <logmessage>Requests prepared. Missing duties produce no supported match; independent review precedes publication. Reservations can stop later requests at the configured cap.</logmessage>
+    <loglevel>Basic</loglevel>
+    <fields>
+      <field>
+        <name>batch_id</name>
+      </field>
+      <field>
+        <name>state</name>
+      </field>
+      <field>
+        <name>job_run_id</name>
+      </field>
+      <field>
+        <name>ncs_run_id</name>
+      </field>
+      <field>
+        <name>pilot_postings</name>
+      </field>
+      <field>
+        <name>extraction_requests</name>
+      </field>
+      <field>
+        <name>matching_requests</name>
+      </field>
+      <field>
+        <name>charged_or_uncertain_requests</name>
+      </field>
+      <field>
+        <name>execute_requests</name>
+      </field>
+      <field>
+        <name>endpoint</name>
+      </field>
+      <field>
+        <name>extract_model</name>
+      </field>
+      <field>
+        <name>categorize_model</name>
+      </field>
+      <field>
+        <name>batch_cap_usd</name>
+      </field>
+      <field>
+        <name>request_reserve_usd</name>
+      </field>
+      <field>
+        <name>request_cap</name>
+      </field>
+      <field>
+        <name>extraction_reservation_usd</name>
+      </field>
+      <field>
+        <name>conservative_batch_matching_capacity</name>
+      </field>
+    </fields>
+    <GUI>
+      <xloc>600</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

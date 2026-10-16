@@ -1,0 +1,250 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>verify_legacy_edge_arrays</name>
+    <description>Verify typed flat ontology edge_arrays.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Load token</from>
+      <to>Expected properties</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Expected properties</from>
+      <to>Property operation</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Property operation</from>
+      <to>Verify result</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Verify result</from>
+      <to>Verified</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Verify result</from>
+      <to>Graph mismatch</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Load token</name>
+    <fields>
+      <field>
+        <name>load_token</name>
+        <variable>${ONTOLOGY_LOAD_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>TableInput</type>
+    <name>Expected properties</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT database_id,release_id,owner_id,content_hash,subject_id,predicate,object_id,count(*)::bigint AS property_rows, string_agg(replace(replace(coalesce(key,''),'%','%25'),'|','%7C')||'|'||value_type||'|'||is_owned::text||'|'||ordinal::text||'|'||array_size::text||'|'||replace(replace(coalesce(text_value,''),'%','%25'),'|','%7C'),'|' ORDER BY key,ordinal) AS property_data FROM (SELECT l.load_id,l.release_id,l.database_id,l.manifest_hash,l.source_manifest_hash,r.manifest-&gt;&gt;'data_as_of' AS data_as_of,projection.node_count AS expected_nodes,projection.edge_count AS expected_edges,(projection.manifest-&gt;&gt;'bindings')::bigint AS legacy_nodes,(projection.manifest-&gt;&gt;'legacy_edges')::bigint AS legacy_edges,p.owner_id,p.content_hash,p.key,p.ordinal,p.array_size,p.text_value,p.value_type,e.subject_id,e.predicate,e.object_id,false AS is_owned FROM ontology.flat_graph_load l JOIN ontology.flat_graph_projection projection USING(release_id) JOIN ontology.corpus_release r USING(release_id) JOIN ontology.flat_graph_legacy_property p ON p.release_id=l.release_id LEFT JOIN ontology.flat_graph_legacy_edge e ON e.release_id=p.release_id AND e.edge_id=p.owner_id AND p.owner_type='EDGE' WHERE l.load_id=? AND l.state IN ('RUNNING','STAGED') AND p.owner_type='EDGE' AND p.is_array=true ORDER BY p.owner_id,p.key,p.ordinal) expected GROUP BY database_id,release_id,owner_id,content_hash,subject_id,predicate,object_id ORDER BY owner_id</sql>
+    <limit>0</limit>
+    <lookup>Load token</lookup>
+    <execute_each_row>Y</execute_each_row>
+    <variables_active>N</variables_active>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Neo4jCypherOutput</type>
+    <name>Property operation</name>
+    <connection>${NEO4J_CONNECTION}</connection>
+    <cypher>CALL db.info() YIELD id AS actual_database_id
+UNWIND $rows AS row
+WITH row,actual_database_id WHERE row.database_id=actual_database_id
+WITH row,split(row.property_data,'|') AS fields
+WHERE row.property_rows&gt;0 AND size(fields)=row.property_rows*6
+WITH row,[i IN range(0,size(fields)-1,6) | {
+ key:replace(replace(fields[i],'%7C','|'),'%25','%'),value_type:fields[i+1],
+ is_owned:fields[i+2]='true',ownership_valid:fields[i+2] IN ['true','false'],
+ ordinal:toInteger(fields[i+3]),array_size:toInteger(fields[i+4]),
+ text_value:replace(replace(fields[i+5],'%7C','|'),'%25','%')}] AS properties
+WHERE all(property IN properties WHERE property.ownership_valid AND property.ordinal IS NOT NULL AND property.array_size IS NOT NULL
+ AND property.value_type IN ['integer','number','boolean','date','datetime','string','null','empty_array'])
+MATCH (a:ontologyObject {id:row.subject_id}) USING INDEX SEEK a:ontologyObject(id) WITH row,properties,a MATCH (b:ontologyObject {id:row.object_id}) USING INDEX SEEK b:ontologyObject(id) WITH row,properties,a,b MATCH (a)-[n:$(row.predicate) {id:row.owner_id}]-&gt;(b) WHERE n.release_id=row.release_id
+WITH row,n,properties WHERE n.content_hash=row.content_hash
+UNWIND properties AS property
+WITH row,n,property,CASE property.value_type WHEN 'integer' THEN toInteger(property.text_value) WHEN 'number' THEN toFloat(property.text_value) WHEN 'boolean' THEN toBoolean(property.text_value) WHEN 'date' THEN date(property.text_value) WHEN 'datetime' THEN datetime(property.text_value) WHEN 'string' THEN property.text_value ELSE null END AS expected ORDER BY row.owner_id,property.key,property.ordinal
+WITH row,n,property.key AS key,property.is_owned AS is_owned,property.array_size AS array_size,
+ collect({ordinal:property.ordinal,value_type:property.value_type,expected:expected}) AS elements
+WITH row,n,{key:key,is_owned:is_owned,is_empty:array_size=0,
+ expected:[element IN elements WHERE element.ordinal&gt;=0 | element.expected],
+ valid_shape:CASE WHEN array_size=0 THEN size(elements)=1 AND elements[0].ordinal=-1 AND elements[0].value_type='empty_array'
+ ELSE array_size&gt;0 AND size(elements)=array_size AND all(i IN range(0,size(elements)-1) WHERE elements[i].ordinal=i AND elements[i].expected IS NOT NULL) END} AS property
+WITH row,n,collect(property) AS expected_properties
+WHERE all(property IN expected_properties WHERE property.valid_shape AND (n[property.key] IS NULL OR valueType(n[property.key]) STARTS WITH 'LIST&lt;'))
+RETURN count(n)=size($rows) AND count(DISTINCT row.owner_id)=size($rows) AND all(ok IN collect(coalesce(n.content_hash=row.content_hash AND all(property IN expected_properties WHERE CASE WHEN property.expected IS NULL THEN n[property.key] IS NULL WHEN property.is_empty THEN n[property.key]=[] AND valueType(n[property.key]) STARTS WITH 'LIST&lt;' ELSE n[property.key]=property.expected AND valueType(n[property.key])=valueType(property.expected) END),false)) WHERE ok) AS verified</cypher>
+    <batch_size>500</batch_size>
+    <read_only>Y</read_only>
+    <retry>N</retry>
+    <nr_retries_on_error>0</nr_retries_on_error>
+    <cypher_from_field>N</cypher_from_field>
+    <unwind>Y</unwind>
+    <returning_graph>N</returning_graph>
+    <mappings>
+      <mapping>
+        <parameter>database_id</parameter>
+        <field>database_id</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>release_id</parameter>
+        <field>release_id</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>owner_id</parameter>
+        <field>owner_id</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>content_hash</parameter>
+        <field>content_hash</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>property_data</parameter>
+        <field>property_data</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>subject_id</parameter>
+        <field>subject_id</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>predicate</parameter>
+        <field>predicate</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>object_id</parameter>
+        <field>object_id</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>property_rows</parameter>
+        <field>property_rows</field>
+        <type>Integer</type>
+      </mapping>
+    </mappings>
+    <returns>
+      <return>
+        <name>verified</name>
+        <type>Boolean</type>
+        <source_type>Boolean</source_type>
+      </return>
+    </returns>
+    <unwind_map>rows</unwind_map>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>560</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>Verify result</name>
+    <send_true_to>Verified</send_true_to>
+    <send_false_to>Graph mismatch</send_false_to>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>verified</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Boolean</type>
+          <text>Y</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>800</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Dummy</type>
+    <name>Verified</name>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>1040</xloc>
+      <yloc>80</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform>
+    <type>Abort</type>
+    <name>Graph mismatch</name>
+    <message>Flat ontology verification failed; PostgreSQL history is unchanged.</message>
+    <always_log_rows>N</always_log_rows>
+    <abort_option>ABORT_WITH_ERROR</abort_option>
+    <row_threshold>0</row_threshold>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>240</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

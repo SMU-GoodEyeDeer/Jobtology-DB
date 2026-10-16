@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='UTF-8'?>
 <workflow>
-  <name>Execute or resume a reviewed retention plan</name>
-  <description>Execute or resume a reviewed retention plan</description>
+  <name>Execute or resume a reviewed PostgreSQL source retention plan</name>
+  <description>Execute or resume a reviewed PostgreSQL source retention plan</description>
   <workflow_version>1</workflow_version>
   <workflow_status>0</workflow_status>
   <parameters>
@@ -14,11 +14,6 @@
       <name>RAW_BASE</name>
       <default_value>${PROJECT_HOME}/data</default_value>
       <description>Must equal the preview root. Only standard source/run manifest files under this data folder are supported.</description>
-    </parameter>
-    <parameter>
-      <name>NEO4J_CONNECTION</name>
-      <default_value>jobtology-neo4j</default_value>
-      <description>Existing private graph connection.</description>
     </parameter>
   </parameters>
   <actions>
@@ -62,30 +57,9 @@
       </parameters>
     </action>
     <action>
-      <name>Verify Neo4j database</name>
-      <type>PIPELINE</type>
-      <xloc>560</xloc>
-      <yloc>80</yloc>
-      <draw>Y</draw>
-      <parallel>N</parallel>
-      <attributes />
-      <filename>${PROJECT_HOME}/retention/graph_target.hpl</filename>
-      <params_from_previous>N</params_from_previous>
-      <exec_per_row>N</exec_per_row>
-      <clear_rows>N</clear_rows>
-      <clear_files>N</clear_files>
-      <set_logfile>N</set_logfile>
-      <loglevel>Basic</loglevel>
-      <wait_until_finished>Y</wait_until_finished>
-      <run_configuration>retention-local</run_configuration>
-      <parameters>
-        <pass_all_parameters>Y</pass_all_parameters>
-      </parameters>
-    </action>
-    <action>
       <name>Archive last-known source records</name>
       <type>PIPELINE</type>
-      <xloc>800</xloc>
+      <xloc>560</xloc>
       <yloc>80</yloc>
       <draw>Y</draw>
       <parallel>N</parallel>
@@ -104,119 +78,14 @@
       </parameters>
     </action>
     <action>
-      <name>Check archive constraint</name>
+      <name>Verify immutable source projection evidence</name>
       <type>PIPELINE</type>
-      <xloc>1040</xloc>
+      <xloc>800</xloc>
       <yloc>80</yloc>
       <draw>Y</draw>
       <parallel>N</parallel>
       <attributes />
-      <filename>${PROJECT_HOME}/retention/graph_constraints.hpl</filename>
-      <params_from_previous>N</params_from_previous>
-      <exec_per_row>N</exec_per_row>
-      <clear_rows>N</clear_rows>
-      <clear_files>N</clear_files>
-      <set_logfile>N</set_logfile>
-      <loglevel>Basic</loglevel>
-      <wait_until_finished>Y</wait_until_finished>
-      <run_configuration>retention-local</run_configuration>
-      <parameters>
-        <pass_all_parameters>Y</pass_all_parameters>
-      </parameters>
-    </action>
-    <action>
-      <name>Archive graph records</name>
-      <type>PIPELINE</type>
-      <xloc>80</xloc>
-      <yloc>240</yloc>
-      <draw>Y</draw>
-      <parallel>N</parallel>
-      <attributes />
-      <filename>${PROJECT_HOME}/retention/archive_nodes.hpl</filename>
-      <params_from_previous>N</params_from_previous>
-      <exec_per_row>N</exec_per_row>
-      <clear_rows>N</clear_rows>
-      <clear_files>N</clear_files>
-      <set_logfile>N</set_logfile>
-      <loglevel>Basic</loglevel>
-      <wait_until_finished>Y</wait_until_finished>
-      <run_configuration>retention-local</run_configuration>
-      <parameters>
-        <pass_all_parameters>Y</pass_all_parameters>
-      </parameters>
-    </action>
-    <action>
-      <name>Archive graph references</name>
-      <type>PIPELINE</type>
-      <xloc>320</xloc>
-      <yloc>240</yloc>
-      <draw>Y</draw>
-      <parallel>N</parallel>
-      <attributes />
-      <filename>${PROJECT_HOME}/retention/archive_references.hpl</filename>
-      <params_from_previous>N</params_from_previous>
-      <exec_per_row>N</exec_per_row>
-      <clear_rows>N</clear_rows>
-      <clear_files>N</clear_files>
-      <set_logfile>N</set_logfile>
-      <loglevel>Basic</loglevel>
-      <wait_until_finished>Y</wait_until_finished>
-      <run_configuration>retention-local</run_configuration>
-      <parameters>
-        <pass_all_parameters>Y</pass_all_parameters>
-      </parameters>
-    </action>
-    <action>
-      <name>Verify graph archive</name>
-      <type>PIPELINE</type>
-      <xloc>560</xloc>
-      <yloc>240</yloc>
-      <draw>Y</draw>
-      <parallel>N</parallel>
-      <attributes />
-      <filename>${PROJECT_HOME}/retention/verify_archive.hpl</filename>
-      <params_from_previous>N</params_from_previous>
-      <exec_per_row>N</exec_per_row>
-      <clear_rows>N</clear_rows>
-      <clear_files>N</clear_files>
-      <set_logfile>N</set_logfile>
-      <loglevel>Basic</loglevel>
-      <wait_until_finished>Y</wait_until_finished>
-      <run_configuration>retention-local</run_configuration>
-      <parameters>
-        <pass_all_parameters>Y</pass_all_parameters>
-      </parameters>
-    </action>
-    <action>
-      <name>Delete selected graph snapshots</name>
-      <type>PIPELINE</type>
-      <xloc>800</xloc>
-      <yloc>240</yloc>
-      <draw>Y</draw>
-      <parallel>N</parallel>
-      <attributes />
-      <filename>${PROJECT_HOME}/retention/delete_graph.hpl</filename>
-      <params_from_previous>N</params_from_previous>
-      <exec_per_row>N</exec_per_row>
-      <clear_rows>N</clear_rows>
-      <clear_files>N</clear_files>
-      <set_logfile>N</set_logfile>
-      <loglevel>Basic</loglevel>
-      <wait_until_finished>Y</wait_until_finished>
-      <run_configuration>retention-local</run_configuration>
-      <parameters>
-        <pass_all_parameters>Y</pass_all_parameters>
-      </parameters>
-    </action>
-    <action>
-      <name>Verify committed graph deletions</name>
-      <type>PIPELINE</type>
-      <xloc>1040</xloc>
-      <yloc>240</yloc>
-      <draw>Y</draw>
-      <parallel>N</parallel>
-      <attributes />
-      <filename>${PROJECT_HOME}/retention/verify_deleted_graph.hpl</filename>
+      <filename>${PROJECT_HOME}/retention/verify_source_projections.hpl</filename>
       <params_from_previous>N</params_from_previous>
       <exec_per_row>N</exec_per_row>
       <clear_rows>N</clear_rows>
@@ -232,8 +101,8 @@
     <action>
       <name>Delete selected raw files</name>
       <type>PIPELINE</type>
-      <xloc>80</xloc>
-      <yloc>400</yloc>
+      <xloc>1040</xloc>
+      <yloc>80</yloc>
       <draw>Y</draw>
       <parallel>N</parallel>
       <attributes />
@@ -253,8 +122,8 @@
     <action>
       <name>Commit PostgreSQL cleanup</name>
       <type>PIPELINE</type>
-      <xloc>320</xloc>
-      <yloc>400</yloc>
+      <xloc>80</xloc>
+      <yloc>240</yloc>
       <draw>Y</draw>
       <parallel>N</parallel>
       <attributes />
@@ -274,8 +143,8 @@
     <action>
       <name>Report result</name>
       <type>PIPELINE</type>
-      <xloc>560</xloc>
-      <yloc>400</yloc>
+      <xloc>320</xloc>
+      <yloc>240</yloc>
       <draw>Y</draw>
       <parallel>N</parallel>
       <attributes />
@@ -295,8 +164,8 @@
     <action>
       <name>Success</name>
       <type>SUCCESS</type>
-      <xloc>800</xloc>
-      <yloc>400</yloc>
+      <xloc>560</xloc>
+      <yloc>240</yloc>
       <draw>Y</draw>
       <parallel>N</parallel>
       <attributes />
@@ -304,8 +173,8 @@
     <action>
       <name>Abort</name>
       <type>ABORT</type>
-      <xloc>80</xloc>
-      <yloc>560</yloc>
+      <xloc>1040</xloc>
+      <yloc>240</yloc>
       <draw>Y</draw>
       <parallel>N</parallel>
       <attributes />
@@ -350,20 +219,6 @@
     </hop>
     <hop>
       <from>Revalidate plan and fence writers</from>
-      <to>Verify Neo4j database</to>
-      <enabled>Y</enabled>
-      <evaluation>Y</evaluation>
-      <unconditional>N</unconditional>
-    </hop>
-    <hop>
-      <from>Verify Neo4j database</from>
-      <to>Release failed executor</to>
-      <enabled>Y</enabled>
-      <evaluation>N</evaluation>
-      <unconditional>N</unconditional>
-    </hop>
-    <hop>
-      <from>Verify Neo4j database</from>
       <to>Archive last-known source records</to>
       <enabled>Y</enabled>
       <evaluation>Y</evaluation>
@@ -378,90 +233,20 @@
     </hop>
     <hop>
       <from>Archive last-known source records</from>
-      <to>Check archive constraint</to>
+      <to>Verify immutable source projection evidence</to>
       <enabled>Y</enabled>
       <evaluation>Y</evaluation>
       <unconditional>N</unconditional>
     </hop>
     <hop>
-      <from>Check archive constraint</from>
+      <from>Verify immutable source projection evidence</from>
       <to>Release failed executor</to>
       <enabled>Y</enabled>
       <evaluation>N</evaluation>
       <unconditional>N</unconditional>
     </hop>
     <hop>
-      <from>Check archive constraint</from>
-      <to>Archive graph records</to>
-      <enabled>Y</enabled>
-      <evaluation>Y</evaluation>
-      <unconditional>N</unconditional>
-    </hop>
-    <hop>
-      <from>Archive graph records</from>
-      <to>Release failed executor</to>
-      <enabled>Y</enabled>
-      <evaluation>N</evaluation>
-      <unconditional>N</unconditional>
-    </hop>
-    <hop>
-      <from>Archive graph records</from>
-      <to>Archive graph references</to>
-      <enabled>Y</enabled>
-      <evaluation>Y</evaluation>
-      <unconditional>N</unconditional>
-    </hop>
-    <hop>
-      <from>Archive graph references</from>
-      <to>Release failed executor</to>
-      <enabled>Y</enabled>
-      <evaluation>N</evaluation>
-      <unconditional>N</unconditional>
-    </hop>
-    <hop>
-      <from>Archive graph references</from>
-      <to>Verify graph archive</to>
-      <enabled>Y</enabled>
-      <evaluation>Y</evaluation>
-      <unconditional>N</unconditional>
-    </hop>
-    <hop>
-      <from>Verify graph archive</from>
-      <to>Release failed executor</to>
-      <enabled>Y</enabled>
-      <evaluation>N</evaluation>
-      <unconditional>N</unconditional>
-    </hop>
-    <hop>
-      <from>Verify graph archive</from>
-      <to>Delete selected graph snapshots</to>
-      <enabled>Y</enabled>
-      <evaluation>Y</evaluation>
-      <unconditional>N</unconditional>
-    </hop>
-    <hop>
-      <from>Delete selected graph snapshots</from>
-      <to>Release failed executor</to>
-      <enabled>Y</enabled>
-      <evaluation>N</evaluation>
-      <unconditional>N</unconditional>
-    </hop>
-    <hop>
-      <from>Delete selected graph snapshots</from>
-      <to>Verify committed graph deletions</to>
-      <enabled>Y</enabled>
-      <evaluation>Y</evaluation>
-      <unconditional>N</unconditional>
-    </hop>
-    <hop>
-      <from>Verify committed graph deletions</from>
-      <to>Release failed executor</to>
-      <enabled>Y</enabled>
-      <evaluation>N</evaluation>
-      <unconditional>N</unconditional>
-    </hop>
-    <hop>
-      <from>Verify committed graph deletions</from>
+      <from>Verify immutable source projection evidence</from>
       <to>Delete selected raw files</to>
       <enabled>Y</enabled>
       <evaluation>Y</evaluation>

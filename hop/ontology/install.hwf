@@ -388,8 +388,8 @@
       <sqlfilename_encoding>UTF-8</sqlfilename_encoding>
       <useVariableSubstitution>N</useVariableSubstitution>
       <sendOneStatement>Y</sendOneStatement>
-      <xloc>1280</xloc>
-      <yloc>720</yloc>
+      <xloc>80</xloc>
+      <yloc>880</yloc>
       <draw>Y</draw>
       <parallel>N</parallel>
     </action>
@@ -402,8 +402,8 @@
       <sqlfilename_encoding>UTF-8</sqlfilename_encoding>
       <useVariableSubstitution>N</useVariableSubstitution>
       <sendOneStatement>Y</sendOneStatement>
-      <xloc>1520</xloc>
-      <yloc>720</yloc>
+      <xloc>320</xloc>
+      <yloc>880</yloc>
       <draw>Y</draw>
       <parallel>N</parallel>
     </action>
@@ -416,8 +416,8 @@
       <sqlfilename_encoding>UTF-8</sqlfilename_encoding>
       <useVariableSubstitution>N</useVariableSubstitution>
       <sendOneStatement>Y</sendOneStatement>
-      <xloc>1760</xloc>
-      <yloc>720</yloc>
+      <xloc>560</xloc>
+      <yloc>880</yloc>
       <draw>Y</draw>
       <parallel>N</parallel>
     </action>
@@ -430,8 +430,8 @@
       <sqlfilename_encoding>UTF-8</sqlfilename_encoding>
       <useVariableSubstitution>N</useVariableSubstitution>
       <sendOneStatement>Y</sendOneStatement>
-      <xloc>2000</xloc>
-      <yloc>720</yloc>
+      <xloc>800</xloc>
+      <yloc>880</yloc>
       <draw>Y</draw>
       <parallel>N</parallel>
     </action>
@@ -444,8 +444,8 @@
       <sqlfilename_encoding>UTF-8</sqlfilename_encoding>
       <useVariableSubstitution>N</useVariableSubstitution>
       <sendOneStatement>Y</sendOneStatement>
-      <xloc>2240</xloc>
-      <yloc>720</yloc>
+      <xloc>1040</xloc>
+      <yloc>880</yloc>
       <draw>Y</draw>
       <parallel>N</parallel>
     </action>
@@ -458,8 +458,8 @@
       <sqlfilename_encoding>UTF-8</sqlfilename_encoding>
       <useVariableSubstitution>N</useVariableSubstitution>
       <sendOneStatement>Y</sendOneStatement>
-      <xloc>2480</xloc>
-      <yloc>720</yloc>
+      <xloc>80</xloc>
+      <yloc>1040</yloc>
       <draw>Y</draw>
       <parallel>N</parallel>
     </action>
@@ -472,8 +472,36 @@
       <sqlfilename_encoding>UTF-8</sqlfilename_encoding>
       <useVariableSubstitution>N</useVariableSubstitution>
       <sendOneStatement>Y</sendOneStatement>
-      <xloc>2720</xloc>
-      <yloc>720</yloc>
+      <xloc>320</xloc>
+      <yloc>1040</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+    </action>
+    <action>
+      <name>ontology 028_flat_graph_projection</name>
+      <type>SQL</type>
+      <connection>jobtology-postgres</connection>
+      <sqlfromfile>Y</sqlfromfile>
+      <sqlfilename>${PROJECT_HOME}/ontology/sql/028_flat_graph_projection.sql</sqlfilename>
+      <sqlfilename_encoding>UTF-8</sqlfilename_encoding>
+      <useVariableSubstitution>N</useVariableSubstitution>
+      <sendOneStatement>Y</sendOneStatement>
+      <xloc>560</xloc>
+      <yloc>1040</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+    </action>
+    <action>
+      <name>ontology 029_flat_catalog_compatibility</name>
+      <type>SQL</type>
+      <connection>jobtology-postgres</connection>
+      <sqlfromfile>Y</sqlfromfile>
+      <sqlfilename>${PROJECT_HOME}/ontology/sql/029_flat_catalog_compatibility.sql</sqlfilename>
+      <sqlfilename_encoding>UTF-8</sqlfilename_encoding>
+      <useVariableSubstitution>N</useVariableSubstitution>
+      <sendOneStatement>Y</sendOneStatement>
+      <xloc>800</xloc>
+      <yloc>1040</yloc>
       <draw>Y</draw>
       <parallel>N</parallel>
     </action>
@@ -915,6 +943,34 @@
     </hop>
     <hop>
       <from>ontology 027_product_role_inputs</from>
+      <to>ontology 028_flat_graph_projection</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>ontology 028_flat_graph_projection</from>
+      <to>Abort</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>ontology 028_flat_graph_projection</from>
+      <to>ontology 029_flat_catalog_compatibility</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>ontology 029_flat_catalog_compatibility</from>
+      <to>Abort</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>ontology 029_flat_catalog_compatibility</from>
       <to>Success</to>
       <enabled>Y</enabled>
       <evaluation>Y</evaluation>

@@ -2,7 +2,7 @@
 <pipeline>
   <info>
     <name>graph_constraint</name>
-    <description>Inspect and create the ontology object uniqueness constraint.</description>
+    <description>Inspect and create ontology object uniqueness.</description>
     <pipeline_type>Normal</pipeline_type>
     <size_rowset>100</size_rowset>
     <parameters />
@@ -213,7 +213,7 @@ count(CASE WHEN name='jobtology_ontology_object_id' THEN 1 END) AS name_in_use</
   <transform>
     <type>Abort</type>
     <name>Conflict</name>
-    <message>The ontology constraint name is already used by an incompatible constraint.</message>
+    <message>Incompatible ontology constraint.</message>
     <always_log_rows>N</always_log_rows>
     <abort_option>ABORT_WITH_ERROR</abort_option>
     <row_threshold>0</row_threshold>

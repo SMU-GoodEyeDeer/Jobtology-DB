@@ -2,7 +2,7 @@
 <pipeline>
   <info>
     <name>graph_fail</name>
-    <description>Release the writer after a caught workflow failure; preserve its failed execution record.</description>
+    <description>Fail only the exact flat load and release its writer.</description>
     <pipeline_type>Normal</pipeline_type>
     <size_rowset>100</size_rowset>
     <parameters />
@@ -43,7 +43,7 @@
     <type>ExecSql</type>
     <name>Fail this load</name>
     <connection>jobtology-postgres</connection>
-    <sql>SELECT ontology.fail_graph_load(?)</sql>
+    <sql>SELECT ontology.fail_flat_graph_load(?)</sql>
     <execute_each_row>Y</execute_each_row>
     <single_statement>Y</single_statement>
     <set_params>Y</set_params>

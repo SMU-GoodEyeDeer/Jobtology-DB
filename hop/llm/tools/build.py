@@ -472,6 +472,8 @@ for kind in ('pipeline','workflow'):
     path.write_text(json.dumps(conf,indent=2)+'\n')
 
 # SQL installation is a workflow action: these files contain DDL, not result rows.
+# Include every additive contract, including JobKorea 027/028 and separate
+# inferred-occupation 029/030, so replay retains the latest output/cost dispatcher.
 workflow('install.hwf','Install additive enrichment tables and functions',[],[],False)
 w=E.parse(OUT/'install.hwf').getroot();acts=w.find('actions');hops=w.find('hops');hops.clear()
 previous='Start'

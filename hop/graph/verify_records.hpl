@@ -2,7 +2,7 @@
 <pipeline>
   <info>
     <name>verify_records</name>
-    <description>Compare every PostgreSQL record property against Neo4j.</description>
+    <description>Batch-free source graph; immutable membership remains in PostgreSQL.</description>
     <pipeline_type>Normal</pipeline_type>
     <size_rowset>1000</size_rowset>
     <parameters />
@@ -11,16 +11,16 @@
   <order>
     <hop>
       <from>Snapshot</from>
-      <to>Read PostgreSQL records</to>
+      <to>Read entity names</to>
       <enabled>Y</enabled>
     </hop>
     <hop>
-      <from>Read PostgreSQL records</from>
-      <to>Verify graph record</to>
+      <from>Read entity names</from>
+      <to>Set entity names</to>
       <enabled>Y</enabled>
     </hop>
     <hop>
-      <from>Verify graph record</from>
+      <from>Set entity names</from>
       <to>Check result</to>
       <enabled>Y</enabled>
     </hop>
@@ -61,10 +61,10 @@
   </transform>
   <transform>
     <type>DBJoin</type>
-    <name>Read PostgreSQL records</name>
+    <name>Read entity names</name>
     <cache>N</cache>
     <cache_size>0</cache_size>
-    <sql>SELECT id,source_id,source_record_id,kind,name,facts_json FROM ingestion.graph_record WHERE run_id=? ORDER BY id</sql>
+    <sql>SELECT * FROM ingestion.graph_source_entities(?)</sql>
     <rowlimit>0</rowlimit>
     <outer_join>N</outer_join>
     <parameter>
@@ -88,38 +88,23 @@
   </transform>
   <transform>
     <type>Neo4jCypherOutput</type>
-    <name>Verify graph record</name>
+    <name>Set entity names</name>
     <connection>${NEO4J_CONNECTION}</connection>
-    <cypher>MATCH (b:ingestionBatch {id:$run_id})-[:HAS_RECORD]-&gt;(r:ingestionRecord {id:$id})
-WHERE r.source_id=$source_id AND r.source_record_id=$source_record_id AND r.kind=$kind
-AND ((r.name IS NULL AND $name IS NULL) OR r.name=$name) AND r.facts_json=$facts_json
-RETURN count(r)=1 AS record_matches</cypher>
-    <batch_size>1</batch_size>
+    <cypher>UNWIND $rows AS row
+MATCH (i:entity {id:row.identity_id}) WHERE i.kind=row.kind AND i.code=row.code AND ((i.kind='Organization' AND 'organization' IN labels(i)) OR (i.kind='JobPosting' AND 'jobPosting' IN labels(i)) OR (i.kind='Occupation' AND 'occupation' IN labels(i)) OR (i.kind='Competency' AND 'ncsCompetency' IN labels(i)) OR (i.kind='Qualification' AND 'qualification' IN labels(i)) OR (i.kind='ExamSession' AND 'examSession' IN labels(i)))
+AND ((properties(i)['name'] IS NULL AND row.entity_name IS NULL) OR i.name=row.entity_name) AND ((properties(i)['title'] IS NULL AND row.entity_title IS NULL) OR i.title=row.entity_title) AND ((properties(i)['name_source_run_id'] IS NULL AND row.name_source_run_id IS NULL) OR i.name_source_run_id=row.name_source_run_id) AND ((properties(i)['name_source_record_id'] IS NULL AND row.name_source_record_id IS NULL) OR i.name_source_record_id=row.name_source_record_id) AND ((properties(i)['source_id'] IS NULL AND row.source_id IS NULL) OR i.source_id=row.source_id) AND ((properties(i)['source_run_id'] IS NULL AND row.source_run_id IS NULL) OR i.source_run_id=row.source_run_id) AND ((properties(i)['source_record_id'] IS NULL AND row.source_record_id IS NULL) OR i.source_record_id=row.source_record_id) AND ((properties(i)['source_created_at'] IS NULL AND row.source_created_at IS NULL) OR i.source_created_at=datetime(row.source_created_at)) AND ((properties(i)['source_facts_json'] IS NULL AND row.source_facts_json IS NULL) OR i.source_facts_json=row.source_facts_json) AND ((properties(i)['source_facts_sha256'] IS NULL AND row.source_facts_sha256 IS NULL) OR i.source_facts_sha256=row.source_facts_sha256)
+RETURN count(i)=size($rows) AS entity_matches</cypher>
+    <batch_size>500</batch_size>
     <read_only>Y</read_only>
     <retry>N</retry>
     <nr_retries_on_error>0</nr_retries_on_error>
     <cypher_from_field>N</cypher_from_field>
-    <unwind>N</unwind>
+    <unwind>Y</unwind>
     <returning_graph>N</returning_graph>
     <mappings>
       <mapping>
-        <parameter>run_id</parameter>
-        <field>run_id</field>
-        <type>String</type>
-      </mapping>
-      <mapping>
-        <parameter>id</parameter>
-        <field>id</field>
-        <type>String</type>
-      </mapping>
-      <mapping>
-        <parameter>source_id</parameter>
-        <field>source_id</field>
-        <type>String</type>
-      </mapping>
-      <mapping>
-        <parameter>source_record_id</parameter>
-        <field>source_record_id</field>
+        <parameter>identity_id</parameter>
+        <field>identity_id</field>
         <type>String</type>
       </mapping>
       <mapping>
@@ -128,19 +113,64 @@ RETURN count(r)=1 AS record_matches</cypher>
         <type>String</type>
       </mapping>
       <mapping>
-        <parameter>name</parameter>
-        <field>name</field>
+        <parameter>code</parameter>
+        <field>code</field>
         <type>String</type>
       </mapping>
       <mapping>
-        <parameter>facts_json</parameter>
-        <field>facts_json</field>
+        <parameter>entity_name</parameter>
+        <field>entity_name</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>entity_title</parameter>
+        <field>entity_title</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>name_source_run_id</parameter>
+        <field>name_source_run_id</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>name_source_record_id</parameter>
+        <field>name_source_record_id</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>source_id</parameter>
+        <field>source_id</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>source_run_id</parameter>
+        <field>source_run_id</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>source_record_id</parameter>
+        <field>source_record_id</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>source_created_at</parameter>
+        <field>source_created_at</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>source_facts_json</parameter>
+        <field>source_facts_json</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>source_facts_sha256</parameter>
+        <field>source_facts_sha256</field>
         <type>String</type>
       </mapping>
     </mappings>
     <returns>
       <return>
-        <name>record_matches</name>
+        <name>entity_matches</name>
         <type>Boolean</type>
         <source_type>Boolean</source_type>
       </return>
@@ -155,6 +185,7 @@ RETURN count(r)=1 AS record_matches</cypher>
       <method>none</method>
       <schema_name />
     </partitioning>
+    <unwind_map>rows</unwind_map>
   </transform>
   <transform>
     <type>FilterRows</type>
@@ -163,7 +194,7 @@ RETURN count(r)=1 AS record_matches</cypher>
       <condition>
         <negated>N</negated>
         <operator>-</operator>
-        <leftvalue>record_matches</leftvalue>
+        <leftvalue>entity_matches</leftvalue>
         <function>=</function>
         <value>
           <name>constant</name>
@@ -206,7 +237,7 @@ RETURN count(r)=1 AS record_matches</cypher>
     <type>Abort</type>
     <name>Check failed</name>
     <row_threshold>0</row_threshold>
-    <message>A graph record is missing, duplicated or has conflicting properties.</message>
+    <message>Source business projection differs from accepted PostgreSQL evidence; replay exact RUN_ID.</message>
     <always_log_rows>N</always_log_rows>
     <abort_option>ABORT_WITH_ERROR</abort_option>
     <distribute>Y</distribute>

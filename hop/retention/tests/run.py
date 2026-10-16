@@ -38,7 +38,9 @@ def seed():
  sql((ROOT/'docs/hop-migration/schema.sql').read_text())
  sql("CREATE VIEW ingestion.validation_issue AS SELECT NULL::text AS run_id,NULL::text AS issue WHERE false;")
  sql((ROOT/'docs/hop-migration/operations.sql').read_text())
- for f in sorted((ROOT/'hop/llm/sql').glob('*.sql')):sql(f.read_text())
+ for f in sorted((ROOT/'hop/llm/sql').glob('*.sql')):
+  if int(f.name[:3])<=26:sql(f.read_text())
+ for f in ['hop/retention/sql/001_retention.sql','hop/graph/sql/001_posting_ingestion_dates.sql','hop/graph/sql/002_batchfree_source_graph.sql','hop/retention/sql/002_batchfree_retention.sql']:sql((ROOT/f).read_text())
  ids=[]; graph_statements=[]
  for index,age in enumerate([70,60,50,40,30,20,10,0]):
   rid=str(uuid.uuid4());ids.append(rid)
@@ -51,8 +53,8 @@ def seed():
    for representation in ('list','detail'):
     data=dict(kind='JobPosting',posting_id=posting,representation=representation,title='한국어 채용 '+posting,eligibility_text='SQL 필수 '+str(index))
     recid=sql(f"INSERT INTO ingestion.record(run_id,document_id,locator,source_record_id,source_payload,normalized) VALUES({q(rid)},'doc',{q(posting+representation)},{q(posting+':'+representation)},{js(data)},{js(data)}) RETURNING record_id")
-    gid='hop:'+rid+':'+recid
-    graph_statements.append(f"MERGE (b:ingestionBatch {{id:'{rid}'}}) SET b.source_id='job_alio',b.state='READY',b.serving_scope='STAGING' MERGE (e:entity:jobPosting {{id:'job-alio:posting:{posting}'}}) SET e.name='한국어 채용 {posting}' CREATE (r:ingestionRecord {{id:'{gid}',source_id:'job_alio'}}) CREATE (b)-[:HAS_RECORD]->(r) CREATE (r)-[:REFERS_TO {{field:'posting_id'}}]->(e);")
+    graph_statements.append(f"MERGE (e:entity:jobPosting {{id:'job-alio:posting:{posting}'}}) SET e.kind='JobPosting',e.code='{posting}',e.name='한국어 채용 {posting}';")
+  sql(f"SELECT ingestion.begin_source_graph_projection({q(rid)}); SELECT ingestion.finish_source_graph_projection({q(rid)});")
  neo('\n'.join(graph_statements))
  # Shared LLM graph entity must survive source cleanup.
  neo("MATCH (p:jobPosting {id:'job-alio:posting:B'}) CREATE (p)-[:HAS_ENRICHMENT]->(:jobEnrichment {id:'preserve-me',state:'READY'});")
@@ -69,6 +71,7 @@ def checks(ids):
   assert sql(f"SELECT retention.resolve_raw_path({q(source)},{q(REMOTE+'/project/data')},'run/example.json')")==root+'/run/example.json'
  # Reinstallation and native preview do not delete a single source or raw file.
  before=sql('SELECT count(*) FROM ingestion.record')
+ fail(f"BEGIN; ALTER TABLE ingestion.source_graph_record_evidence DISABLE TRIGGER immutable_source_graph_evidence; UPDATE ingestion.source_graph_record_evidence SET normalized_sha256=repeat('f',64) WHERE run_id={q(ids[0])}; SELECT ingestion.assert_source_graph_projection({q(ids[0])});",'SOURCE_GRAPH_EVIDENCE_MISMATCH')
  run('retention/install.hwf',{},'native-installer-repeat')
  run('retention/preview.hwf',dict(SOURCE_ID='job_alio',SELECTION_MODE='OLDEST_COUNT',AMOUNT=2),'preview-two')
  p=sql('SELECT plan_id FROM retention.plan ORDER BY created_at DESC LIMIT 1')
@@ -106,12 +109,12 @@ def checks(ids):
  fail("UPDATE ingestion.run SET policy_revision='changed'",'RETENTION_ACTIVE')
  assert sql('SELECT count(*) FROM ingestion.refresh_queue')=='0'
  # Failure after archive: wrong ownership must stop before files/PG deletion, then resume.
- neo(f"MATCH (b:ingestionBatch {{id:'{ids[0]}'}}) SET b.serving_scope='WRONG'")
+ sql(f"ALTER TABLE ingestion.source_graph_projection DISABLE TRIGGER retention_write_guard; UPDATE ingestion.source_graph_projection SET state='FAILED',verified_at=NULL WHERE run_id={q(ids[0])}; ALTER TABLE ingestion.source_graph_projection ENABLE TRIGGER retention_write_guard;")
  run('retention/execute.hwf',dict(PLAN_ID=p),'ownership-failure',False)
- assert 'Graph ownership/count verification failed' in (WORK/'ownership-failure.log').read_text()
+ assert 'SOURCE_GRAPH_PROJECTION_NOT_READY' in (WORK/'ownership-failure.log').read_text()
  assert sql('SELECT count(*) FROM ingestion.record')==before
  assert sql(f"SELECT owner_id IS NULL AND state='ACTIVE' FROM retention.plan WHERE plan_id={q(p)}")=='t'
- neo(f"MATCH (b:ingestionBatch {{id:'{ids[0]}'}}) SET b.serving_scope='STAGING'")
+ sql(f"ALTER TABLE ingestion.source_graph_projection DISABLE TRIGGER retention_write_guard; UPDATE ingestion.source_graph_projection SET state='READY',verified_at=clock_timestamp() WHERE run_id={q(ids[0])}; ALTER TABLE ingestion.source_graph_projection ENABLE TRIGGER retention_write_guard;")
  # A file may already be absent after an interrupted deletion before its checkpoint.
  raw_file=sql(f"SELECT raw_path FROM retention.plan_file WHERE plan_id={q(p)} AND run_id={q(ids[0])}")
  cmd(['docker','exec',HOP,'rm',raw_file])
@@ -122,10 +125,12 @@ def checks(ids):
  assert sql("SELECT normalized->>'eligibility_text' FROM retention.last_known_job_posting WHERE posting_id='B'")=='SQL 필수 1'
  assert sql("SELECT archived AND NOT in_latest_snapshot FROM retention.last_known_job_posting WHERE posting_id='B'")=='t'
  assert sql("SELECT NOT archived AND in_latest_snapshot FROM retention.last_known_job_posting WHERE posting_id='A'")=='t'
- assert '4' in neo("MATCH (a:archivedRecord {state:'READY'}) RETURN count(a);")
+ assert 'true' in neo("MATCH (n) WHERE n:ingestionBatch OR n:ingestionRecord OR n:archivedRecord RETURN count(n)=0 AS valid;").lower().splitlines()
+ assert sql('SELECT count(*) FROM ingestion.source_graph_projection')=='8'
+ sql(f"SELECT ingestion.assert_source_graph_projection({q(ids[0])})")
  assert '2' in neo('MATCH (e:jobPosting) RETURN count(e);')
  assert '1' in neo("MATCH (:jobEnrichment {id:'preserve-me'}) RETURN count(*);")
- assert '6' in neo('MATCH (b:ingestionBatch) RETURN count(b);')
+ assert 'true' in neo('MATCH (n:entity) RETURN count(n)=2 AS valid;').lower().splitlines()
  assert sql(f"SELECT count(*) FROM retention.plan_file WHERE plan_id={q(p)} AND deleted_at IS NULL")=='0'
  assert cmd(['docker','exec',HOP,'test','!','-e',raw_file])==''
  # Idempotent execution of a completed plan must not select or delete extra runs.
@@ -153,7 +158,8 @@ def extra_checks():
   rec=sql(f"INSERT INTO ingestion.record(run_id,document_id,locator,source_record_id,source_payload,normalized) VALUES({q(rid)},'doc','1',{q(sid)},{js(data)},{js(data)}) RETURNING record_id")
   cmd(['docker','exec',HOP,'mkdir','-p',str(Path(path).parent)])
   cmd(['docker','exec','-i',HOP,'tee',path],input='{}')
-  neo(f"CREATE (b:ingestionBatch {{id:'{rid}',source_id:'qnet_schedule',state:'READY',serving_scope:'STAGING'}}) CREATE (r:ingestionRecord {{id:'hop:{rid}:{rec}'}}) MERGE (e:entity:qualification {{id:'qnet:qualification:Q001'}}) CREATE (b)-[:HAS_RECORD]->(r) CREATE (r)-[:REFERS_TO {{field:'qualification_code'}}]->(e);")
+  sql(f"SELECT ingestion.begin_source_graph_projection({q(rid)}); SELECT ingestion.finish_source_graph_projection({q(rid)});")
+  neo("MERGE (e:entity:qualification {id:'qnet:qualification:Q001'}) SET e.kind='Qualification',e.code='Q001';")
  p=str(uuid.uuid4());sql(f"SELECT retention.preview({q(p)},'qnet_schedule','OLDER_THAN_DAYS',30,1,{q(REMOTE+'/project/data')})")
  assert sql(f"SELECT run_id FROM retention.plan_run WHERE plan_id={q(p)} AND selected")==old
  cmd(['docker','exec','-i',HOP,'tee',oldpath],input='unexpected changed bytes')
@@ -161,7 +167,7 @@ def extra_checks():
  assert 'hash or deletion verification failed' in (WORK/'changed-raw-file-blocked.log').read_text()
  assert sql(f"SELECT count(*) FROM ingestion.run WHERE run_id={q(old)}")=='1'
  assert cmd(['docker','exec',HOP,'cat',oldpath])=='unexpected changed bytes'
- assert sql(f"SELECT graph_deleted FROM retention.plan_run WHERE plan_id={q(p)} AND selected")=='t'
+ assert sql(f"SELECT source_projection_verified FROM retention.plan_run WHERE plan_id={q(p)} AND selected")=='t'
  cmd(['docker','exec','-i',HOP,'tee',oldpath],input='{}')
  run('retention/execute.hwf',dict(PLAN_ID=p),'qnet-age-resume')
  assert sql("SELECT count(*) FROM retention.last_known_record WHERE source_id='qnet_schedule'")=='2'
@@ -172,13 +178,13 @@ def extra_checks():
 def main():
  try:
   cmd(['docker','network','create','--internal',PREFIX])
-  for name,image,args in [(PG,'postgres:17-alpine',['-e','POSTGRES_HOST_AUTH_METHOD=trust','-e','POSTGRES_DB=hoptest']),(HOP,'apache/hop:2.19.0',['--entrypoint','/bin/sleep']),(NEO,'neo4j:5.26-community',['-e','NEO4J_AUTH=none','-e','NEO4J_server_memory_heap_initial__size=256m','-e','NEO4J_server_memory_heap_max__size=512m','-e','NEO4J_server_memory_pagecache_size=128m'])]:
-   cmd(['docker','run','-d','--name',name,'--network',PREFIX]+args+[image]+(['infinity'] if name==HOP else []))
+  for name,image,args in [(PG,'postgres:18-alpine',['-e','POSTGRES_HOST_AUTH_METHOD=trust','-e','POSTGRES_DB=hoptest']),(HOP,'apache/hop:latest',['--entrypoint','/bin/sleep']),(NEO,'neo4j:2026.06.0',['-e','NEO4J_AUTH=none','-e','NEO4J_server_memory_heap_initial__size=256m','-e','NEO4J_server_memory_heap_max__size=512m','-e','NEO4J_server_memory_pagecache_size=128m'])]:
+   cmd(['docker','run','--pull','never','-d','--name',name,'--network',PREFIX]+args+[image]+(['infinity'] if name==HOP else []))
   for _ in range(60):
    try:sql('SELECT 1');neo('RETURN 1');break
    except RuntimeError:time.sleep(.5)
   stage();ids=seed()
-  sql((ROOT/'hop/retention/sql/001_retention.sql').read_text())
+
   checks(ids);extra_checks()
  finally:
   if not os.environ.get('KEEP_RETENTION_TEST_CONTAINERS'):

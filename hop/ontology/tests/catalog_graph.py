@@ -80,17 +80,18 @@ def check() -> None:
         f"SELECT count(*) FROM ontology.graph_edge WHERE release_id={q(release)}"
     ))
     assert sql(
-        'SELECT count(*) FROM ontology.graph_load '
+        'SELECT count(*) FROM ontology.flat_graph_load '
         f"WHERE release_id={q(release)} AND state='VERIFIED'"
     ) == '1'
-    database_id = sql(f"SELECT database_id FROM ontology.graph_load WHERE release_id={q(release)}")
+    database_id = sql(f"SELECT database_id FROM ontology.flat_graph_load WHERE release_id={q(release)}")
     approval_sql = (
         f"SELECT catalog.approve_catalog_release({q(release)},{q(database_id)},"
         "'operator','source-only')"
     )
     approval = sql(approval_sql)
     assert approval == sql(approval_sql)
-    assert sql("SELECT count(*) FROM catalog.catalog_approval") == '1'
+    assert sql("SELECT count(*) FROM catalog.flat_catalog_approval") == '1'
+    assert sql("SELECT count(*) FROM catalog.catalog_approval") == '0'
     assert json.loads(sql("SELECT catalog.catalog_summary_v1()"))['release_id'] == release
     assert sql("SELECT count(*) FROM ontology.active_release") == '0'
     assert sql(
@@ -106,17 +107,17 @@ def check() -> None:
         'n:competencyMappingClaim OR n:postingReviewSelection RETURN count(n)'
     ).splitlines()[-1] == '0'
     assert graph.neo(
-        "MATCH (n:jobPostingRevision {posting_id:'001'}) "
+        "MATCH (n:jobPosting {posting_id:'001',kind:'jobPosting'}) "
         "RETURN n.name='데이터 엔지니어 채용' AND "
         "n.date_posted=date('2026-09-01') AND n.ongoing=true AS verified"
     ).splitlines()[-1].lower() == 'true'
     assert graph.neo(
         f'MATCH (n:corpusRelease {{release_id:{json.dumps(release)}}})'
         f'-[:INCLUDES {{release_id:{json.dumps(release)}}}]->'
-        '(e:jobPostingRevision) RETURN count(e)'
+        '(e:jobPosting) RETURN count(e)'
     ).splitlines()[-1] == '1'
     posted_by = graph.neo(
-        "MATCH (p:jobPostingRevision {posting_id:'001'})-"
+        "MATCH (p:jobPosting {posting_id:'001',kind:'jobPosting'})-"
         f'[r:POSTED_BY {{release_id:{json.dumps(release)}}}]->(o:organization) '
         'RETURN o.code,r.release_id'
     )
@@ -139,20 +140,20 @@ def check() -> None:
     assert graph.neo(
         'MATCH (n:ontologyObject) OPTIONAL MATCH (n)-[e]->() RETURN count(DISTINCT n),count(e)'
     ) == before
-    expect_error("SELECT catalog.catalog_context_v1()", 'CATALOG_APPROVAL_STALE')
+    assert json.loads(sql("SELECT catalog.catalog_context_v1()"))['release_id'] == release
     sql(approval_sql)
-    assert sql("SELECT count(*) FROM catalog.catalog_approval") == '2'
+    assert sql("SELECT count(*) FROM catalog.flat_catalog_approval") == '1'
 
-    graph.neo("MATCH (n:jobPostingRevision {posting_id:'001'}) SET n.name='Fixture conflict'")
+    graph.neo("MATCH (n:jobPosting {posting_id:'001',kind:'jobPosting'}) SET n.code='Fixture conflict'")
     native.run('load_release.hwf', {'RELEASE_ID': release}, 'catalog-native-conflict', False)
     assert sql(
-        'SELECT state FROM ontology.graph_load ORDER BY started_at DESC,load_id DESC LIMIT 1'
+        'SELECT state FROM ontology.flat_graph_load ORDER BY started_at DESC,load_id DESC LIMIT 1'
     ) == 'FAILED'
     assert sql("SELECT count(*) FROM retention.writer WHERE kind='ONTOLOGY_GRAPH'") == '0'
-    expect_error("SELECT catalog.catalog_context_v1()", 'CATALOG_APPROVAL_STALE')
-    graph.neo("MATCH (n:jobPostingRevision {posting_id:'001'}) SET n.name='데이터 엔지니어 채용'")
+    expect_error("SELECT catalog.catalog_context_v1()", 'FLAT_GRAPH_PROJECTION_NOT_READY')
+    graph.neo("MATCH (n:jobPosting {posting_id:'001',kind:'jobPosting'}) SET n.code='job_alio:001'")
     native.run('load_release.hwf', {'RELEASE_ID': release}, 'catalog-native-recovery')
-    expect_error("SELECT catalog.catalog_context_v1()", 'CATALOG_APPROVAL_STALE')
+    assert json.loads(sql("SELECT catalog.catalog_context_v1()"))['release_id'] == release
     sql(approval_sql)
     assert json.loads(sql("SELECT catalog.catalog_context_v1()"))['release_id'] == release
     print(

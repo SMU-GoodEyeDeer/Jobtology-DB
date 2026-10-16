@@ -1,0 +1,75 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>end_execution</name>
+    <description>Report settled execution; unknown charges remain accounting holds.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>1000</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Exact O*NET operation options</from>
+      <to>End O*NET execution</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Exact O*NET operation options</name>
+    <fields>
+      <field>
+        <name>token</name>
+        <variable>${ONET_EXECUTION_TOKEN}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>End O*NET execution</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT CASE WHEN nullif(?,'') IS NULL THEN '{}'::jsonb ELSE onet_matching.end_execution(nullif(?,'')::uuid) END::text AS status_json</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>token</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>token</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <GUI>
+      <xloc>310</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

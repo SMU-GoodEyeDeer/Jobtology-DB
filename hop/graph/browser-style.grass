@@ -1,19 +1,3 @@
-node.ingestionBatch {
-  diameter: 70px;
-  color: #475569;
-  border-color: #334155;
-  text-color-internal: #FFFFFF;
-  caption: '{batch_date}';
-}
-
-node.ingestionRecord {
-  diameter: 35px;
-  color: #CBD5E1;
-  border-color: #94A3B8;
-  text-color-internal: #0F172A;
-  caption: '{name}';
-}
-
 node.entity {
   diameter: 60px;
   caption: '{name}';
@@ -64,4 +48,9 @@ relationship {
   shaft-width: 1px;
   font-size: 8px;
   caption: '<type>';
+}
+
+node.examSession {
+  color: #A5ABB6;
+  caption: '{name}';
 }

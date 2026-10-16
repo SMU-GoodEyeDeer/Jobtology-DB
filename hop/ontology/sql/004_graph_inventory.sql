@@ -466,6 +466,8 @@ SELECT release_id,owner_type,owner_id,content_hash,key,is_array,ordinal,value,ar
 
 CREATE OR REPLACE FUNCTION ontology.begin_graph_load(id text,database text,token text) RETURNS void LANGUAGE plpgsql AS $$
 BEGIN
+ IF to_regclass('ontology.flat_graph_projection') IS NOT NULL
+ THEN RAISE EXCEPTION 'REVISION_GRAPH_WRITER_RETIRED_USE_FLAT'; END IF;
  PERFORM retention.gate();
  IF ingestion.maintenance_active() THEN RAISE EXCEPTION 'RETENTION_ACTIVE'; END IF;
  IF nullif(btrim(database),'') IS NULL OR nullif(btrim(token),'') IS NULL THEN RAISE EXCEPTION 'GRAPH_LOAD_IDENTITY_REQUIRED'; END IF;

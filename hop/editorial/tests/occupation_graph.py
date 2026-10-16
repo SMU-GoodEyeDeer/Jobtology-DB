@@ -35,7 +35,7 @@ def check(native):
         for index,release in enumerate(['roles-v1','roles-catalogue-changed']):
             sql('SELECT ontology.freeze_requirements_v1('+q(release)+')')
             native.run('load_release.hwf',dict(RELEASE_ID=release),'occupation-native-graph-'+str(index))
-            assert sql('SELECT graph_verified_at IS NOT NULL FROM ontology.corpus_release WHERE release_id='+q(release))=='t'
+            assert sql('SELECT EXISTS(SELECT 1 FROM ontology.flat_graph_load WHERE release_id='+q(release)+" AND state='VERIFIED')")=='t'
             expected=4 if index==0 else 0
             assert sql('SELECT count(*) FROM ontology.graph_node WHERE release_id='+q(release)+" AND labels @> ARRAY['primaryOccupationClaim']")==str(expected)
             manifest=json.loads(sql('SELECT manifest FROM ontology.corpus_release WHERE release_id='+q(release)),parse_float=Decimal)
@@ -57,14 +57,14 @@ def check(native):
             publication,_,_=validator.check(file,True);assert not publication['conforms']
             result=neo.neo("MATCH (r:corpusRelease {id:"+json.dumps('release/'+release)+"})-[:INCLUDES]->(s:occupationReviewSelection) RETURN count(s)=8 AS verified")
             assert result.splitlines()[-1].lower()=='true'
-            result=neo.neo("MATCH (p:jobPostingRevision)-[e:FOR_OCCUPATION]->(o:occupation) WHERE e.release_id="+json.dumps(release)+
+            result=neo.neo("MATCH (p:jobPosting)-[e:FOR_OCCUPATION]->(o:occupation) WHERE e.release_id="+json.dumps(release)+
                 " RETURN count(e)="+str(expected)+" AND all(x IN collect(e) WHERE size(x.source_assertion_ids)=1) AND all(x IN collect(o) WHERE x.scheme_id='urn:jobtology:conceptScheme:product-occupations') AS verified")
             assert result.splitlines()[-1].lower()=='true'
         assert neo.neo("MATCH (a:primaryOccupationClaim) RETURN count(a)=4 AND all(x IN collect(a) WHERE x.confidence IS NULL AND x.confidence_state='UNASSESSED' AND x.name CONTAINS ' → ') AS verified").splitlines()[-1].lower()=='true'
         # Loading a newer release never rewrites existing assertions or their evidence.
         old=sql("SELECT manifest_hash FROM ontology.corpus_release WHERE release_id='roles-v1'")
         before=neo.neo('MATCH (n:ontologyObject) OPTIONAL MATCH (n)-[e]->() RETURN count(DISTINCT n),count(e)')
-        native.run('load_release.hwf',dict(RELEASE_ID='roles-v1'),'occupation-native-old-release-replay')
+        native.run('load_release.hwf',dict(RELEASE_ID='roles-v1'),'occupation-native-old-release-replay',False)
         assert sql("SELECT manifest_hash FROM ontology.corpus_release WHERE release_id='roles-v1'")==old
         assert neo.neo('MATCH (n:ontologyObject) OPTIONAL MATCH (n)-[e]->() RETURN count(DISTINCT n),count(e)')==before
         # Semantic rejection checks bypass the generic content-hash verifier.

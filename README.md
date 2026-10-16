@@ -1,10 +1,19 @@
 # Jobtology data ingestion
 
-This repository owns source fetching, immutable raw storage, processing, grounding, and loading for
-the Jobtology ontology. The executable pipeline now implements **fetching, deterministic parsing,
-normalization, PostgreSQL staging, and an optional Neo4j staging loader**. A global updater runs
-due sources, detects changes, and reuses processing checkpoints. Final grounded claims and serving
-corpus publication remain subsequent work; graph staging is not a recommendation dataset.
+This repository owns source ingestion, immutable raw storage, processing, grounding, and loading for
+the Jobtology ontology. Goldship runs native Apache Hop workflows with PostgreSQL, Neo4j and a
+document parser in supporting containers. Host cron refreshes seven official sources, including Nara.
+The original Python CLI remains available for local and offline work; its quick start is below.
+
+Read the [current handoff and pending work](docs/hop-migration/current-handoff.md) for the
+October 7 scheduler repair, verified repository/runtime reconciliation and run receipts.
+For supplied job-board exports, follow the [input and processing responsibilities](docs/hop-migration/prefetched-postings.md):
+use local datasets only, make no source-site or description-URL requests, prioritize deadline
+semantics, and retain missing content explicitly. This repository produces ingestion metadata,
+normalization and quality diagnostics from scraper output. The [local JobKorea adapter](hop/ingestions/jobkorea/README.md)
+loads supplied metadata into the shared PostgreSQL/source-graph architecture and prepares
+reviewed LLM/NCS linking with tested native adapters and a measured paid pilot;
+production rollout, embeddings and broader serving extensions remain deferred. Cohort and editorial deployment remain later work.
 
 See [the processing/operations guide](docs/processing-pipeline.md) for implementation, deployment
 instructions, limitations, and local processing results.
@@ -12,8 +21,8 @@ instructions, limitations, and local processing results.
 The [ontology completion ledger](docs/hop-migration/ontology-completion.md) tracks the full Hop
 transformation, independent reviews and remaining serving-publication work.
 
-For Apache Hop, use the [real-data migration guide](docs/hop-real-data-guide.md) to fetch the six
-current sources, map their actual fields, load a separate PostgreSQL schema, and project to Neo4j.
+For Apache Hop, use the [real-data migration guide](docs/hop-real-data-guide.md) to fetch the
+original six sources, map their actual fields, load a separate PostgreSQL schema, and project to Neo4j.
 It includes SQL assets and comparison steps before replacing the current pipeline. The
 [ALIO organization workflow](hop/ingestions/alio/README.md) and
 [JOB-ALIO posting workflow](hop/ingestions/job_alio/README.md) use native Hop transforms,
@@ -24,6 +33,8 @@ competency dataset, preserving classification names, definitions and unknown-lev
 Native workflows also load [NCS qualification mappings](hop/ingestions/ncs_qualification/README.md),
 [Q-Net exam schedules](hop/ingestions/qnet_schedule/README.md), and the
 [career-path CSV](hop/ingestions/ncs_career_path/README.md). The
+[Nara workflow](hop/ingestions/nara_job/README.md) adds public-service postings to the
+same ingestion ledger and daily graph refresh. The
 [refresh guide](hop/operations/README.md) covers daily jobs/Q-Net updates, weekly/monthly
 reference updates, durable quota accounting and graph recovery without another download. The
 [Neo4j workflows](hop/graph/README.md) project accepted snapshots into a separately labeled staging

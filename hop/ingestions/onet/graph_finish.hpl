@@ -1,0 +1,307 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>graph_finish</name>
+    <description>Verify complete current and retired O*NET graph scope.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>1000</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Exact catalogue options</from>
+      <to>Require own running writer</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Require own running writer</from>
+      <to>Read complete planned scope</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Read complete planned scope</from>
+      <to>Check entire owned namespace</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Check entire owned namespace</from>
+      <to>Require exact graph result</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Require exact graph result</from>
+      <to>Require exact graph result accepted</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Require exact graph result</from>
+      <to>Require exact graph result rejected</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Require exact graph result accepted</from>
+      <to>Record actually verified graph</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Exact catalogue options</name>
+    <fields>
+      <field>
+        <name>load_id</name>
+        <variable>${ONET_LOAD_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Require own running writer</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT classification.assert_running_graph_load(?) AS checked_token</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>load_id</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <GUI>
+      <xloc>310</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Read complete planned scope</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT context.*,
+(SELECT string_agg(node_id,'|' ORDER BY node_id COLLATE "C") FROM classification.graph_load_nodes(context.load_id)) AS node_ids,
+(SELECT string_agg(edge_id,'|' ORDER BY edge_id COLLATE "C") FROM classification.graph_load_edges(context.load_id)) AS edge_ids
+FROM classification.graph_load_context(?) context</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>load_id</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <GUI>
+      <xloc>540</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform>
+    <type>Neo4jCypherOutput</type>
+    <name>Check entire owned namespace</name>
+    <connection>${NEO4J_CONNECTION}</connection>
+    <cypher>CALL db.info() YIELD id AS actual_database_id
+OPTIONAL MATCH (n) WHERE n.id STARTS WITH 'urn:jobtology:onet:' OR n.managed_by='jobtology-onet-catalog-v1'
+WITH actual_database_id,collect(n) AS nodes
+OPTIONAL MATCH ()-[r]-&gt;() WHERE r.id STARTS WITH 'urn:jobtology:onet:' OR r.managed_by='jobtology-onet-catalog-v1'
+WITH actual_database_id,nodes,collect(r) AS edges
+RETURN actual_database_id=$database_id AND all(n IN nodes WHERE coalesce(n.id IN split($node_ids,'|') AND n.managed_by='jobtology-onet-catalog-v1' AND n.scheme_id='ONET'
+AND 'entity' IN labels(n) AND 'onetCatalogObject' IN labels(n),false))
+AND all(r IN edges WHERE coalesce(r.id IN split($edge_ids,'|') AND r.managed_by='jobtology-onet-catalog-v1' AND r.scheme_id='ONET'
+AND type(r) IN ['IN_SCHEME','BROADER'] AND startNode(r).managed_by='jobtology-onet-catalog-v1' AND endNode(r).managed_by='jobtology-onet-catalog-v1',false))
+AND size(nodes)=$expected_nodes AND size(edges)=$expected_edges
+AND size([n IN nodes WHERE n.current=true])=$current_nodes AND size([r IN edges WHERE r.current=true])=$current_edges AS verified</cypher>
+    <batch_size>1</batch_size>
+    <read_only>Y</read_only>
+    <retry>N</retry>
+    <nr_retries_on_error>0</nr_retries_on_error>
+    <cypher_from_field>N</cypher_from_field>
+    <unwind>N</unwind>
+    <returning_graph>N</returning_graph>
+    <mappings>
+      <mapping>
+        <parameter>database_id</parameter>
+        <field>database_id</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>node_ids</parameter>
+        <field>node_ids</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>edge_ids</parameter>
+        <field>edge_ids</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>expected_nodes</parameter>
+        <field>expected_nodes</field>
+        <type>Integer</type>
+      </mapping>
+      <mapping>
+        <parameter>expected_edges</parameter>
+        <field>expected_edges</field>
+        <type>Integer</type>
+      </mapping>
+      <mapping>
+        <parameter>current_nodes</parameter>
+        <field>current_nodes</field>
+        <type>Integer</type>
+      </mapping>
+      <mapping>
+        <parameter>current_edges</parameter>
+        <field>current_edges</field>
+        <type>Integer</type>
+      </mapping>
+    </mappings>
+    <returns>
+      <return>
+        <name>verified</name>
+        <type>Boolean</type>
+        <source_type>Boolean</source_type>
+      </return>
+    </returns>
+    <GUI>
+      <xloc>770</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>Require exact graph result</name>
+    <send_true_to>Require exact graph result accepted</send_true_to>
+    <send_false_to>Require exact graph result rejected</send_false_to>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>verified</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Boolean</type>
+          <text>Y</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <GUI>
+      <xloc>1000</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform>
+    <type>Dummy</type>
+    <name>Require exact graph result accepted</name>
+    <GUI>
+      <xloc>1230</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform>
+    <type>Abort</type>
+    <name>Require exact graph result rejected</name>
+    <message>O*NET catalogue graph differs from its exact owned PostgreSQL inventory.</message>
+    <always_log_rows>N</always_log_rows>
+    <abort_option>ABORT_WITH_ERROR</abort_option>
+    <row_threshold>0</row_threshold>
+    <GUI>
+      <xloc>1460</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform>
+    <type>ExecSql</type>
+    <name>Record actually verified graph</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT classification.finish_graph_load(?,?,?,?)</sql>
+    <execute_each_row>Y</execute_each_row>
+    <single_statement>Y</single_statement>
+    <set_params>Y</set_params>
+    <replace_variables>N</replace_variables>
+    <quoteString>N</quoteString>
+    <arguments>
+      <argument>
+        <name>load_id</name>
+      </argument>
+      <argument>
+        <name>expected_nodes</name>
+      </argument>
+      <argument>
+        <name>expected_edges</name>
+      </argument>
+      <argument>
+        <name>verified</name>
+      </argument>
+    </arguments>
+    <GUI>
+      <xloc>1690</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

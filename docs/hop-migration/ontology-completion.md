@@ -1,5 +1,10 @@
 # Hop ontology completion work
 
+For current operating decisions and pending work, use the
+[2026-10-07 handoff](current-handoff.md) and
+[prefetched posting contract](prefetched-postings.md). The dated milestones and
+holds below are historical; later user instructions in the handoff govern new work.
+
 **Resumed by user, 2026-09-14 KST:** proceed with the narrower source-ingestion,
 attachment parsing and NCS-linking deliverable. Reuse `../document-processor` for
 PDF/HWP/HWPX/DOC/DOCX; the earlier attachment and overall work holds below are

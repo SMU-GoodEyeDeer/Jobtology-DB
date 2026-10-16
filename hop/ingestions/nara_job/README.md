@@ -54,6 +54,30 @@ WHERE run_id=(SELECT run_id FROM ingestion.latest_ready_run WHERE source_id='nar
 ORDER BY posting_id;
 ```
 
+## Scheduled refresh and graph recovery
+
+The daily scheduler entry is `${PROJECT_HOME}/operations/refresh_nara_job.hwf`.
+Run this wrapper with `reference-local`, Basic logging and `MODE=FULL` when both
+PostgreSQL ingestion and the verified graph checkpoint are required. Its source
+actions use `nara-job-local`; the accepted graph uses `graph-local`. The wrapper
+keeps ingestion in its own workflow so that the parent-scoped `NARA_JOB_RUN_ID`
+remains available, and passes that exact value to graph loading and checkpointing.
+It reports success only after both finish. The source `full.hwf` above remains the
+ingestion-only entry point, including SMOKE runs.
+
+If an accepted run has no `ingestion.graph_export` row, the host scheduler chooses
+a GRAPH operation before fetching another snapshot. Manual recovery uses
+`${PROJECT_HOME}/operations/export_pending.hwf`, `reference-local`, Basic logging
+and `RUN_ID=<exact READY Nara UUID>` under the scheduler's host lock. This reuses
+stored PostgreSQL data without API requests. Repeating recovery safely merges the
+same graph and updates the single checkpoint row for that run. A failed graph or
+checkpoint keeps the READY snapshot available for retry.
+
+See the [operations guide](../../operations/README.md) for quotas, locks and the
+[current handoff](../../../docs/hop-migration/current-handoff.md) for deployment
+receipts and verified run counts. Source refresh does not run attachment or LLM
+processing, or activate a reviewed serving release.
+
 ## CS filtering and LLM extraction
 
 After reinstalling `cs/install.hwf` and `llm/install.hwf`, the postings appear in

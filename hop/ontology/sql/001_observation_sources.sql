@@ -43,7 +43,9 @@ DO $$ BEGIN
  END IF;
 END $$;
 INSERT INTO ontology.release_source_run
- SELECT release_id,run_id,source_id,'CURRENT',source_watermark_at,source_fingerprint FROM ontology.source_pin ON CONFLICT DO NOTHING;
+ SELECT p.release_id,p.run_id,p.source_id,'CURRENT',p.source_watermark_at,p.source_fingerprint
+ FROM ontology.source_pin p WHERE NOT EXISTS(SELECT 1 FROM ontology.release_source_run r
+  WHERE r.release_id=p.release_id AND r.run_id=p.run_id) ON CONFLICT DO NOTHING;
 -- Replace only the old current-pin FK. Record/evidence/revision-support keys and
 -- old rows are unchanged; historical membership is checked by the guarded table.
 DO $$ DECLARE c record; BEGIN

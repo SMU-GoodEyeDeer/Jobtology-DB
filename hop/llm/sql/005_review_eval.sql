@@ -20,6 +20,9 @@ RETURNS void LANGUAGE plpgsql AS $$ BEGIN
  IF decision NOT IN ('ACCEPT','REJECT') OR nullif(btrim(reviewer),'') IS NULL THEN RAISE EXCEPTION 'INVALID_REVIEW'; END IF;
  PERFORM 1 FROM enrichment.item WHERE item_id=id FOR UPDATE;
  IF NOT FOUND THEN RAISE EXCEPTION 'UNKNOWN_ITEM'; END IF;
+ IF EXISTS(SELECT 1 FROM enrichment.item i JOIN enrichment.batch b USING(batch_id)
+  JOIN ingestion.run r ON r.run_id=b.job_run_id WHERE i.item_id=id AND r.source_id='jobkorea')
+ THEN RAISE EXCEPTION 'JOBKOREA_REQUIRES_INDEPENDENT_EXTRACTION_AND_LINK_REVIEW'; END IF;
  IF EXISTS(SELECT 1 FROM enrichment.revision_input WHERE item_id=id)
  THEN RAISE EXCEPTION 'REVISION_BATCH_REQUIRES_PER_LINK_REVIEW'; END IF;
  IF decision='ACCEPT' AND NOT EXISTS(SELECT 1 FROM enrichment.result WHERE item_id=id AND state='VALIDATED' AND mode='ENRICH')

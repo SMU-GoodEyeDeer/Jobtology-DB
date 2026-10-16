@@ -140,7 +140,7 @@ It does not publish these independently selected ontology claims.
 
 ## Load the ontology graph candidate
 
-`ontology/load_release.hwf` is the new release-scoped graph loader. Its deployment
+`ontology/load_release.hwf` loads the current flat ontology projection. Its deployment
 and verification state is recorded in the [completion ledger](../../docs/hop-migration/ontology-completion.md).
 Use `ontology-local`, the exact `RELEASE_ID` from reviewed assembly, and the existing
 private `jobtology-neo4j` connection (or `NEO4J_CONNECTION` override).
@@ -151,16 +151,35 @@ After sealing, different inputs or review decisions require a new release ID.
 
 The workflow:
 
-1. Seals node/relationship inventories and their manifest in PostgreSQL, records
-   the destination database UUID, and registers one writer for that database.
+1. Seals the original inventory through its persisted source-only or reviewed
+   validator, then derives an immutable `hop-ontology-flat-v1` inventory and
+   revision-to-entity bindings. It records the actual destination database UUID
+   and registers one writer for that database. The first load on an approved
+   catalogue's database must select that exact catalogue.
 2. Checks the `ontologyObject(id)` uniqueness constraint and creates a graph
    `corpusRelease` root. Existing source-ingestion graphs stay separate.
-3. Loads typed nodes, relationships, scalar properties and ordered primitive
+3. Copies selected revision facts onto canonical identity shells and reroutes
+   revision endpoints. `HAS_REVISION` and duplicate revision membership disappear;
+   `SELECTS_REVISION` becomes `SELECTS_ENTITY`. Rerouted edges retain original
+   statement/endpoints and exact revision bindings as scalar properties.
+   It loads typed relationships, scalar properties and ordered primitive
    arrays. Native [Table Input](https://hop.apache.org/manual/latest/pipeline/transforms/tableinput.html)
    uses prepared parameters and streaming reads;
    native Neo4j Cypher sends batches of 500 rows with `UNWIND`.
 4. Checks every expected value, exact labels, property counts, endpoints,
-   release ownership and membership totals before recording `VERIFIED`.
+   release ownership and membership totals, plus globally zero revision nodes,
+   before recording `VERIFIED` in the separate flat load ledger.
+
+Property passes batch 500 complete owner groups. Fixed-field transport tuples
+retain PostgreSQL's typed rendering; the Cypher decoder checks field counts,
+types, array order, lengths and empty markers. Writers skip unchanged assignments
+only after comparing actual target values and types. Independent read-only
+verifiers still check every expected owner and property; duplicate relationships
+cannot compensate for missing owners. The `ontologyObject(id)` unique index must
+be online before these passes. The batch limit bounds owner rows, not arbitrary
+payload bytes; larger future owner payloads need separate memory validation.
+See the [current handoff](../../docs/hop-migration/current-handoff.md) for actual
+deployment and verification state.
 
 This needs neither APOC nor a Python/JavaScript ETL step. The native Cypher uses
 dynamic labels and relationship types supported by Neo4j 5.26 and newer.
@@ -172,18 +191,20 @@ contracts are unfinished. Read its state with:
 ```sql
 SELECT release_id, state, manifest_hash, graph_verified_at
 FROM ontology.corpus_release WHERE release_id = '<release-id>';
-SELECT load_id, database_id, state, started_at, finished_at, error
-FROM ontology.graph_load WHERE release_id = '<release-id>' ORDER BY started_at;
+SELECT load_id, database_id, state, started_at, staged_at, finished_at, error
+FROM ontology.flat_graph_load WHERE release_id = '<release-id>' ORDER BY started_at;
 ```
 
-All graph relationships carry `release_id`. Identity shells are shared; names,
-dates and other source-changing facts live on the selected revision. Queries
-must select a release and filter every traversed relationship by that ID. For
-example, accepted posting requirements and their exact excerpts:
+All ontology graph relationships carry `release_id`. Canonical nodes now hold
+the currently selected release's facts. Later loads retain older release-scoped
+edges and memberships; those traversals cannot reproduce older node facts.
+PostgreSQL historical readers and JSON-LD exports remain authoritative for exact
+historical releases. Current Neo4j queries must select the verified current release
+and filter every traversed relationship by that ID. For example:
 
 ```cypher
 MATCH (:corpusRelease {release_id: $release_id})
-      -[:INCLUDES {release_id: $release_id}]->(p:jobPostingRevision)
+      -[:INCLUDES {release_id: $release_id}]->(p:ontologyEntity:jobPosting)
 MATCH (p)-[:HAS_REQUIREMENT {release_id: $release_id}]->(c:requirementClaim)
 MATCH (c)-[:EVIDENCED_BY {release_id: $release_id}]->(e:evidenceSpan)
 RETURN p.posting_id, p.name, c.text, c.condition_kind, c.logic, e.excerpt
@@ -197,14 +218,32 @@ while `field_lineage.dates~2docRegEndDt` identifies the original flat lineage ke
 Unsupported object arrays and numbers that cannot be represented faithfully
 fail sealing. The original payload remains in PostgreSQL.
 
-Repeating a load reuses the sealed inventory. A conflicting existing value
-fails verification and is not silently overwritten. Caught workflow failures
-record `FAILED` and release the retention writer; partial graph objects remain
-available for an idempotent retry. Starting a reload clears the prior graph
-verification checkpoint until the full new check passes; an earlier success
-cannot certify a failed reload. After a killed/disconnected executor, verify
-that the actual Hop process has stopped before clearing its exact writer with
-`ontology.fail_graph_load('<load-id>')`. A timeout alone does not prove it stopped.
+Shell `id`, `entity_id`, `kind`, `code`, `scheme_id` and original `content_hash`
+stay unchanged. Revision `code` uses `revision_code`; selected revision metadata
+uses `selected_revision_*`. `flat_owned_keys` identifies the copied facts: a
+newer selected revision replaces those values and removes owned keys that are
+missing or NULL. Empty strings and arrays remain values. Unowned collisions and
+owned keys containing `|` fail sealing/loading. Separate source graph identities,
+their dates and inferred NCS links remain untouched.
+
+Repeating the same release reuses sealed proof; replaying an older release over a
+newer current release fails. Original inventory, approvals, graph loads and
+`graph_verified_at` remain unchanged. RUNNING, STAGED and FAILED flat checkpoints
+keep catalogue read gates closed. After a stopped executor, clear only its exact
+writer with `ontology.fail_flat_graph_load('<load-id>')`; a timeout alone does not
+prove it stopped.
+
+The guarded initial migration uses `stage_flat_release.hwf` to verify both flat
+output and exact backed legacy remnants, leaving its writer STAGED. After the
+operator removes only accounted revision nodes/edges, `finalize_flat_release.hwf`
+with that exact `LOAD_ID` verifies full flat scope and globally zero revisions.
+After complete typed rollback, fail that staged token and stage the same release
+with a fresh token. Normal `load_release.hwf` has no legacy bypass.
+
+Canonical installer replay preserves reviewed-link retention protection in
+`000_retention_dependency.sql` and batch-free source proof/checkpoint semantics
+in `009_refresh_observation_hook.sql`, then installs 028 and 029. The focused
+`install_flat_graph.hwf` installs only 028/029 and leaves unrelated functions alone.
 
 ## Source identities and relationships
 
@@ -295,7 +334,7 @@ other ontology relationships. For example:
 
 ```cypher
 MATCH (:corpusRelease {release_id: $release_id})
-      -[:INCLUDES {release_id: $release_id}]->(p:jobPostingRevision)
+      -[:INCLUDES {release_id: $release_id}]->(p:ontologyEntity:jobPosting)
 MATCH (p)-[:HAS_REQUIREMENT {release_id: $release_id}]->(c:requirementClaim)
 MATCH (c)-[:HAS_RULE {release_id: $release_id}]->(r:guardedRule)
 OPTIONAL MATCH (r)-[:DISABLES {release_id: $release_id}]->(target:guardedRule)

@@ -165,11 +165,11 @@ for kind,function in [('observations','query_observations_v1'),('source_health',
   node('Dummy','Preview JSON here'))
  p.save()
  workflow('read_'+kind+'.hwf','Read '+kind,params,[('Read metadata','read_'+kind+'.hpl')],False)
-retention=(ROOT/'hop/retention/sql/001_retention.sql').read_text()
+retention=(ROOT/'hop/retention/sql/002_batchfree_retention.sql').read_text()
 start=retention.index('CREATE OR REPLACE FUNCTION retention.protection(')
 end=retention.index('END $$;',start)+len('END $$;')
 (OUT/'sql/000_retention_dependency.sql').write_text(
- '-- Generated from retention/sql/001_retention.sql. Requires installed manual retention.\n'
+ '-- Generated from retention/sql/002_batchfree_retention.sql. Requires installed manual retention.\n'
  'BEGIN;\nSELECT retention.gate();\n'
  "DO $$ BEGIN IF ingestion.maintenance_active() THEN RAISE EXCEPTION 'RETENTION_ACTIVE'; END IF; END $$;\n"
  +retention[start:end]+'\nCOMMIT;\n')

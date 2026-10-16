@@ -1,0 +1,307 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<workflow>
+  <name>Install JobKorea local-file source adapter</name>
+  <description>Requires shared ingestion checks, operations, LLM and retention. CS integration is conditional. SQL001-008 and shared graph evidence contracts install sequentially; no source requests.</description>
+  <workflow_version>1</workflow_version>
+  <workflow_status>0</workflow_status>
+  <parameters />
+  <actions>
+    <action>
+      <name>Start</name>
+      <type>SPECIAL</type>
+      <xloc>80</xloc>
+      <yloc>100</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <attributes />
+      <start>Y</start>
+      <repeat>N</repeat>
+      <schedulerType>0</schedulerType>
+      <intervalSeconds>0</intervalSeconds>
+      <intervalMinutes>60</intervalMinutes>
+      <DayOfMonth>1</DayOfMonth>
+      <weekDay>1</weekDay>
+      <minutes>0</minutes>
+      <hour>12</hour>
+    </action>
+    <action>
+      <name>Success</name>
+      <type>SUCCESS</type>
+      <xloc>1700</xloc>
+      <yloc>100</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <attributes />
+    </action>
+    <action>
+      <name>Abort</name>
+      <type>ABORT</type>
+      <xloc>860</xloc>
+      <yloc>300</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <attributes />
+      <message>JobKorea adapter installation failed. Inspect the failed SQL action before replaying the installer.</message>
+    </action>
+    <action>
+      <name>JobKorea 001_schema</name>
+      <type>SQL</type>
+      <connection>jobtology-postgres</connection>
+      <sqlfromfile>Y</sqlfromfile>
+      <sqlfilename>${PROJECT_HOME}/ingestions/jobkorea/sql/001_schema.sql</sqlfilename>
+      <sqlfilename_encoding>UTF-8</sqlfilename_encoding>
+      <useVariableSubstitution>N</useVariableSubstitution>
+      <sendOneStatement>Y</sendOneStatement>
+      <xloc>260</xloc>
+      <yloc>100</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+    </action>
+    <action>
+      <name>JobKorea 002_operations</name>
+      <type>SQL</type>
+      <connection>jobtology-postgres</connection>
+      <sqlfromfile>Y</sqlfromfile>
+      <sqlfilename>${PROJECT_HOME}/ingestions/jobkorea/sql/002_operations.sql</sqlfilename>
+      <sqlfilename_encoding>UTF-8</sqlfilename_encoding>
+      <useVariableSubstitution>N</useVariableSubstitution>
+      <sendOneStatement>Y</sendOneStatement>
+      <xloc>500</xloc>
+      <yloc>100</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+    </action>
+    <action>
+      <name>JobKorea 003_checks</name>
+      <type>SQL</type>
+      <connection>jobtology-postgres</connection>
+      <sqlfromfile>Y</sqlfromfile>
+      <sqlfilename>${PROJECT_HOME}/ingestions/jobkorea/sql/003_checks.sql</sqlfilename>
+      <sqlfilename_encoding>UTF-8</sqlfilename_encoding>
+      <useVariableSubstitution>N</useVariableSubstitution>
+      <sendOneStatement>Y</sendOneStatement>
+      <xloc>740</xloc>
+      <yloc>100</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+    </action>
+    <action>
+      <name>JobKorea 004_integration</name>
+      <type>SQL</type>
+      <connection>jobtology-postgres</connection>
+      <sqlfromfile>Y</sqlfromfile>
+      <sqlfilename>${PROJECT_HOME}/ingestions/jobkorea/sql/004_integration.sql</sqlfilename>
+      <sqlfilename_encoding>UTF-8</sqlfilename_encoding>
+      <useVariableSubstitution>N</useVariableSubstitution>
+      <sendOneStatement>Y</sendOneStatement>
+      <xloc>980</xloc>
+      <yloc>100</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+    </action>
+    <action>
+      <name>JobKorea 005_shared_checks</name>
+      <type>SQL</type>
+      <connection>jobtology-postgres</connection>
+      <sqlfromfile>Y</sqlfromfile>
+      <sqlfilename>${PROJECT_HOME}/ingestions/jobkorea/sql/005_shared_checks.sql</sqlfilename>
+      <sqlfilename_encoding>UTF-8</sqlfilename_encoding>
+      <useVariableSubstitution>N</useVariableSubstitution>
+      <sendOneStatement>Y</sendOneStatement>
+      <xloc>1220</xloc>
+      <yloc>100</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+    </action>
+    <action>
+      <name>JobKorea 006_ndjson</name>
+      <type>SQL</type>
+      <connection>jobtology-postgres</connection>
+      <sqlfromfile>Y</sqlfromfile>
+      <sqlfilename>${PROJECT_HOME}/ingestions/jobkorea/sql/006_ndjson.sql</sqlfilename>
+      <sqlfilename_encoding>UTF-8</sqlfilename_encoding>
+      <useVariableSubstitution>N</useVariableSubstitution>
+      <sendOneStatement>Y</sendOneStatement>
+      <xloc>1460</xloc>
+      <yloc>100</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+    </action>
+    <action>
+      <name>JobKorea 007_dataset_provenance</name>
+      <type>SQL</type>
+      <connection>jobtology-postgres</connection>
+      <sqlfromfile>Y</sqlfromfile>
+      <sqlfilename>${PROJECT_HOME}/ingestions/jobkorea/sql/007_dataset_provenance.sql</sqlfilename>
+      <sqlfilename_encoding>UTF-8</sqlfilename_encoding>
+      <useVariableSubstitution>N</useVariableSubstitution>
+      <sendOneStatement>Y</sendOneStatement>
+      <xloc>1700</xloc>
+      <yloc>100</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+    </action>
+    <action>
+      <name>JobKorea 008_ready_statistics</name>
+      <type>SQL</type>
+      <connection>jobtology-postgres</connection>
+      <sqlfromfile>Y</sqlfromfile>
+      <sqlfilename>${PROJECT_HOME}/ingestions/jobkorea/sql/008_ready_statistics.sql</sqlfilename>
+      <sqlfilename_encoding>UTF-8</sqlfilename_encoding>
+      <useVariableSubstitution>N</useVariableSubstitution>
+      <sendOneStatement>Y</sendOneStatement>
+      <xloc>1940</xloc>
+      <yloc>100</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+    </action>
+    <action>
+      <name>Install shared graph evidence contracts</name>
+      <type>WORKFLOW</type>
+      <filename>${PROJECT_HOME}/graph/install.hwf</filename>
+      <run_configuration>jobkorea-local</run_configuration>
+      <wait_until_finished>Y</wait_until_finished>
+      <xloc>2180</xloc>
+      <yloc>100</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+    </action>
+  </actions>
+  <hops>
+    <hop>
+      <from>Start</from>
+      <to>JobKorea 001_schema</to>
+      <evaluation>Y</evaluation>
+      <enabled>Y</enabled>
+      <unconditional>Y</unconditional>
+    </hop>
+    <hop>
+      <from>JobKorea 001_schema</from>
+      <to>JobKorea 002_operations</to>
+      <evaluation>Y</evaluation>
+      <enabled>Y</enabled>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>JobKorea 001_schema</from>
+      <to>Abort</to>
+      <evaluation>N</evaluation>
+      <enabled>Y</enabled>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>JobKorea 002_operations</from>
+      <to>JobKorea 003_checks</to>
+      <evaluation>Y</evaluation>
+      <enabled>Y</enabled>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>JobKorea 002_operations</from>
+      <to>Abort</to>
+      <evaluation>N</evaluation>
+      <enabled>Y</enabled>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>JobKorea 003_checks</from>
+      <to>JobKorea 004_integration</to>
+      <evaluation>Y</evaluation>
+      <enabled>Y</enabled>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>JobKorea 003_checks</from>
+      <to>Abort</to>
+      <evaluation>N</evaluation>
+      <enabled>Y</enabled>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>JobKorea 004_integration</from>
+      <to>JobKorea 005_shared_checks</to>
+      <evaluation>Y</evaluation>
+      <enabled>Y</enabled>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>JobKorea 004_integration</from>
+      <to>Abort</to>
+      <evaluation>N</evaluation>
+      <enabled>Y</enabled>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>JobKorea 005_shared_checks</from>
+      <to>JobKorea 006_ndjson</to>
+      <evaluation>Y</evaluation>
+      <enabled>Y</enabled>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>JobKorea 005_shared_checks</from>
+      <to>Abort</to>
+      <evaluation>N</evaluation>
+      <enabled>Y</enabled>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>JobKorea 006_ndjson</from>
+      <to>JobKorea 007_dataset_provenance</to>
+      <evaluation>Y</evaluation>
+      <enabled>Y</enabled>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>JobKorea 006_ndjson</from>
+      <to>Abort</to>
+      <evaluation>N</evaluation>
+      <enabled>Y</enabled>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>JobKorea 007_dataset_provenance</from>
+      <to>JobKorea 008_ready_statistics</to>
+      <evaluation>Y</evaluation>
+      <enabled>Y</enabled>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>JobKorea 007_dataset_provenance</from>
+      <to>Abort</to>
+      <evaluation>N</evaluation>
+      <enabled>Y</enabled>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>JobKorea 008_ready_statistics</from>
+      <to>Install shared graph evidence contracts</to>
+      <evaluation>Y</evaluation>
+      <enabled>Y</enabled>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>JobKorea 008_ready_statistics</from>
+      <to>Abort</to>
+      <evaluation>N</evaluation>
+      <enabled>Y</enabled>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Install shared graph evidence contracts</from>
+      <to>Success</to>
+      <evaluation>Y</evaluation>
+      <enabled>Y</enabled>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Install shared graph evidence contracts</from>
+      <to>Abort</to>
+      <evaluation>N</evaluation>
+      <enabled>Y</enabled>
+      <unconditional>N</unconditional>
+    </hop>
+  </hops>
+  <notepads />
+  <attributes />
+</workflow>

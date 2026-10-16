@@ -1,0 +1,279 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<pipeline>
+  <info>
+    <name>graph_constraint</name>
+    <description>Inspect entity identity uniqueness and create only a missing compatible constraint.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>1000</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Exact catalogue options</from>
+      <to>Require own running writer</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Require own running writer</from>
+      <to>Inspect entity identity constraint</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Inspect entity identity constraint</from>
+      <to>Identity constraint exists</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Identity constraint exists</from>
+      <to>Constraint accepted</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Identity constraint exists</from>
+      <to>Require free constraint name</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Require free constraint name</from>
+      <to>Require free constraint name accepted</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Require free constraint name</from>
+      <to>Require free constraint name rejected</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Require free constraint name accepted</from>
+      <to>Create missing identity uniqueness</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Exact catalogue options</name>
+    <fields>
+      <field>
+        <name>load_id</name>
+        <variable>${ONET_LOAD_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Require own running writer</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT onet_detail.assert_running_graph_load(?) AS checked_token</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>load_id</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <GUI>
+      <xloc>310</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform>
+    <type>Neo4jCypherOutput</type>
+    <name>Inspect entity identity constraint</name>
+    <connection>${NEO4J_CONNECTION}</connection>
+    <cypher>SHOW CONSTRAINTS YIELD name,entityType,type,labelsOrTypes,properties
+RETURN count(CASE WHEN entityType='NODE' AND type IN ['UNIQUENESS','NODE_KEY','NODE_PROPERTY_UNIQUENESS'] AND labelsOrTypes=['entity'] AND properties=['id'] THEN 1 END)&gt;0 AS correct,
+count(CASE WHEN name='jobtology_onet_entity_id' THEN 1 END)=0 AS name_available</cypher>
+    <batch_size>1</batch_size>
+    <read_only>Y</read_only>
+    <retry>N</retry>
+    <nr_retries_on_error>0</nr_retries_on_error>
+    <cypher_from_field>N</cypher_from_field>
+    <unwind>N</unwind>
+    <returning_graph>N</returning_graph>
+    <mappings />
+    <returns>
+      <return>
+        <name>correct</name>
+        <type>Boolean</type>
+        <source_type>Boolean</source_type>
+      </return>
+      <return>
+        <name>name_available</name>
+        <type>Boolean</type>
+        <source_type>Boolean</source_type>
+      </return>
+    </returns>
+    <GUI>
+      <xloc>540</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>Identity constraint exists</name>
+    <send_true_to>Constraint accepted</send_true_to>
+    <send_false_to>Require free constraint name</send_false_to>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>correct</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Boolean</type>
+          <text>Y</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <GUI>
+      <xloc>770</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform>
+    <type>Dummy</type>
+    <name>Constraint accepted</name>
+    <GUI>
+      <xloc>1000</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>Require free constraint name</name>
+    <send_true_to>Require free constraint name accepted</send_true_to>
+    <send_false_to>Require free constraint name rejected</send_false_to>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>name_available</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Boolean</type>
+          <text>Y</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <GUI>
+      <xloc>1230</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform>
+    <type>Dummy</type>
+    <name>Require free constraint name accepted</name>
+    <GUI>
+      <xloc>1460</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform>
+    <type>Abort</type>
+    <name>Require free constraint name rejected</name>
+    <message>O*NET catalogue graph differs from its exact owned PostgreSQL inventory.</message>
+    <always_log_rows>N</always_log_rows>
+    <abort_option>ABORT_WITH_ERROR</abort_option>
+    <row_threshold>0</row_threshold>
+    <GUI>
+      <xloc>1690</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform>
+    <type>Neo4jCypherOutput</type>
+    <name>Create missing identity uniqueness</name>
+    <connection>${NEO4J_CONNECTION}</connection>
+    <cypher>CREATE CONSTRAINT jobtology_onet_entity_id FOR (n:entity) REQUIRE n.id IS UNIQUE</cypher>
+    <batch_size>1</batch_size>
+    <read_only>N</read_only>
+    <retry>N</retry>
+    <nr_retries_on_error>0</nr_retries_on_error>
+    <cypher_from_field>N</cypher_from_field>
+    <unwind>N</unwind>
+    <returning_graph>N</returning_graph>
+    <mappings />
+    <returns />
+    <GUI>
+      <xloc>1920</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

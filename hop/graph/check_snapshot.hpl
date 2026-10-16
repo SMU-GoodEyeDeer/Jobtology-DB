@@ -76,7 +76,7 @@ to_char(u.created_at AT TIME ZONE 'Asia/Seoul','YYYY-MM-DD HH24:MI') || ' KST ·
 u.source_id,coalesce(u.state='READY' AND u.mode&lt;&gt;'SMOKE',false) AS snapshot_ready,
 (SELECT count(*) FROM ingestion.graph_record r WHERE r.run_id=i.run_id) AS expected_records,
 (SELECT count(*) FROM ingestion.graph_reference r WHERE r.run_id=i.run_id) AS expected_references,
-(SELECT count(*) FROM ingestion.validation_issue v WHERE v.run_id=i.run_id) AS validation_issues
+(SELECT count(*) FROM ingestion.source_graph_validation_issue(i.run_id) v) AS validation_issues
 FROM input i LEFT JOIN ingestion.run u USING(run_id)</sql>
     <rowlimit>0</rowlimit>
     <outer_join>N</outer_join>

@@ -1,0 +1,99 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>begin_graph</name>
+    <description>Freeze one exact flat O*NET relationship plan and acquire only its writer.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>1000</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Exact O*NET operation options</from>
+      <to>Freeze exact O*NET graph rows</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Freeze exact O*NET graph rows</from>
+      <to>Remember exact catalogue token</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Exact O*NET operation options</name>
+    <fields>
+      <field>
+        <name>task_id</name>
+        <variable>${ONET_TASK_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Freeze exact O*NET graph rows</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT result-&gt;&gt;'publication_id' AS publication_id FROM (SELECT onet_matching.begin_graph(?) AS result) s</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>task_id</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <GUI>
+      <xloc>310</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform>
+    <type>SetVariable</type>
+    <name>Remember exact catalogue token</name>
+    <use_formatting>Y</use_formatting>
+    <fields>
+      <field>
+        <field_name>publication_id</field_name>
+        <variable_name>ONET_PUBLICATION_ID</variable_name>
+        <variable_type>PARENT_WORKFLOW</variable_type>
+        <default_value />
+      </field>
+    </fields>
+    <GUI>
+      <xloc>540</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

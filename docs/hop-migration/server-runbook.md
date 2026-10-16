@@ -1,5 +1,16 @@
 # Hop server access, persistent paths and editing runbook
 
+**Current operating context, 2026-10-12 KST:** read the
+[current handoff](current-handoff.md) for verified service state, scheduler and
+installer reconciliation receipts. The [prefetched posting contract](prefetched-postings.md)
+records the user's dataset-only policy for new job-board sources: do not request
+their listing, description, iframe, image or signed-storage URLs. The dated
+September notes below retain deployment history. The [JobKorea adapter](../../hop/ingestions/jobkorea/README.md)
+documents its isolated import/linking tests, bounded execution commands and
+measured costs. The supplied JobKorea snapshot and inferred occupation path were
+deployed on October 8; their later verified state is in the handoff. Dataset-only
+JobKorea processing adds no scheduled source requests.
+
 **Resumed by user, 2026-09-14 KST:** proceed with the narrower source-ingestion,
 attachment parsing and NCS-linking deliverable. Reuse `../document-processor` for
 PDF/HWP/HWPX/DOC/DOCX; the earlier attachment and overall work holds below are
@@ -8,10 +19,83 @@ Do not restart the stopped batch: prepare new, bounded runs after verification.
 Cohorts, demand statistics and the broader application ontology remain later work.
 See [the current implementation record](linked-ingestion.md) for what is actually tested/deployed.
 
-Verified 2026-09-12. This is the existing Hop deployment, separate from the older
+Baseline verified 2026-09-12; the October assessment is in the handoff above.
+This is the existing Hop deployment, separate from the older
 local Docker lab and the original Python ingestion container. Read this file,
 [the real-data guide](../hop-real-data-guide.md), and the relevant source/LLM/
 retention README before changing runtime artifacts.
+
+## Permanent batch-free source graph migration (production VERIFIED)
+
+The repository source loader now keeps exact import history and content/membership
+proof in PostgreSQL while Neo4j contains business entities and grounded source
+relationships. Source graph publication and inference replay use immutable exact
+run evidence; current business facts may belong to a newer accepted observation.
+Frozen LLM inputs, inferred edge IDs/payloads/review state, accounting and typed
+posting dates remain protected.
+
+The focused native installer is
+`${PROJECT_HOME}/ingestions/jobkorea/install_batchfree_graph_publication.hwf`.
+It waits for `graph/install.hwf` (date 001 and batch-free source graph 002), then
+installs retention 002 and LLM publication 036. Use this focused path for an
+existing runtime; the broad canonical installers replay older migrations.
+Installation changes contracts and does not itself remove source-history nodes or
+run storage retention. The guarded migration supervisor, reviewed preservation
+manifest and independent readback are required for the runtime graph transition.
+The guarded [operator contract](../../hop/operations/README.md) records its
+reviewed command sequence and preservation checks.
+
+Old standalone graph archive/delete retention pipelines now abort explicitly;
+manual `retention/execute.hwf` uses only PostgreSQL proof/archive and local raw-file
+checkpoints. It performs no Neo4j operation. JobKorea storage cleanup is unsupported
+and remains separate. The original Python `load neo4j` publisher and updater
+`neo4j=True` route also fail before graph I/O; use the native Hop source loader.
+
+The 40-check isolated native inference receipt is
+`~/.local/state/jobtology-hop/jobkorea-dry-run-cdd5182a8a06/receipt.json`.
+It proves historical source/NCS pins after newer business node updates, exact
+frozen payload preservation, missing-source-proof rejection and replay without
+history-node recreation. The representative 84-run restored PostgreSQL benchmark
+passed on the frozen graph SQL 002 revision. One persistent backend completed all
+84 strict capture calls in **1,172.897 seconds** and all 84 finish calls in
+**62.763 seconds**; the slowest individual begin was **115.838 seconds**.
+Exactly **84 READY projections, 223,925 record proofs and 361,488 memberships**
+were retained, with unchanged historical graph export fingerprints. A ten-minute
+atomic statement limit is shorter than this measured cumulative capture work;
+allow for the full capture plus native graph execution when monitoring the
+guarded migration. Protected receipts and the exact SQL hash are in
+`~/.local/state/jobtology-hop/batchfree-performance-939d9bfe6383/`.
+The earlier posting-date cold-read investigation remains separate pending work.
+
+**Live checkpoint, October 12 KST: VERIFIED.** The 41-file public deployment
+is VERIFIED in
+`~/.local/state/jobtology-hop/jobkorea-runtime-applied-79166d223a5845bfb0e1535f47bfe979/receipt.json`.
+Focused graph 002, retention 002 and LLM 036 installation preserved all 145
+existing protected table fingerprints. Native
+`graph/migrate_source_graph.hwf` succeeded at **2026-10-11 17:43:43 UTC** in
+**4,166.510 seconds**, including **3,394.886 seconds** of atomic capture. All
+**86 source proofs are READY** (224,903 records / 363,444 memberships).
+
+Coordinator receipt:
+`~/.local/state/jobtology-hop/batchfree-locked-execution-a2c7aafbec514990a62b1ba472a22021/receipt.json`.
+Its `apply/receipt.json` and coordinator receipt finished VERIFIED at
+**17:56:42 UTC**. Removed **86 batch nodes, 224,903 record nodes and 585,681
+scaffold relationships**; preserved all **240,196 existing business nodes** and
+**800,648 existing business relationships**. Final totals are **240,288 nodes /
+830,643 relationships**, including 92 real Q-Net sessions and 29,995 direct source
+edges. Exact-run Q-Net replay passed in 213.960 seconds. The scheduler resumed
+and the durable pending fence was removed; source requests and paid calls were
+zero. Backup and exact receipts are in the
+[verified handoff](current-handoff.md#live-checkpoint-verified).
+
+Independent graph readback passed at **17:57:16.692019 UTC** in
+`~/.local/state/jobtology-hop/batchfree-independent-report-734e9925ed1648c6bd29a3bfda89d2f5/after.json`:
+all 22,295 source-posting dates/types/absence hashes and 5,878 inferred NCS edges
+retain exact IDs/properties; no scaffold remains. PostgreSQL fingerprint evidence
+is bound to the VERIFIED operator gate. Live atomic capture was slower than the
+per-run benchmark; its cause and the earlier posting-date first-read TODO remain
+separate pending performance investigations. Normal future updates use the
+shared exact-run source loader, which cannot recreate the retired graph layer.
 
 ## Historical operational hold (superseded September 14)
 
@@ -32,7 +116,8 @@ Do not restart it as an apparent failed job.
 
 ## Connect and discover the running containers
 
-From the local repository `/home/maxjo/Work/Jobtology-DB`:
+When already on Goldship, the repository is `/home/maxjo/Jobtology-DB`; use the
+local Docker commands below. From another machine, connect with:
 
 ```bash
 ssh -o BatchMode=yes -o ConnectTimeout=8 maxjo@goldship
@@ -45,7 +130,7 @@ does not mean that process exited. After user verification, poll that handle for
 its actual result before starting deployment. If it has exited or the handle is
 missing, request a fresh check when the user is available. Old verification links
 expire; do not reuse links copied from conversation history. No password or API key belongs here.
-Goldship does not currently have `rg`; use `grep` there or inspect files locally.
+Goldship has `rg` as of 2026-10-07; use it for repository searches.
 
 Discover containers by the persistent volume/name, because container IDs can change:
 
@@ -144,6 +229,51 @@ configuration. The editor HTTPS fix is documented in
 its authoritative file is the Coolify-managed bind mount shown above, not an edit
 to an unmounted file inside a disposable container layer.
 
+### Focused October installer and scheduler reconciliation
+
+For the verified October drift, use the repository's host-side
+`hop/operations/reconcile_runtime.py` from Goldship:
+
+```bash
+python3 hop/operations/reconcile_runtime.py plan
+python3 hop/operations/reconcile_runtime.py apply <printed-manifest-path>
+```
+
+Inspect the protected manifest from `plan` before applying it. Both commands take
+the scheduler's `refresh.lock`, discover the running containers and check for CLI
+workflows, unfinished ingestion/refresh work and retention maintenance. Confirm
+that no Hop Web workflow or open editor can race with the affected files; the host
+lock does not control the UI. A changed container, file hash or approved catalogue
+invalidates the plan and requires a new comparison.
+
+The helper changes only its fixed public allowlist: ontology SQL 019–027, the
+reader-grants script, `ontology/install.hwf`, Nara `003_checks.sql`, the new Nara
+refresh wrapper and the host adapter. It verifies the unchanged installer
+dependencies through 018 before replacing the installer last among its mounted
+dependencies; the adapter is installed after its new wrapper. Existing replaced
+files and a validated schema-only database archive are backed up in a protected
+receipt directory. Each mounted file is staged, owned by 501:501 and hash-checked
+before a same-directory rename. Allowlisted renames and exact temporary-file
+cleanup use container root where parent-directory permissions require it; existing
+directories keep their ownership and permissions. Final hashes and catalogue/reader
+invariants must pass before the receipt becomes `VERIFIED`.
+
+This reconciliation updates mounted installation artifacts and executes no SQL
+migrations or grants against production. PostgreSQL already matched the catalogue
+definitions from 019–027, and its validation view already contained both
+`NOT MATERIALIZED` hints. Replaying the whole installer against that database is
+unnecessary. The repeatable installer path is validated separately in an isolated
+database. The source-only approval `ontology-catalog-source-20261001` and empty
+`ontology.active_release` remain required invariants.
+
+Receipts use `~/.local/state/jobtology-hop/runtime-reconciliation-plan-*/manifest.json`
+and `runtime-reconciliation-applied-*/receipt.json`. A failure can leave a subset of
+files installed: inspect `installed`, the failure phase/artifact, backups and
+current hashes before preparing a retry. There is no automatic rollback or
+database restore. Exact successful
+receipt paths and native recovery/refresh results are in the
+[current handoff](current-handoff.md).
+
 ## Run Hop and inspect data
 
 After discovering the current container ID, invoke the CLI from the application
@@ -161,6 +291,7 @@ docker exec -w /usr/local/tomcat/webapps/ROOT <hop-container-id> \
 |---|---|
 | ALIO organizations | `alio-local` |
 | JOB-ALIO | `job-alio-local` |
+| Nara ingestion | `nara-job-local` |
 | NCS competencies | `ncs-local` |
 | Qualifications/Q-Net/career ingestion and operations refresh wrappers | `reference-local` |
 | Source graph workflows | `graph-local` |
@@ -211,6 +342,12 @@ The existing source scheduler is a **host cron adapter**, not a Hop UI timer:
 It checks due intervals every 15 minutes; it does not fetch every source each time.
 Source intervals and quota settings live in PostgreSQL. No retention workflow or
 paid LLM workflow is attached to this schedule.
+The adapter includes seven official sources. Nara's daily FULL wrapper pins the
+new run ID in its parent workflow, verifies the graph, and saves its checkpoint
+before success. A GRAPH queue entry recovers the exact READY run through
+`operations/export_pending.hwf` without provider requests. Use `reference-local`
+and Basic logging for these operation wrappers; see the
+[refresh guide](../../hop/operations/README.md).
 
 | Host path | Purpose |
 |---|---|

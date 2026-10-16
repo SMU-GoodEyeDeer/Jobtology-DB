@@ -2,7 +2,7 @@
 <pipeline>
   <info>
     <name>graph_finish</name>
-    <description>Verify total membership and checkpoint the graph candidate without activating a serving release.</description>
+    <description>Verify full flat scope and zero revision nodes.</description>
     <pipeline_type>Normal</pipeline_type>
     <size_rowset>100</size_rowset>
     <parameters />
@@ -31,7 +31,7 @@
     </hop>
     <hop>
       <from>Checkpoint graph load</from>
-      <to>Verified graph candidate</to>
+      <to>Verified flat projection</to>
       <enabled>Y</enabled>
     </hop>
     <hop>
@@ -68,7 +68,7 @@
     <type>TableInput</type>
     <name>Expected totals</name>
     <connection>jobtology-postgres</connection>
-    <sql>SELECT l.load_id,l.release_id,l.database_id,l.manifest_hash,r.manifest-&gt;&gt;'data_as_of' AS data_as_of,(r.manifest-&gt;&gt;'nodes')::bigint AS expected_nodes,(r.manifest-&gt;&gt;'edges')::bigint AS expected_edges FROM ontology.graph_load l JOIN ontology.corpus_release r USING(release_id)  WHERE l.load_id=? AND l.state='RUNNING' </sql>
+    <sql>SELECT l.load_id,l.release_id,l.database_id,l.manifest_hash,l.source_manifest_hash,r.manifest-&gt;&gt;'data_as_of' AS data_as_of,projection.node_count AS expected_nodes,projection.edge_count AS expected_edges,(projection.manifest-&gt;&gt;'bindings')::bigint AS legacy_nodes,(projection.manifest-&gt;&gt;'legacy_edges')::bigint AS legacy_edges FROM ontology.flat_graph_load l JOIN ontology.flat_graph_projection projection USING(release_id) JOIN ontology.corpus_release r USING(release_id)  WHERE l.load_id=? AND l.state IN ('RUNNING','STAGED') </sql>
     <limit>0</limit>
     <lookup>Load token</lookup>
     <execute_each_row>Y</execute_each_row>
@@ -90,13 +90,14 @@
     <connection>${NEO4J_CONNECTION}</connection>
     <cypher>CALL db.info() YIELD id AS actual_database_id
 WITH actual_database_id WHERE actual_database_id=$database_id
-MATCH (r:ontologyObject:corpusRelease {id:'release/'+$release_id,manifest_hash:$manifest_hash,load_id:$load_id})
+MATCH (r:ontologyObject:corpusRelease {id:'release/'+$release_id})
 OPTIONAL MATCH (r)-[member:INCLUDES {release_id:$release_id}]-&gt;(n)
 WITH r,count(member) AS member_count,count(DISTINCT n) AS node_count
 OPTIONAL MATCH ()-[edge]-&gt;() WHERE edge.release_id=$release_id
 WITH r,member_count,node_count,count(edge) AS edge_count
-WHERE member_count=$expected_nodes AND node_count=$expected_nodes AND edge_count=$expected_edges
-SET r.projection_state='VERIFIED',r.verified_at=datetime()
+OPTIONAL MATCH (legacy) WHERE 'entityRevision' IN labels(legacy) OR any(label IN labels(legacy) WHERE label ENDS WITH 'Revision')
+WITH r,member_count,node_count,edge_count,count(legacy) AS revision_count
+WHERE revision_count=0 AND member_count=$expected_nodes AND node_count=$expected_nodes AND edge_count=$expected_edges
 RETURN count(r)=1 AS verified</cypher>
     <batch_size>1</batch_size>
     <read_only>N</read_only>
@@ -117,16 +118,6 @@ RETURN count(r)=1 AS verified</cypher>
         <type>String</type>
       </mapping>
       <mapping>
-        <parameter>manifest_hash</parameter>
-        <field>manifest_hash</field>
-        <type>String</type>
-      </mapping>
-      <mapping>
-        <parameter>load_id</parameter>
-        <field>load_id</field>
-        <type>String</type>
-      </mapping>
-      <mapping>
         <parameter>expected_nodes</parameter>
         <field>expected_nodes</field>
         <type>Integer</type>
@@ -134,6 +125,16 @@ RETURN count(r)=1 AS verified</cypher>
       <mapping>
         <parameter>expected_edges</parameter>
         <field>expected_edges</field>
+        <type>Integer</type>
+      </mapping>
+      <mapping>
+        <parameter>legacy_nodes</parameter>
+        <field>legacy_nodes</field>
+        <type>Integer</type>
+      </mapping>
+      <mapping>
+        <parameter>legacy_edges</parameter>
+        <field>legacy_edges</field>
         <type>Integer</type>
       </mapping>
     </mappings>
@@ -191,7 +192,7 @@ RETURN count(r)=1 AS verified</cypher>
     <type>ExecSql</type>
     <name>Checkpoint graph load</name>
     <connection>jobtology-postgres</connection>
-    <sql>SELECT ontology.finish_graph_load(?,?,?,?)</sql>
+    <sql>SELECT ontology.finish_flat_graph_load(?,?,?,?)</sql>
     <execute_each_row>Y</execute_each_row>
     <single_statement>Y</single_statement>
     <set_params>Y</set_params>
@@ -224,10 +225,10 @@ RETURN count(r)=1 AS verified</cypher>
   </transform>
   <transform>
     <type>WriteToLog</type>
-    <name>Verified graph candidate</name>
+    <name>Verified flat projection</name>
     <loglevel>Basic</loglevel>
     <displayHeader>Y</displayHeader>
-    <logmessage>All graph values and memberships verified. Serving activation remains a separate release gate.</logmessage>
+    <logmessage>Flat projection VERIFIED; PostgreSQL releases and history are unchanged.</logmessage>
     <fields>
       <field>
         <name>release_id</name>
@@ -259,7 +260,7 @@ RETURN count(r)=1 AS verified</cypher>
   <transform>
     <type>Abort</type>
     <name>Graph mismatch</name>
-    <message>Ontology membership totals differ; no PostgreSQL graph checkpoint was written.</message>
+    <message>Flat projection totals or revision-node checks failed.</message>
     <always_log_rows>N</always_log_rows>
     <abort_option>ABORT_WITH_ERROR</abort_option>
     <row_threshold>0</row_threshold>

@@ -1,0 +1,185 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>prepare_linking_pilot</name>
+    <description>Prepare immutable metadata inputs and remember exact JobKorea/NCS pilot pins.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Pilot options</from>
+      <to>Prepare immutable pilot inputs</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Prepare immutable pilot inputs</from>
+      <to>Remember exact pilot pins</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Remember exact pilot pins</from>
+      <to>Pilot inputs prepared</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Pilot options</name>
+    <fields>
+      <field>
+        <name>jobs</name>
+        <variable>${JOB_RUN_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>ncs</name>
+        <variable>${NCS_RUN_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>cap</name>
+        <variable>${PILOT_LIMIT}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Prepare immutable pilot inputs</name>
+    <connection>jobtology-postgres</connection>
+    <sql>WITH p AS (SELECT enrichment.prepare_jobkorea_linking_pilot(?,?,?::integer) AS data)
+SELECT data-&gt;&gt;'job_run_id' AS pinned_jobs,data-&gt;&gt;'ncs_run_id' AS pinned_ncs,
+ data-&gt;&gt;'posting_ids' AS selected_postings,data-&gt;&gt;'bundle_ids' AS selected_bundles,
+ data-&gt;&gt;'selected_count' AS selected_count,data-&gt;&gt;'run_needed' AS run_needed,data::text AS preparation_json FROM p</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>jobs</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>ncs</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>cap</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <GUI>
+      <xloc>340</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform>
+    <type>SetVariable</type>
+    <name>Remember exact pilot pins</name>
+    <use_formatting>Y</use_formatting>
+    <fields>
+      <field>
+        <field_name>pinned_jobs</field_name>
+        <variable_name>JOBKOREA_PINNED_JOB_RUN_ID</variable_name>
+        <variable_type>PARENT_WORKFLOW</variable_type>
+        <default_value />
+      </field>
+      <field>
+        <field_name>pinned_ncs</field_name>
+        <variable_name>JOBKOREA_PINNED_NCS_RUN_ID</variable_name>
+        <variable_type>PARENT_WORKFLOW</variable_type>
+        <default_value />
+      </field>
+      <field>
+        <field_name>selected_postings</field_name>
+        <variable_name>JOBKOREA_PILOT_POSTING_IDS</variable_name>
+        <variable_type>PARENT_WORKFLOW</variable_type>
+        <default_value />
+      </field>
+      <field>
+        <field_name>selected_bundles</field_name>
+        <variable_name>JOBKOREA_PILOT_BUNDLE_IDS</variable_name>
+        <variable_type>PARENT_WORKFLOW</variable_type>
+        <default_value />
+      </field>
+      <field>
+        <field_name>selected_count</field_name>
+        <variable_name>JOBKOREA_PILOT_COUNT</variable_name>
+        <variable_type>PARENT_WORKFLOW</variable_type>
+        <default_value />
+      </field>
+      <field>
+        <field_name>run_needed</field_name>
+        <variable_name>JOBKOREA_PILOT_RUN_NEEDED</variable_name>
+        <variable_type>PARENT_WORKFLOW</variable_type>
+        <default_value />
+      </field>
+    </fields>
+    <GUI>
+      <xloc>600</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform>
+    <type>WriteToLog</type>
+    <name>Pilot inputs prepared</name>
+    <displayHeader>Y</displayHeader>
+    <limitRows>N</limitRows>
+    <limitRowsNumber>0</limitRowsNumber>
+    <logmessage>Immutable listing metadata inputs prepared; full-description absence remains explicit.</logmessage>
+    <loglevel>Basic</loglevel>
+    <fields>
+      <field>
+        <name>preparation_json</name>
+      </field>
+    </fields>
+    <GUI>
+      <xloc>860</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

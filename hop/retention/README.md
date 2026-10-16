@@ -3,12 +3,16 @@
 Use `retention/preview.hwf` to save a deletion plan, inspect it, then run
 `retention/execute.hwf` with that exact `PLAN_ID`. Select **retention-local** and
 **Basic** logging. No timer or cron entry runs these workflows.
-The [deployment verification](../../docs/hop-migration/retention-status.md) records
-the live previews and disposable deletion tests.
+The [current handoff](../../docs/hop-migration/current-handoff.md) records the
+runtime migration state. September retention reports are historical evidence.
 
-This removes old **complete source snapshots** from raw storage, PostgreSQL and
-Neo4j while keeping a compact last-known archive. It does not prune LLM requests,
-responses, cached attempts, reviews, evaluation cases or gold labels.
+This optional storage workflow removes eligible **complete source snapshots**
+from raw storage and PostgreSQL while keeping a compact PostgreSQL archive.
+Neo4j keeps business entities and their relationships; retention performs no
+Neo4j operation. Permanent removal of graph batch/record history is a separate
+model migration and does not launch storage cleanup. LLM requests, responses,
+cached attempts, reviews, evaluation cases and gold labels remain protected.
+JobKorea raw-data/storage cleanup is unsupported and remains a separate task.
 
 With the ontology observation layer installed, captured JOB-ALIO snapshots are
 also protected as observation history. This preserves first/last-seen times and
@@ -70,6 +74,8 @@ The preview explains why each run is skipped:
 - `ONTOLOGY_RELEASE`, `ONTOLOGY_OBSERVATION_HISTORY`: a release or captured posting
   census requires the original snapshot and evidence.
 - `GRAPH_NOT_CHECKPOINTED`: graph export/recovery must finish first.
+- `UNSUPPORTED_JOBKOREA_STORAGE_RETENTION`: this adapter cannot prune supplied
+  JobKorea file/checkpoint archives.
 - `REQUEST_QUOTA_WINDOW`: a request reservation is still within the rolling 24-hour
   accounting window. Removing it must not create a false provider allowance.
 - `NOT_ACCEPTED_FULL_SNAPSHOT` or `VALIDATION_ISSUES`: partial, failed and SMOKE runs
@@ -94,7 +100,6 @@ Open `${PROJECT_HOME}/retention/execute.hwf`, choose **retention-local**, and se
 |---|---|
 | `PLAN_ID` | Exact ID printed by the preview |
 | `RAW_BASE` | Same directory used for preview; normally leave default |
-| `NEO4J_CONNECTION` | `jobtology-neo4j` |
 
 Running this workflow is the manual deletion trigger. There is no additional
 in-workflow confirmation prompt. A zero-selection plan cannot execute.
@@ -104,21 +109,21 @@ The workflow performs these steps in order:
 1. Recheck the plan and acquire a persistent maintenance fence. Refuse to start
    while an ingestion is LOADING, an enrichment batch is RUNNING, or a guarded
    graph workflow has an active writer lease.
-2. Verify a retained source batch in the selected Neo4j database and pin that
-   physical database identity, so a resume cannot silently target another graph.
-3. Save the newest selected version of each source record in PostgreSQL
-   `retention.archive_record`, retaining full source/normalized objects, lineage,
-   quality flags, original run/document metadata, hashes and dependency provenance.
-4. Publish and verify the compact archive as `archivedRecord` nodes in Neo4j, with
-   `REFERS_TO` links to existing business identities.
-5. Verify ownership/counts and remove only the selected `ingestionBatch` nodes and
-   their `ingestionRecord` nodes. Keep shared organization, jobPosting, occupation,
-   ncsCompetency and qualification entities, plus all LLM enrichment nodes/links.
-6. Rehash existing raw files against their saved SHA-256 manifests, then delete
-   only those exact files; record a checkpoint
-   after verifying each file is absent. A missing file is already complete on retry.
-7. Delete the selected PostgreSQL snapshot rows and children in one transaction,
-   with ordinary foreign keys and **no CASCADE**, then mark the plan COMPLETE.
+2. Save the newest selected version of each source record in PostgreSQL
+   `retention.archive_record`, retaining source/normalized objects, lineage,
+   quality flags, run/document metadata, hashes and dependency provenance.
+   Verify every selected run's immutable PostgreSQL source projection before
+   archiving; missing, failed or tampered source evidence stops execution.
+3. Verify the selected source projection's source ID, record count and exact
+   evidence hash, then save `source_projection_verified` checkpoints. The
+   projection and its immutable record/membership evidence survive later cleanup.
+4. Rehash existing raw files against their saved SHA-256 manifests, then delete
+   only those exact files. Record a checkpoint after verifying each is absent;
+   an already missing file is complete on retry.
+5. Recheck source proof and delete the selected PostgreSQL snapshot rows and
+   children in one transaction, with ordinary foreign keys and **no CASCADE**,
+   then mark the plan COMPLETE. Business graph nodes, NCS links and graph
+   properties remain unchanged.
 
 While a plan is ACTIVE, the existing source scheduler returns no due work. Database
 write guards also reject conflicting source writes, and graph workflow entry points
@@ -157,16 +162,15 @@ The existing `ingestion.current_record`, `ingestion.latest_ready_run` and source
 views keep their current/retained-snapshot meaning; archive rows are not mixed into
 current active postings or fed automatically into LLM enrichment.
 
-In Neo4j:
+Historical membership and content proof stay in PostgreSQL:
 
-```cypher
-MATCH (a:archivedRecord {state:'READY',source_id:'job_alio'})
-OPTIONAL MATCH (a)-[r:REFERS_TO]->(e:entity)
-RETURN a,r,e LIMIT 100;
+```sql
+SELECT run_id, source_id, state, record_count, reference_count, content_sha256
+FROM ingestion.source_graph_projection ORDER BY run_id;
+SELECT ingestion.assert_source_graph_projection('<exact-run-id>');
 ```
 
-Set the `archivedRecord` caption to `name`, or import `browser-style.grass` in this
-folder. Original byte-for-byte HTTP/CSV response files are **not kept in the compact
+Original byte-for-byte HTTP/CSV response files are **not kept in the compact
 archive**. After deletion their paths/hashes are provenance only. The complete
 parsed source objects survive in PostgreSQL; exact raw replay and intermediate
 historical versions of pruned snapshots do not. This is retention, not a backup or
@@ -176,7 +180,7 @@ an erasure workflow.
 
 Inspect `retention.plan_report`. If a handled error leaves `state=ACTIVE` and
 `owner_id` empty, fix the cause and run `execute.hwf` again with the **same PLAN_ID**.
-Graph operations and file checkpoints are repeatable. Re-executing a COMPLETE plan
+PostgreSQL archive/proof operations and file checkpoints are repeatable. Re-executing a COMPLETE plan
 is a no-op; it never selects another set of old runs.
 
 If Hop or its container was killed, a stale owner/graph lease may remain:
@@ -198,7 +202,7 @@ First verify the old workflow/process has actually stopped. Then use
 Leases never expire automatically: elapsed time cannot prove that a slow writer
 has stopped. Never release a live writer or edit plan/checkpoint rows to bypass a
 failed verification. `cancel_plan.hwf` cancels only an unexecuted PLANNED preview;
-an ACTIVE plan may already have deleted graph/files and must be completed.
+an ACTIVE plan may already have deleted files and must be completed.
 
 ## Filesystem limits and installation
 
@@ -220,8 +224,13 @@ Deploy `retention/`, both `retention-local` metadata files, and the guarded
 `graph/load_snapshot.hwf` and `llm/publish_reviewed.hwf` together. Install once with
 `retention/install.hwf` while no writer is running. It reinstalls the additive
 operations SQL with a maintenance hook, then creates retention tables/functions and
-write guards; it preserves existing source data and refresh-policy values.
-Enrichment SQL must already be installed. No container restart is required.
+write guards, waits for `graph/install.hwf` to install date and immutable source
+proof contracts, then installs `002_batchfree_retention.sql`. It preserves source
+data and refresh-policy values. Enrichment SQL must already be installed.
+For an already installed runtime, the focused
+`ingestions/jobkorea/install_batchfree_graph_publication.hwf` replays only graph
+contracts, retention 002 and LLM publication 036. It does not replay older model
+planning or accounting migrations. No container restart is required.
 See [the server access and editing runbook](../../docs/hop-migration/server-runbook.md).
 
 Development generation: `python hop/retention/tools/build.py`.
@@ -229,5 +238,7 @@ Disposable integration tests: `python hop/retention/tests/run.py`. These require
 Docker and create only `jobtology-retention-test-*` containers on an internal
 network, with synthetic Korean data and no provider/model calls. Python is used
 only to build/test artifacts; the deployed workflow uses native Hop transforms,
-PostgreSQL SQL and Neo4j Cypher. Native file deletion uses Hop's
+PostgreSQL SQL. The former standalone graph archive/delete pipelines abort with
+a retirement message, preventing stale entrypoints from recreating source history
+nodes or an archive layer. Native file deletion uses Hop's
 [Process files transform](https://hop.apache.org/manual/latest/pipeline/transforms/processfiles.html).

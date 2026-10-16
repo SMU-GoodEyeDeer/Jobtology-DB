@@ -1,0 +1,378 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pipeline>
+  <info>
+    <name>verify_inferred_occupation_graph</name>
+    <description>Read back every exact edge and evidence hash.</description>
+    <pipeline_type>Normal</pipeline_type>
+    <size_rowset>100</size_rowset>
+    <parameters />
+  </info>
+  <notepads />
+  <order>
+    <hop>
+      <from>Exact projection pins</from>
+      <to>Recheck immutable projection</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Recheck immutable projection</from>
+      <to>Expected candidate evidence</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Expected candidate evidence</from>
+      <to>Verify inferred evidence</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Verify inferred evidence</from>
+      <to>Require exact graph result</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Require exact graph result</from>
+      <to>Verified</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Require exact graph result</from>
+      <to>Graph mismatch</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <transform>
+    <type>GetVariable</type>
+    <name>Exact projection pins</name>
+    <fields>
+      <field>
+        <name>jobs</name>
+        <variable>${JOB_RUN_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>ncs</name>
+        <variable>${NCS_RUN_ID}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>include_unreviewed</name>
+        <variable>${INCLUDE_UNREVIEWED}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+      <field>
+        <name>graph_token</name>
+        <variable>${GRAPH_TOKEN}</variable>
+        <type>String</type>
+        <length>-1</length>
+        <precision>-1</precision>
+        <trim_type>none</trim_type>
+      </field>
+    </fields>
+    <GUI>
+      <xloc>80</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform>
+    <type>ExecSql</type>
+    <name>Recheck immutable projection</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT enrichment.check_metadata_occupation_graph(?)</sql>
+    <execute_each_row>Y</execute_each_row>
+    <single_statement>Y</single_statement>
+    <set_params>Y</set_params>
+    <replace_variables>N</replace_variables>
+    <quoteString>N</quoteString>
+    <arguments>
+      <argument>
+        <name>graph_token</name>
+      </argument>
+    </arguments>
+    <GUI>
+      <xloc>340</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform>
+    <type>DBJoin</type>
+    <name>Expected candidate evidence</name>
+    <connection>jobtology-postgres</connection>
+    <sql>SELECT *,payload::text AS payload_json,
+enrichment.hash(payload::text) AS payload_hash,
+payload-&gt;&gt;'occupation_code' AS occupation_code,payload-&gt;&gt;'review_status' AS review_status,
+payload-&gt;&gt;'confidence_state' AS confidence_state,(payload-&gt;&gt;'accepted')::boolean AS accepted,
+payload-&gt;&gt;'result_id' AS result_id,payload-&gt;&gt;'bundle_id' AS bundle_id,
+payload-&gt;&gt;'source_hash' AS source_hash,payload-&gt;&gt;'binding_hash' AS binding_hash,
+payload-&gt;&gt;'catalog_hash' AS catalog_hash,payload-&gt;&gt;'occupation_scheme' AS occupation_scheme,
+payload-&gt;&gt;'rank_basis' AS rank_basis,(payload-&gt;&gt;'match_rank')::integer AS match_rank,
+(payload-&gt;&gt;'original_primary')::boolean AS original_primary,
+(payload-&gt;&gt;'current_primary')::boolean AS current_primary
+FROM enrichment.metadata_occupation_graph_rows(?,?,?::boolean) ORDER BY candidate_id</sql>
+    <cache>N</cache>
+    <cache_size>0</cache_size>
+    <rowlimit>0</rowlimit>
+    <outer_join>N</outer_join>
+    <replace_vars>N</replace_vars>
+    <parameter>
+      <field>
+        <name>jobs</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>ncs</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>include_unreviewed</name>
+        <type>String</type>
+      </field>
+    </parameter>
+    <GUI>
+      <xloc>600</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform>
+    <type>Neo4jCypherOutput</type>
+    <name>Verify inferred evidence</name>
+    <connection>${NEO4J_CONNECTION}</connection>
+    <cypher>MATCH (p:entity:jobPosting {id:$posting_identity,kind:'JobPosting'})
+WITH p
+MATCH (o:entity:occupation {id:$occupation_identity,kind:'Occupation',code:$occupation_code})
+WHERE $occupation_scheme IS NULL OR $occupation_scheme='NCS'
+MATCH (p)-[r:INFERRED_NCS_OCCUPATION {candidate_id:$candidate_id,managed_by:'jobtology-metadata-occupation'}]-&gt;(o)
+WHERE r.payload_json=$payload_json AND r.payload_hash=$payload_hash
+AND r.job_run_id=$jobs AND r.ncs_run_id=$ncs AND r.projection_token=$graph_token
+AND r.basis='METADATA_INFERRED' AND r.assertion_kind='MODEL_INFERRED'
+AND r.serving_scope='STAGING' AND r.stage='STAGING' AND r.current=false
+AND r.review_status=$review_status AND r.confidence IS NULL
+AND r.confidence_state=$confidence_state AND r.accepted=$accepted
+AND r.result_id=$result_id AND r.bundle_id=$bundle_id AND r.source_hash=$source_hash
+AND r.binding_hash=$binding_hash AND r.catalog_hash=$catalog_hash
+AND (($occupation_scheme IS NULL AND r.occupation_scheme IS NULL AND r.match_rank IS NULL)
+ AND r.rank_basis IS NULL AND r.original_primary IS NULL AND r.current_primary IS NULL
+ OR (r.occupation_scheme=$occupation_scheme AND r.match_rank=$match_rank
+ AND r.rank_basis=$rank_basis
+ AND r.original_primary=$original_primary AND r.current_primary=$current_primary))
+RETURN count(r)=1 AS verified</cypher>
+    <batch_size>1</batch_size>
+    <read_only>Y</read_only>
+    <retry>N</retry>
+    <nr_retries_on_error>0</nr_retries_on_error>
+    <cypher_from_field>N</cypher_from_field>
+    <unwind>N</unwind>
+    <returning_graph>N</returning_graph>
+    <mappings>
+      <mapping>
+        <parameter>jobs</parameter>
+        <field>jobs</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>ncs</parameter>
+        <field>ncs</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>graph_token</parameter>
+        <field>graph_token</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>posting_identity</parameter>
+        <field>posting_identity</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>occupation_identity</parameter>
+        <field>occupation_identity</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>candidate_id</parameter>
+        <field>candidate_id</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>payload_json</parameter>
+        <field>payload_json</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>payload_hash</parameter>
+        <field>payload_hash</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>occupation_code</parameter>
+        <field>occupation_code</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>review_status</parameter>
+        <field>review_status</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>confidence_state</parameter>
+        <field>confidence_state</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>result_id</parameter>
+        <field>result_id</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>bundle_id</parameter>
+        <field>bundle_id</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>source_hash</parameter>
+        <field>source_hash</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>binding_hash</parameter>
+        <field>binding_hash</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>catalog_hash</parameter>
+        <field>catalog_hash</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>occupation_scheme</parameter>
+        <field>occupation_scheme</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>rank_basis</parameter>
+        <field>rank_basis</field>
+        <type>String</type>
+      </mapping>
+      <mapping>
+        <parameter>accepted</parameter>
+        <field>accepted</field>
+        <type>Boolean</type>
+      </mapping>
+      <mapping>
+        <parameter>match_rank</parameter>
+        <field>match_rank</field>
+        <type>Integer</type>
+      </mapping>
+      <mapping>
+        <parameter>original_primary</parameter>
+        <field>original_primary</field>
+        <type>Boolean</type>
+      </mapping>
+      <mapping>
+        <parameter>current_primary</parameter>
+        <field>current_primary</field>
+        <type>Boolean</type>
+      </mapping>
+    </mappings>
+    <returns>
+      <return>
+        <name>verified</name>
+        <type>Boolean</type>
+        <source_type>Boolean</source_type>
+      </return>
+    </returns>
+    <GUI>
+      <xloc>860</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform>
+    <type>FilterRows</type>
+    <name>Require exact graph result</name>
+    <send_true_to>Verified</send_true_to>
+    <send_false_to>Graph mismatch</send_false_to>
+    <compare>
+      <condition>
+        <negated>N</negated>
+        <operator>-</operator>
+        <leftvalue>verified</leftvalue>
+        <function>=</function>
+        <value>
+          <name>constant</name>
+          <type>Boolean</type>
+          <text>Y</text>
+          <length>-1</length>
+          <precision>-1</precision>
+          <isnull>N</isnull>
+        </value>
+      </condition>
+    </compare>
+    <GUI>
+      <xloc>1120</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform>
+    <type>Dummy</type>
+    <name>Verified</name>
+    <GUI>
+      <xloc>1380</xloc>
+      <yloc>100</yloc>
+    </GUI>
+    <partitioning>
+      <method>none</method>
+      <schema_name />
+    </partitioning>
+    <copies>1</copies>
+    <distribute>Y</distribute>
+  </transform>
+  <transform>
+    <type>Abort</type>
+    <name>Graph mismatch</name>
+    <message>Inferred occupation projection differs from its exact frozen pins/evidence.</message>
+    <always_log_rows>N</always_log_rows>
+    <abort_option>ABORT_WITH_ERROR</abort_option>
+    <row_threshold>0</row_threshold>
+  </transform>
+  <transform_error_handling />
+  <attributes />
+</pipeline>

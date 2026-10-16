@@ -159,32 +159,6 @@
         <pass_all_parameters>Y</pass_all_parameters>
       </parameters>
       <attributes />
-      <name>Load source records</name>
-      <type>PIPELINE</type>
-      <xloc>100</xloc>
-      <yloc>400</yloc>
-      <draw>Y</draw>
-      <parallel>N</parallel>
-      <filename>${PROJECT_HOME}/graph/load_records.hpl</filename>
-      <run_configuration>graph-local</run_configuration>
-    </action>
-    <action>
-      <attributes />
-      <params_from_previous>N</params_from_previous>
-      <exec_per_row>N</exec_per_row>
-      <clear_rows>N</clear_rows>
-      <clear_files>N</clear_files>
-      <create_parent_folder>N</create_parent_folder>
-      <set_logfile>N</set_logfile>
-      <set_append_logfile>N</set_append_logfile>
-      <add_date>N</add_date>
-      <add_time>N</add_time>
-      <loglevel>Basic</loglevel>
-      <wait_until_finished>Y</wait_until_finished>
-      <parameters>
-        <pass_all_parameters>Y</pass_all_parameters>
-      </parameters>
-      <attributes />
       <name>Load identity references</name>
       <type>PIPELINE</type>
       <xloc>390</xloc>
@@ -218,32 +192,6 @@
       <draw>Y</draw>
       <parallel>N</parallel>
       <filename>${PROJECT_HOME}/graph/load_entity_names.hpl</filename>
-      <run_configuration>graph-local</run_configuration>
-    </action>
-    <action>
-      <attributes />
-      <params_from_previous>N</params_from_previous>
-      <exec_per_row>N</exec_per_row>
-      <clear_rows>N</clear_rows>
-      <clear_files>N</clear_files>
-      <create_parent_folder>N</create_parent_folder>
-      <set_logfile>N</set_logfile>
-      <set_append_logfile>N</set_append_logfile>
-      <add_date>N</add_date>
-      <add_time>N</add_time>
-      <loglevel>Basic</loglevel>
-      <wait_until_finished>Y</wait_until_finished>
-      <parameters>
-        <pass_all_parameters>Y</pass_all_parameters>
-      </parameters>
-      <attributes />
-      <name>Verify record properties</name>
-      <type>PIPELINE</type>
-      <xloc>970</xloc>
-      <yloc>400</yloc>
-      <draw>Y</draw>
-      <parallel>N</parallel>
-      <filename>${PROJECT_HOME}/graph/verify_records.hpl</filename>
       <run_configuration>graph-local</run_configuration>
     </action>
     <action>
@@ -372,7 +320,7 @@
       <yloc>740</yloc>
       <draw>Y</draw>
       <parallel>N</parallel>
-      <message>Graph load failed. Inspect the graph batch; PostgreSQL snapshots are unchanged.</message>
+      <message>Source graph failed; PostgreSQL evidence/checkpoints retain exact replay scope.</message>
     </action>
     <action>
       <attributes />
@@ -478,6 +426,84 @@
       <filename>${PROJECT_HOME}/retention/leave_graph_writer.hpl</filename>
       <run_configuration>retention-local</run_configuration>
     </action>
+    <action>
+      <attributes />
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <create_parent_folder>N</create_parent_folder>
+      <set_logfile>N</set_logfile>
+      <set_append_logfile>N</set_append_logfile>
+      <add_date>N</add_date>
+      <add_time>N</add_time>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+      <attributes />
+      <name>Set posting ingestion dates</name>
+      <type>PIPELINE</type>
+      <xloc>680</xloc>
+      <yloc>400</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <filename>${PROJECT_HOME}/graph/load_posting_dates.hpl</filename>
+      <run_configuration>graph-local</run_configuration>
+    </action>
+    <action>
+      <attributes />
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <create_parent_folder>N</create_parent_folder>
+      <set_logfile>N</set_logfile>
+      <set_append_logfile>N</set_append_logfile>
+      <add_date>N</add_date>
+      <add_time>N</add_time>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+      <attributes />
+      <name>Verify posting ingestion dates</name>
+      <type>PIPELINE</type>
+      <xloc>680</xloc>
+      <yloc>400</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <filename>${PROJECT_HOME}/graph/verify_posting_dates.hpl</filename>
+      <run_configuration>graph-local</run_configuration>
+    </action>
+    <action>
+      <attributes />
+      <params_from_previous>N</params_from_previous>
+      <exec_per_row>N</exec_per_row>
+      <clear_rows>N</clear_rows>
+      <clear_files>N</clear_files>
+      <create_parent_folder>N</create_parent_folder>
+      <set_logfile>N</set_logfile>
+      <set_append_logfile>N</set_append_logfile>
+      <add_date>N</add_date>
+      <add_time>N</add_time>
+      <loglevel>Basic</loglevel>
+      <wait_until_finished>Y</wait_until_finished>
+      <parameters>
+        <pass_all_parameters>Y</pass_all_parameters>
+      </parameters>
+      <attributes />
+      <name>Clear current source relationships</name>
+      <type>PIPELINE</type>
+      <xloc>390</xloc>
+      <yloc>400</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+      <filename>${PROJECT_HOME}/graph/clear_source_edges.hpl</filename>
+      <run_configuration>graph-local</run_configuration>
+    </action>
   </actions>
   <hops>
     <hop>
@@ -486,188 +512,6 @@
       <enabled>Y</enabled>
       <evaluation>Y</evaluation>
       <unconditional>Y</unconditional>
-    </hop>
-    <hop>
-      <from>Validate PostgreSQL snapshot</from>
-      <to>Release failed graph writer</to>
-      <enabled>Y</enabled>
-      <evaluation>N</evaluation>
-      <unconditional>N</unconditional>
-    </hop>
-    <hop>
-      <from>Validate PostgreSQL snapshot</from>
-      <to>Ensure graph constraints</to>
-      <enabled>Y</enabled>
-      <evaluation>Y</evaluation>
-      <unconditional>N</unconditional>
-    </hop>
-    <hop>
-      <from>Ensure graph constraints</from>
-      <to>Record graph failure</to>
-      <enabled>Y</enabled>
-      <evaluation>N</evaluation>
-      <unconditional>N</unconditional>
-    </hop>
-    <hop>
-      <from>Ensure graph constraints</from>
-      <to>Upgrade legacy labels</to>
-      <enabled>Y</enabled>
-      <evaluation>Y</evaluation>
-      <unconditional>N</unconditional>
-    </hop>
-    <hop>
-      <from>Upgrade legacy labels</from>
-      <to>Record graph failure</to>
-      <enabled>Y</enabled>
-      <evaluation>N</evaluation>
-      <unconditional>N</unconditional>
-    </hop>
-    <hop>
-      <from>Upgrade legacy labels</from>
-      <to>Begin graph batch</to>
-      <enabled>Y</enabled>
-      <evaluation>Y</evaluation>
-      <unconditional>N</unconditional>
-    </hop>
-    <hop>
-      <from>Begin graph batch</from>
-      <to>Record graph failure</to>
-      <enabled>Y</enabled>
-      <evaluation>N</evaluation>
-      <unconditional>N</unconditional>
-    </hop>
-    <hop>
-      <from>Begin graph batch</from>
-      <to>Load source records</to>
-      <enabled>Y</enabled>
-      <evaluation>Y</evaluation>
-      <unconditional>N</unconditional>
-    </hop>
-    <hop>
-      <from>Load source records</from>
-      <to>Record graph failure</to>
-      <enabled>Y</enabled>
-      <evaluation>N</evaluation>
-      <unconditional>N</unconditional>
-    </hop>
-    <hop>
-      <from>Load source records</from>
-      <to>Load identity references</to>
-      <enabled>Y</enabled>
-      <evaluation>Y</evaluation>
-      <unconditional>N</unconditional>
-    </hop>
-    <hop>
-      <from>Load identity references</from>
-      <to>Record graph failure</to>
-      <enabled>Y</enabled>
-      <evaluation>N</evaluation>
-      <unconditional>N</unconditional>
-    </hop>
-    <hop>
-      <from>Load identity references</from>
-      <to>Set readable entity names</to>
-      <enabled>Y</enabled>
-      <evaluation>Y</evaluation>
-      <unconditional>N</unconditional>
-    </hop>
-    <hop>
-      <from>Set readable entity names</from>
-      <to>Record graph failure</to>
-      <enabled>Y</enabled>
-      <evaluation>N</evaluation>
-      <unconditional>N</unconditional>
-    </hop>
-    <hop>
-      <from>Set readable entity names</from>
-      <to>Verify record properties</to>
-      <enabled>Y</enabled>
-      <evaluation>Y</evaluation>
-      <unconditional>N</unconditional>
-    </hop>
-    <hop>
-      <from>Verify record properties</from>
-      <to>Record graph failure</to>
-      <enabled>Y</enabled>
-      <evaluation>N</evaluation>
-      <unconditional>N</unconditional>
-    </hop>
-    <hop>
-      <from>Verify record properties</from>
-      <to>Verify identity references</to>
-      <enabled>Y</enabled>
-      <evaluation>Y</evaluation>
-      <unconditional>N</unconditional>
-    </hop>
-    <hop>
-      <from>Verify identity references</from>
-      <to>Record graph failure</to>
-      <enabled>Y</enabled>
-      <evaluation>N</evaluation>
-      <unconditional>N</unconditional>
-    </hop>
-    <hop>
-      <from>Verify identity references</from>
-      <to>Verify entity names</to>
-      <enabled>Y</enabled>
-      <evaluation>Y</evaluation>
-      <unconditional>N</unconditional>
-    </hop>
-    <hop>
-      <from>Verify entity names</from>
-      <to>Record graph failure</to>
-      <enabled>Y</enabled>
-      <evaluation>N</evaluation>
-      <unconditional>N</unconditional>
-    </hop>
-    <hop>
-      <from>Verify entity names</from>
-      <to>Verify graph membership</to>
-      <enabled>Y</enabled>
-      <evaluation>Y</evaluation>
-      <unconditional>N</unconditional>
-    </hop>
-    <hop>
-      <from>Verify graph membership</from>
-      <to>Record graph failure</to>
-      <enabled>Y</enabled>
-      <evaluation>N</evaluation>
-      <unconditional>N</unconditional>
-    </hop>
-    <hop>
-      <from>Verify graph membership</from>
-      <to>Accept graph snapshot</to>
-      <enabled>Y</enabled>
-      <evaluation>Y</evaluation>
-      <unconditional>N</unconditional>
-    </hop>
-    <hop>
-      <from>Accept graph snapshot</from>
-      <to>Record graph failure</to>
-      <enabled>Y</enabled>
-      <evaluation>N</evaluation>
-      <unconditional>N</unconditional>
-    </hop>
-    <hop>
-      <from>Accept graph snapshot</from>
-      <to>Leave retention writer guard</to>
-      <enabled>Y</enabled>
-      <evaluation>Y</evaluation>
-      <unconditional>N</unconditional>
-    </hop>
-    <hop>
-      <from>Record graph failure</from>
-      <to>Release failed graph writer</to>
-      <enabled>Y</enabled>
-      <evaluation>Y</evaluation>
-      <unconditional>N</unconditional>
-    </hop>
-    <hop>
-      <from>Record graph failure</from>
-      <to>Release failed graph writer</to>
-      <enabled>Y</enabled>
-      <evaluation>N</evaluation>
-      <unconditional>N</unconditional>
     </hop>
     <hop>
       <from>Enter retention writer guard</from>
@@ -684,6 +528,188 @@
       <unconditional>N</unconditional>
     </hop>
     <hop>
+      <from>Validate PostgreSQL snapshot</from>
+      <to>Ensure graph constraints</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Validate PostgreSQL snapshot</from>
+      <to>Release failed graph writer</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Ensure graph constraints</from>
+      <to>Upgrade legacy labels</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Ensure graph constraints</from>
+      <to>Record graph failure</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Upgrade legacy labels</from>
+      <to>Begin graph batch</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Upgrade legacy labels</from>
+      <to>Record graph failure</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Begin graph batch</from>
+      <to>Set readable entity names</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Begin graph batch</from>
+      <to>Record graph failure</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Set readable entity names</from>
+      <to>Set posting ingestion dates</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Set readable entity names</from>
+      <to>Record graph failure</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Set posting ingestion dates</from>
+      <to>Clear current source relationships</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Set posting ingestion dates</from>
+      <to>Record graph failure</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Clear current source relationships</from>
+      <to>Load identity references</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Clear current source relationships</from>
+      <to>Record graph failure</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Load identity references</from>
+      <to>Verify identity references</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Load identity references</from>
+      <to>Record graph failure</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Verify identity references</from>
+      <to>Verify entity names</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Verify identity references</from>
+      <to>Record graph failure</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Verify entity names</from>
+      <to>Verify posting ingestion dates</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Verify entity names</from>
+      <to>Record graph failure</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Verify posting ingestion dates</from>
+      <to>Verify graph membership</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Verify posting ingestion dates</from>
+      <to>Record graph failure</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Verify graph membership</from>
+      <to>Accept graph snapshot</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Verify graph membership</from>
+      <to>Record graph failure</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Accept graph snapshot</from>
+      <to>Leave retention writer guard</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>Accept graph snapshot</from>
+      <to>Record graph failure</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
       <from>Leave retention writer guard</from>
       <to>Success</to>
       <enabled>Y</enabled>
@@ -691,25 +717,18 @@
       <unconditional>N</unconditional>
     </hop>
     <hop>
-      <from>Leave retention writer guard</from>
-      <to>Abort</to>
+      <from>Record graph failure</from>
+      <to>Release failed graph writer</to>
       <enabled>Y</enabled>
-      <evaluation>N</evaluation>
-      <unconditional>N</unconditional>
+      <evaluation>Y</evaluation>
+      <unconditional>Y</unconditional>
     </hop>
     <hop>
       <from>Release failed graph writer</from>
       <to>Abort</to>
       <enabled>Y</enabled>
       <evaluation>Y</evaluation>
-      <unconditional>N</unconditional>
-    </hop>
-    <hop>
-      <from>Release failed graph writer</from>
-      <to>Abort</to>
-      <enabled>Y</enabled>
-      <evaluation>N</evaluation>
-      <unconditional>N</unconditional>
+      <unconditional>Y</unconditional>
     </hop>
   </hops>
   <notepads />
