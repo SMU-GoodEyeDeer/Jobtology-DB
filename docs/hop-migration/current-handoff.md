@@ -1,5 +1,21 @@
 # Current Hop migration handoff
 
+Updated: **2026-10-16 KST — repository-only integration fixes; no deployment or
+runtime change.** The runtime deployment allowlist now includes
+`028_product_role_demand_base.sql`; regression coverage checks real-package
+staging, unchanged-dependency drift rejection, private-file preservation and
+idempotent replay. The catalog runbook now installs both distinct `028_*.sql`
+files followed by `029_flat_catalog_compatibility.sql`, then grants; reader-only
+upgrades remain separate. The 54 focused tests and Ruff passed. A disposable,
+network-disabled PostgreSQL 18 fixture with synthetic approval/flat proof metadata
+reproduced the old sequence's `CATALOG_FLAT_COMPATIBILITY_REQUIRED` failure. The
+corrected documented sequence and replay preserved exact reader JSON and all 140
+application-table contents; the role reader retained `linked_postings` and
+restricted grants. The container was removed. This does not establish Neo4j,
+native-load or production verification.
+Receipt: `~/.local/state/jobtology-hop/merge-integration-check-f82cdf5c8fba/receipt.json`,
+SHA256 `cf0d8f39dd3a3a5ac1a522e79a714198fdd4a692d6c4cd6de4b37ba0240b7961`.
+
 Updated: **2026-10-16 KST — read-only JobKorea assessment; production remains
 October 15 VERIFIED and unchanged.** See the
 [future-import assessment and TODOs](2026-10-16-jobkorea-future-imports.md).

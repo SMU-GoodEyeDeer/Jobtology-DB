@@ -4,6 +4,7 @@ import importlib.util
 import json
 import shutil
 import sys
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any
 
@@ -11,7 +12,9 @@ import pytest
 
 
 @pytest.fixture
-def deployment(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Any, ...]:
+def deployment(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, request: pytest.FixtureRequest
+) -> tuple[Any, ...]:
     directory = Path(__file__).resolve().parents[2] / "hop/operations"
     monkeypatch.syspath_prepend(str(directory))
     spec = importlib.util.spec_from_file_location(
@@ -21,22 +24,47 @@ def deployment(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Any, ..
     module: Any = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
-    source = tmp_path / "source"
+    real_package = getattr(request, "param", False)
+    source = module.ROOT if real_package else tmp_path / "source"
     target = tmp_path / "target"
     state = tmp_path / "state"
     relative = "ingestions/jobkorea/install.hwf"
-    for root, content in ((source, b"reviewed installer"), (target, b"previous installer")):
-        path = root / relative
-        path.parent.mkdir(parents=True)
-        path.write_bytes(content)
+    if real_package:
+        for artifact in dict.fromkeys((*module.dependencies(), *module.ALLOWLIST)):
+            path = target / artifact
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes((source / artifact).read_bytes())
+        (target / "ontology/sql/028_product_role_demand_base.sql").unlink()
+        installer = ET.parse(target / "ontology/install.hwf")
+        actions = installer.find("actions")
+        hops = installer.find("hops")
+        assert actions is not None and hops is not None
+        migration = "ontology 028_product_role_demand_base"
+        for action in installer.findall("actions/action"):
+            if action.findtext("name") == migration:
+                actions.remove(action)
+        for hop in installer.findall("hops/hop"):
+            if hop.findtext("from") == migration:
+                hops.remove(hop)
+            elif hop.findtext("to") == migration:
+                destination = hop.find("to")
+                assert destination is not None
+                destination.text = "ontology 029_flat_catalog_compatibility"
+        installer.write(target / "ontology/install.hwf")
+    else:
+        for root, content in ((source, b"reviewed installer"), (target, b"previous installer")):
+            path = root / relative
+            path.parent.mkdir(parents=True)
+            path.write_bytes(content)
     private = target / "metadata/rdbms/private.json"
     private.parent.mkdir(parents=True)
     private.write_bytes(b"private connection")
     state.mkdir()
-    monkeypatch.setattr(module, "ROOT", source)
     monkeypatch.setattr(module, "STATE", state)
-    monkeypatch.setattr(module, "ALLOWLIST", (relative,))
-    monkeypatch.setattr(module, "dependencies", lambda: ())
+    if not real_package:
+        monkeypatch.setattr(module, "ROOT", source)
+        monkeypatch.setattr(module, "ALLOWLIST", (relative,))
+        monkeypatch.setattr(module, "dependencies", lambda: ())
     runtime = {"hop": "hop-test", "pg": "pg-test"}
     database = {"catalog_context": {"release_id": "approved"}}
     preserved = {"enrichment.attempt": {"count": 10, "digest": "unchanged"}}
@@ -162,6 +190,43 @@ def test_success_is_idempotent_and_keeps_private_metadata(deployment: tuple[Any,
     assert receipt["installed"] == list(module.ALLOWLIST)
     assert receipt["executed_sql"] is False and receipt["executed_jobs"] is False
     assert calls[0] == ["backup"]
+    assert (target / "metadata/rdbms/private.json").read_bytes() == b"private connection"
+    entries, _ = module.snapshot(runtime)
+    assert all(not entry["change"] for entry in entries.values())
+
+
+@pytest.mark.parametrize("deployment", [True], indirect=True)
+def test_real_package_deploys_new_dependency_and_preserves_drift_guard(
+    deployment: tuple[Any, ...],
+) -> None:
+    module, runtime, database, manifest, target, calls = deployment
+    migration = "ontology/sql/028_product_role_demand_base.sql"
+    entries, previous = module.snapshot(runtime)
+    assert previous[migration] is None
+    assert entries[migration] == {
+        "before": None,
+        "after": module.common.digest((module.ROOT / migration).read_bytes()),
+        "change": True,
+    }
+    assert {name for name, entry in entries.items() if entry["change"]} == {
+        migration,
+        "ontology/install.hwf",
+    }
+    preserved = "ontology/sql/027_product_role_inputs.sql"
+    original = (target / preserved).read_bytes()
+    (target / preserved).write_bytes(b"unexpected dependency drift")
+    with pytest.raises(RuntimeError, match=f"Unexpected unchanged dependency drift: {preserved}"):
+        module.apply(manifest, runtime, database)
+    assert calls == []
+    assert not (target / migration).exists()
+    (target / preserved).write_bytes(original)
+    receipt = json.loads(module.apply(manifest, runtime, database).read_text())
+    assert receipt["status"] == "VERIFIED"
+    assert set(receipt["installed"]) == {migration, "ontology/install.hwf"}
+    assert receipt["executed_sql"] is False and receipt["executed_jobs"] is False
+    assert calls[0] == ["backup"]
+    assert (target / migration).read_bytes() == (module.ROOT / migration).read_bytes()
+    assert (target / preserved).read_bytes() == original
     assert (target / "metadata/rdbms/private.json").read_bytes() == b"private connection"
     entries, _ = module.snapshot(runtime)
     assert all(not entry["change"] for entry in entries.values())

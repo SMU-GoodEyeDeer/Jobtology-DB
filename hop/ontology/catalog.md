@@ -3,12 +3,15 @@
 This package is source code only. No release is approved or installed by checking
 it in. `019_catalog_approval.sql`, `020_catalog_source_graph.sql`,
 `021_scoped_validation.sql`, `022_scoped_posting_census.sql`,
-`023_scoped_catalog_edges.sql`, `024_sealed_catalog.sql`, and
+`023_scoped_catalog_edges.sql`, `024_sealed_catalog.sql`,
 `025_live_source_feed.sql`, `026_live_ncs_demand.sql`,
-`027_product_role_inputs.sql`, and `028_product_role_demand_base.sql` are ordered actions
-in `install.hwf`.
+`027_product_role_inputs.sql`, `028_flat_graph_projection.sql`,
+`028_product_role_demand_base.sql`, and `029_flat_catalog_compatibility.sql` are
+ordered actions in `install.hwf`.
 It creates `catalog.catalog_approval` (immutable audit rows) and the independent
-singleton `catalog.catalog_active_release`; it does not modify
+singleton `catalog.catalog_active_release`. `029_flat_catalog_compatibility.sql`
+adds separate flat approval and pointer tables while preserving those historical
+rows. Installation does not modify
 `ontology.active_release`, `activate_release`, `publication_issue`, or analytics
 publication gates. The approval is an operator decision about a **source-only**
 catalog, not a human review of extraction, mapping, rules, or analysis.
@@ -17,7 +20,9 @@ catalog, not a human review of extraction, mapping, rules, or analysis.
 
 On an isolated, authorized target, install prerequisites in `ontology/install.hwf`
 order, or run the updated Hop installer with its configured PostgreSQL connection.
-For an already-installed ontology schema, the incremental SQL is:
+For an already-installed ontology schema, the full catalog SQL install/replay
+sequence is below. Both distinct `028_*.sql` files are required, in this order;
+apply the reader grants last:
 
 ```sh
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/019_catalog_approval.sql
@@ -29,17 +34,25 @@ psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/024_sealed_cat
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/025_live_source_feed.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/026_live_ncs_demand.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/027_product_role_inputs.sql
+psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/028_flat_graph_projection.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/028_product_role_demand_base.sql
+psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/029_flat_catalog_compatibility.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/catalog_reader_grants.psql
 ```
 
-If 019/020 and the reader grant are already installed, install **021 through 028
-in order**, then rerun the current reader grant, after inspecting the existing
-`ingestion.validation_issue` definition and taking the normal operator backup.
+If `019_catalog_approval.sql`, `020_catalog_source_graph.sql`, and the reader
+grant are already installed, start at `021_scoped_validation.sql` and continue
+through `029_flat_catalog_compatibility.sql` in the exact order above, including
+both `028_*.sql` files, then rerun the current reader grant. Inspect the existing
+`ingestion.validation_issue` definition and take the normal operator backup first.
 Migration 021 changes only CTE planner
 hints, keeps all issue branches, and refuses an unrecognized production view.
-Migration 024 installs write fences and an integrity attestation; reapply 024
-after reinstalling 019, which otherwise replaces the optimized approval gate.
+`024_sealed_catalog.sql` installs write fences and an integrity attestation.
+Replaying `019_catalog_approval.sql` or `024_sealed_catalog.sql` replaces the
+approval gate; on a schema with `ontology.flat_graph_projection`, reads remain
+closed with `CATALOG_FLAT_COMPATIBILITY_REQUIRED` until
+`029_flat_catalog_compatibility.sql` is reapplied. Complete the sequence before
+checking catalog reads.
 Do not rerun source preparation or approve a release merely because these
 migrations succeed; measure the complete verifier and reader path first.
 
@@ -48,8 +61,10 @@ For an **A-only installation**, check out commit
 SQL 025 followed by that same commit's `catalog_reader_grants.psql`. Do not use
 the working-tree grant script for A-only: it also names the 026 and 027
 functions. The A-only grant remains subject to the same privilege inspection,
-operator approval, and backup requirements below. The full-current-source path
-is the 025, 026, 027, 028, then current-grant sequence shown above.
+operator approval, and backup requirements below. The current full install path
+is the complete install/replay sequence above. The reader-only sequences below
+assume an already compatible catalog runtime; they do not replay the approval
+gate or perform the [flat graph migration](../operations/README.md#flattening-the-approved-ontology-projection).
 
 The grant script creates `jobtology_catalog_reader` as a LOGIN/NOINHERIT role
 without a password. Provision authentication separately. It fails if that role
@@ -102,14 +117,22 @@ decisions remain untouched.
 ```sql
 SELECT release_id,state,manifest_hash,graph_verified_at,data_as_of
 FROM ontology.corpus_release WHERE release_id = :'release_id';
-SELECT load_id,release_id,database_id,manifest_hash,state,started_at,finished_at,node_count,edge_count
-FROM ontology.graph_load WHERE database_id = :'database_id'
+SELECT load_id,release_id,database_id,source_manifest_hash,manifest_hash,state,started_at,staged_at,finished_at,node_count,edge_count
+FROM ontology.flat_graph_load WHERE database_id = :'database_id'
 ORDER BY started_at DESC,load_id DESC LIMIT 1;
 SELECT catalog.approve_catalog_release(:'release_id',:'database_id',:'actor',:'reason');
 SELECT catalog.catalog_context_v1();
 ```
 
-Example parameterized invocation (replace values deliberately, never use `LATEST`):
+For the current flattened loader, inspect `ontology.flat_graph_load` as above;
+its source and flat manifest hashes are separate. See the
+[flat graph contract](README.md#load-the-ontology-graph-candidate) for load verification and historical
+checkpoint preservation. `approve_catalog_release` dispatches to flat approval
+once the destination has a flat load; reinstalling SQL alone requires no approval.
+
+For a legacy destination that has never started a flat load, the existing
+parameterized helper inspects `ontology.graph_load` before approval (replace
+values deliberately, never use `LATEST`):
 
 ```sh
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" \
@@ -118,13 +141,17 @@ psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" \
   -f hop/ontology/catalog_approve.psql
 ```
 
-The corresponding `catalog_approve.psql` contains only the preflight and approval
-queries above. For interactive `psql`, set those four variables with `\set` and
-paste the SQL block; no production command is executed by the test suite. Repeating
-approval of the currently selected release/load is idempotent. A different load
-or pointer switch creates a new immutable audit row. A newer RUNNING/FAILED load,
-revocation/failure, changed manifest/inventory, missing verification, or changed
-pinned sources closes reads until a newly verified load is explicitly approved.
+`catalog_approve.psql` retains its legacy `ontology.graph_load` preflight; that
+row does not verify a flattened load. For a flattened destination, set those four
+variables with `\set` in interactive `psql` and use the SQL block above after
+independent native verification. No production command is executed by the test
+suite. Repeating approval of the currently selected release/projection is
+idempotent; future flat approvals use the separate flat ledger and pointer.
+A newer RUNNING/STAGED/FAILED flat load, revocation/failure, changed
+manifest/inventory, missing verification, or changed pinned sources closes reads.
+Flat reads require valid current proof matching the approved release/projection;
+replaying that same projection requires no new approval. A new release/projection
+requires its corresponding approval.
 Approval also requires the persisted source-only mode and a source-only graph
 inventory; a fully reviewed graph cannot be relabeled as a catalog projection.
 Do not repair a failed load by changing the catalog pointer manually.
@@ -133,8 +160,9 @@ The seal protects source content and release membership under a transaction-wide
 write boundary. Guarded writes require READ COMMITTED; TRUNCATE of guarded source
 and graph tables is forbidden even before the first seal. The existing release
 remains readable while an unrelated release is prepared, but a newer load to the
-**same graph destination** deliberately closes its old approval until that load
-is verified and separately approved. This conservative destination-wide behavior
+**same graph destination** deliberately closes reads until valid matching current
+proof is restored and any required new release/projection approval is in place.
+This conservative destination-wide behavior
 is not uninterrupted old-release availability during a failed B reload. Approved
 content cannot be edited; authorized revocation and reload state changes close
 new reads. Database owners, DDL-capable roles, and superusers are trusted and can
@@ -200,9 +228,10 @@ session date inclusively. Empty strings normalize to null; limits are 1–100,
 offsets nonnegative. Errors are `LIVE_SOURCE_UNAVAILABLE`, `INVALID_LIVE_PAGE`,
 `INVALID_LIVE_FILTER`, and `LIVE_POSTING_NOT_FOUND` (SQLSTATE P0001).
 
-On an already-installed target, run the required migration SQL, then the reader
-grant script as a privilege administrator (not via Hop). This section describes
-the full-current-source path:
+For a reader-only upgrade on an already compatible catalog runtime, run the four
+SQL files below, then the reader grant script as a privilege administrator (not
+via Hop). If reinstalling approval-gate SQL, use the complete
+[install/replay sequence](#install-and-approve-operator-only) instead:
 
 ```sh
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/025_live_source_feed.sql
@@ -214,7 +243,8 @@ psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/catalog_reader
 
 For A-only, use the 025 SQL and grant script from commit
 `5d27a4b940b307b67efbb0a45c23e026836c57be` only. Do not mix that installation
-with the current working-tree grant script or with 026/027/028.
+with the current working-tree grant script or with `026_live_ncs_demand.sql`,
+`027_product_role_inputs.sql`, or `028_product_role_demand_base.sql`.
 
 ## Live NCS demand (hop-live-ncs-demand-v1)
 
@@ -246,9 +276,10 @@ and publication date. Older evidence is historical, **not today's demand**.
 The same selection governs per-code contributor-only `publication_ids` in
 product-role inputs; posting counts are distinct by `(posting_source,posting_id)`.
 
-This migration is part of the full-current-source sequence. Install 025 first,
-then 026, then 027, then 028, and rerun reader grants only after all four migrations are
-present, as privilege admin:
+For a reader-only upgrade on an already compatible catalog runtime, apply the
+four files in this order, then rerun reader grants as privilege admin. Replaying
+approval-gate SQL requires the complete
+[install/replay sequence](#install-and-approve-operator-only) instead:
 
 ```sh
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/025_live_source_feed.sql
@@ -261,17 +292,19 @@ psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/catalog_reader
 ## Product-role inputs (jobtology-product-role-inputs-v1)
 
 `catalog.product_role_inputs_v1(occupation_codes text[])` returns an allowlisted
-`jsonb` payload of `contract_version`, `sources`, `units`, `qualifications`, and
-`evidence` for the requested eight-digit NCS occupation codes. `units` includes
-every version in the latest READY `ncs_competency` run with code, ten-digit base
+`jsonb` payload of `contract_version`, `sources`, `units`, `qualifications`,
+`evidence`, and `linked_postings` for the requested eight-digit NCS occupation
+codes. `units` includes every version in the latest READY `ncs_competency` run
+with code, ten-digit base
 code, name, level, occupation code/name. `qualifications` includes exact
 competency-code mappings from the latest READY `ncs_qualification` run, including
 minimum/total training hours (that run is optional). `evidence` has only
 competency code, source-scoped distinct posting count, link count, and sorted distinct
 `publication_ids` contributing to that exact code from the same selected READY
 publications as live NCS demand; it does not expose duties or private review data.
-`linked_postings` (added by 028, which replaces the function body with the same
-signature and grants) lists each attributable posting once as
+`linked_postings` (added by `028_product_role_demand_base.sql`, which replaces
+the function body with the same signature and grants) lists each attributable
+posting once as
 `{posting_key: "<posting_source>:<posting_id>", competency_codes: [...]}` with the
 sorted distinct requested-occupation codes it links to, from the same publication
 selection. Consumers derive a duplicate-free per-role demand denominator from it;
@@ -283,9 +316,10 @@ Input must be nonempty and contain only eight-digit
 codes (`INVALID_PRODUCT_ROLE_INPUT`); a missing READY competency run raises
 `LIVE_SOURCE_UNAVAILABLE`. It is not a sealed-catalog approval or publication.
 
-This migration is part of the full-current-source sequence. Install 025 first,
-then 026, then 027, then 028, and rerun reader grants only after all four migrations are
-present, as privilege admin:
+For a reader-only upgrade on an already compatible catalog runtime, apply the
+four files in this order, then rerun reader grants as privilege admin. Replaying
+approval-gate SQL requires the complete
+[install/replay sequence](#install-and-approve-operator-only) instead:
 
 ```sh
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/025_live_source_feed.sql

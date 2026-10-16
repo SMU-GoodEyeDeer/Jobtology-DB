@@ -38,6 +38,7 @@ ALLOWLIST = (
     "ontology/sql/024_sealed_catalog.sql",
     "ontology/sql/catalog_reader_grants.psql",
     "ontology/sql/028_flat_graph_projection.sql",
+    "ontology/sql/028_product_role_demand_base.sql",
     "ontology/sql/029_flat_catalog_compatibility.sql",
     "ontology/install.hwf",
     "ontology/install_flat_graph.hwf",
