@@ -519,6 +519,20 @@
       <draw>Y</draw>
       <parallel>N</parallel>
     </action>
+    <action>
+      <name>ontology 030_live_ncs_unit</name>
+      <type>SQL</type>
+      <connection>jobtology-postgres</connection>
+      <sqlfromfile>Y</sqlfromfile>
+      <sqlfilename>${PROJECT_HOME}/ontology/sql/030_live_ncs_unit.sql</sqlfilename>
+      <sqlfilename_encoding>UTF-8</sqlfilename_encoding>
+      <useVariableSubstitution>N</useVariableSubstitution>
+      <sendOneStatement>Y</sendOneStatement>
+      <xloc>80</xloc>
+      <yloc>1200</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+    </action>
   </actions>
   <hops>
     <hop>
@@ -999,6 +1013,20 @@
     </hop>
     <hop>
       <from>ontology 029_flat_catalog_compatibility</from>
+      <to>ontology 030_live_ncs_unit</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>ontology 030_live_ncs_unit</from>
+      <to>Abort</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>ontology 030_live_ncs_unit</from>
       <to>Success</to>
       <enabled>Y</enabled>
       <evaluation>Y</evaluation>

@@ -22,9 +22,8 @@ On an isolated, authorized target, install prerequisites in `ontology/install.hw
 order, or run the updated Hop installer with its configured PostgreSQL connection.
 For an already-installed ontology schema, the full catalog SQL install/replay
 sequence is below. Both distinct `028_*.sql` files are required, in this order;
-apply `029_live_ncs_unit.sql` after those files and the reader grants last.
-The new unit reader is a separate SQL action; the existing Hop installer does not
-yet include it:
+apply `030_live_ncs_unit.sql` after those files and the reader grants last
+(`ontology/install.hwf` also ends with 030):
 
 ```sh
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/019_catalog_approval.sql
@@ -39,13 +38,13 @@ psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/027_product_ro
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/028_flat_graph_projection.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/028_product_role_demand_base.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/029_flat_catalog_compatibility.sql
-psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/029_live_ncs_unit.sql
+psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/030_live_ncs_unit.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/catalog_reader_grants.psql
 ```
 
 If `019_catalog_approval.sql`, `020_catalog_source_graph.sql`, and the reader
 grant are already installed, start at `021_scoped_validation.sql` and continue
-through `029_live_ncs_unit.sql` in the exact order above, including
+through `030_live_ncs_unit.sql` in the exact order above, including
 both `028_*.sql` files, then rerun the current reader grant. Inspect the existing
 `ingestion.validation_issue` definition and take the normal operator backup first.
 Migration 021 changes only CTE planner
@@ -241,7 +240,7 @@ psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/025_live_sourc
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/026_live_ncs_demand.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/027_product_role_inputs.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/028_product_role_demand_base.sql
-psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/029_live_ncs_unit.sql
+psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/030_live_ncs_unit.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/catalog_reader_grants.psql
 ```
 
@@ -249,7 +248,7 @@ For A-only, use the 025 SQL and grant script from commit
 `5d27a4b940b307b67efbb0a45c23e026836c57be` only. Do not mix that installation
 with the current working-tree grant script or with `026_live_ncs_demand.sql`,
 `027_product_role_inputs.sql`, `028_product_role_demand_base.sql`, or
-`029_live_ncs_unit.sql`.
+`030_live_ncs_unit.sql`.
 
 ## Live NCS unit (hop-live-source-v1)
 
@@ -276,7 +275,7 @@ exposed from `ingestion.record.normalized.definition` (official `compeUnitDef`);
 missing, empty or whitespace-only text becomes null, and other text is preserved.
 No ingestion view is changed. This bounded, STABLE SECURITY DEFINER reader has a
 fixed `pg_catalog,pg_temp` search path, no PUBLIC execute privilege and no writes;
-it does not require or approve a sealed catalog release. Install SQL 029 before
+it does not require or approve a sealed catalog release. Install SQL 030 before
 rerunning `catalog_reader_grants.psql` to enable the restricted catalog reader.
 
 ## Live NCS demand (hop-live-ncs-demand-v1)
@@ -319,7 +318,7 @@ psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/025_live_sourc
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/026_live_ncs_demand.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/027_product_role_inputs.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/028_product_role_demand_base.sql
-psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/029_live_ncs_unit.sql
+psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/030_live_ncs_unit.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/catalog_reader_grants.psql
 ```
 
@@ -360,7 +359,7 @@ psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/025_live_sourc
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/026_live_ncs_demand.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/027_product_role_inputs.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/028_product_role_demand_base.sql
-psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/029_live_ncs_unit.sql
+psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/030_live_ncs_unit.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/catalog_reader_grants.psql
 ```
 

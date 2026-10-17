@@ -40,6 +40,7 @@ ALLOWLIST = (
     "ontology/sql/028_flat_graph_projection.sql",
     "ontology/sql/028_product_role_demand_base.sql",
     "ontology/sql/029_flat_catalog_compatibility.sql",
+    "ontology/sql/030_live_ncs_unit.sql",
     "ontology/install.hwf",
     "ontology/install_flat_graph.hwf",
     "ontology/load_release.hwf",

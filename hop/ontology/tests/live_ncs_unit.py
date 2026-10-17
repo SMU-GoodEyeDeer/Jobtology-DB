@@ -89,7 +89,7 @@ INSERT INTO ingestion.record(run_id,document_id,locator,source_record_id,source_
         error(f'SELECT catalog.live_ncs_unit_v1({argument})', 'INVALID_LIVE_FILTER')
 
     # Given: restricted grants. When: reader calls in a read-only transaction. Then: success.
-    run.sql((run.ROOT / 'hop/ontology/sql/029_live_ncs_unit.sql').read_text())
+    run.sql((run.ROOT / 'hop/ontology/sql/030_live_ncs_unit.sql').read_text())
     run.sql((run.ROOT / 'hop/ontology/sql/catalog_reader_grants.psql').read_text())
     assert run.sql('BEGIN READ ONLY; SET LOCAL ROLE jobtology_catalog_reader; '
                    "SELECT catalog.live_ncs_unit_v1('2001020205')="
