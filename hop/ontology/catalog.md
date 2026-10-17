@@ -22,7 +22,9 @@ On an isolated, authorized target, install prerequisites in `ontology/install.hw
 order, or run the updated Hop installer with its configured PostgreSQL connection.
 For an already-installed ontology schema, the full catalog SQL install/replay
 sequence is below. Both distinct `028_*.sql` files are required, in this order;
-apply the reader grants last:
+apply `029_live_ncs_unit.sql` after those files and the reader grants last.
+The new unit reader is a separate SQL action; the existing Hop installer does not
+yet include it:
 
 ```sh
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/019_catalog_approval.sql
@@ -37,12 +39,13 @@ psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/027_product_ro
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/028_flat_graph_projection.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/028_product_role_demand_base.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/029_flat_catalog_compatibility.sql
+psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/029_live_ncs_unit.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/catalog_reader_grants.psql
 ```
 
 If `019_catalog_approval.sql`, `020_catalog_source_graph.sql`, and the reader
 grant are already installed, start at `021_scoped_validation.sql` and continue
-through `029_flat_catalog_compatibility.sql` in the exact order above, including
+through `029_live_ncs_unit.sql` in the exact order above, including
 both `028_*.sql` files, then rerun the current reader grant. Inspect the existing
 `ingestion.validation_issue` definition and take the normal operator backup first.
 Migration 021 changes only CTE planner
@@ -70,7 +73,7 @@ The grant script creates `jobtology_catalog_reader` as a LOGIN/NOINHERIT role
 without a password. Provision authentication separately. It fails if that role
 can use the `ontology` schema (including via PUBLIC); remove that leakage before
 deploying it. Do not add the reader to privileged roles. Only the catalog schema
-and ten read function signatures are granted. Tables, the internal gate,
+and eleven read function signatures are granted. Tables, the internal gate,
 approval, and ontology preview functions are not granted. Install as a trusted
 schema owner with access to ontology/ingestion/retention; restrict owner and
 approver credentials independently of the reader role. Do not run the grant
@@ -228,7 +231,7 @@ session date inclusively. Empty strings normalize to null; limits are 1–100,
 offsets nonnegative. Errors are `LIVE_SOURCE_UNAVAILABLE`, `INVALID_LIVE_PAGE`,
 `INVALID_LIVE_FILTER`, and `LIVE_POSTING_NOT_FOUND` (SQLSTATE P0001).
 
-For a reader-only upgrade on an already compatible catalog runtime, run the four
+For a reader-only upgrade on an already compatible catalog runtime, run the five
 SQL files below, then the reader grant script as a privilege administrator (not
 via Hop). If reinstalling approval-gate SQL, use the complete
 [install/replay sequence](#install-and-approve-operator-only) instead:
@@ -238,13 +241,43 @@ psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/025_live_sourc
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/026_live_ncs_demand.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/027_product_role_inputs.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/028_product_role_demand_base.sql
+psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/029_live_ncs_unit.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/catalog_reader_grants.psql
 ```
 
 For A-only, use the 025 SQL and grant script from commit
 `5d27a4b940b307b67efbb0a45c23e026836c57be` only. Do not mix that installation
 with the current working-tree grant script or with `026_live_ncs_demand.sql`,
-`027_product_role_inputs.sql`, or `028_product_role_demand_base.sql`.
+`027_product_role_inputs.sql`, `028_product_role_demand_base.sql`, or
+`029_live_ncs_unit.sql`.
+
+## Live NCS unit (hop-live-source-v1)
+
+`catalog.live_ncs_unit_v1(base_code text) RETURNS jsonb` reads one unit from the
+newest READY full `ncs_competency` run selected by `ingestion.latest_ready_run`.
+It returns exactly:
+
+```json
+{
+  "contract_version": "hop-live-source-v1",
+  "sources": [{"source_id": "ncs_competency", "run_id": "<run ID>", "data_as_of": "<completion timestamp>"}],
+  "item": {"base_code": "2001020205", "code": "2001020205_23v6", "name": "…", "level": 3, "definition": "…"}
+}
+```
+
+The input must be exactly ten ASCII digits; NULL, whitespace and malformed codes
+raise `INVALID_LIVE_FILTER` (SQLSTATE P0001). No READY run raises
+`LIVE_SOURCE_UNAVAILABLE` (P0001). Matching uses `left(code,10)=base_code`, excludes
+names containing `(구버전)`, and chooses the lexicographically highest full code
+(`COLLATE "C"`), not a numeric version comparison. No eligible match returns
+`item: null` while retaining the selected source provenance. `level` is an integer
+or null. `definition` comes directly from `ingestion.competency.definition`,
+exposed from `ingestion.record.normalized.definition` (official `compeUnitDef`);
+missing, empty or whitespace-only text becomes null, and other text is preserved.
+No ingestion view is changed. This bounded, STABLE SECURITY DEFINER reader has a
+fixed `pg_catalog,pg_temp` search path, no PUBLIC execute privilege and no writes;
+it does not require or approve a sealed catalog release. Install SQL 029 before
+rerunning `catalog_reader_grants.psql` to enable the restricted catalog reader.
 
 ## Live NCS demand (hop-live-ncs-demand-v1)
 
@@ -277,7 +310,7 @@ The same selection governs per-code contributor-only `publication_ids` in
 product-role inputs; posting counts are distinct by `(posting_source,posting_id)`.
 
 For a reader-only upgrade on an already compatible catalog runtime, apply the
-four files in this order, then rerun reader grants as privilege admin. Replaying
+five files in this order, then rerun reader grants as privilege admin. Replaying
 approval-gate SQL requires the complete
 [install/replay sequence](#install-and-approve-operator-only) instead:
 
@@ -286,6 +319,7 @@ psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/025_live_sourc
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/026_live_ncs_demand.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/027_product_role_inputs.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/028_product_role_demand_base.sql
+psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/029_live_ncs_unit.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/catalog_reader_grants.psql
 ```
 
@@ -317,7 +351,7 @@ codes (`INVALID_PRODUCT_ROLE_INPUT`); a missing READY competency run raises
 `LIVE_SOURCE_UNAVAILABLE`. It is not a sealed-catalog approval or publication.
 
 For a reader-only upgrade on an already compatible catalog runtime, apply the
-four files in this order, then rerun reader grants as privilege admin. Replaying
+five files in this order, then rerun reader grants as privilege admin. Replaying
 approval-gate SQL requires the complete
 [install/replay sequence](#install-and-approve-operator-only) instead:
 
@@ -326,6 +360,7 @@ psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/025_live_sourc
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/026_live_ncs_demand.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/027_product_role_inputs.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/028_product_role_demand_base.sql
+psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/029_live_ncs_unit.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/catalog_reader_grants.psql
 ```
 
@@ -339,6 +374,7 @@ uv run hop/ontology/tests/source_catalog.py
 uv run hop/ontology/tests/live_feed.py
 uv run hop/ontology/tests/live_ncs_demand.py
 uv run hop/ontology/tests/product_role_inputs.py
+uv run hop/ontology/tests/live_ncs_unit.py
 ```
 
 These tests reuse `ontology/tests/run.py` and its **disposable** `ontologytest`
