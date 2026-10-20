@@ -1,5 +1,16 @@
 # Current Hop migration handoff
 
+Updated: **2026-10-21 KST — repository-only NCS pin comparison report.** The new
+[read-only report CLI](ncs-pin-revalidation-report.md) accepts an exact current
+run ID and bounded occupation codes, discovers backend cohort pins, proves old
+frozen SQL 036 catalogue hashes against archived READY normalized rows, and
+compares current target content in one bounded read-only snapshot. It reports
+equal content, changed/missing targets or unverifiable evidence, retaining
+original pins and STALE status. It does not claim model quality or full v2
+context equivalence, and makes no paid/source requests. The 22 focused unit tests
+and nine actual PostgreSQL 17 synthetic integration checks passed in a separate
+disposable test database; no production comparison or mutation was performed.
+
 Updated: **2026-10-20 KST — repository-only source audit corrections; final
 current-SQL checks passed, including filter pushdown.** SQL 031 now preserves JobKorea delta omissions using
 the latest accepted native-ID observation across READY non-SMOKE runs; every
