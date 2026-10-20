@@ -1,5 +1,37 @@
 # Current Hop migration handoff
 
+Updated: **2026-10-21 KST — read-only production NCS pin comparison verified.**
+At database transaction time `2026-10-20T15:52:51.053887+00:00`, the report's
+bounded read-only snapshot confirmed current NCS pin
+`26b8f6cc-c32b-4e3a-a529-a37a329b898b`. All six selected occupations proved
+identical normalized SQL 036 target content against their original frozen
+catalogue hashes: **2,309 published associations** are
+`PIN_CHANGED_CONTENT_EQUAL`, with zero `TARGET_CHANGED`, `TARGET_MISSING` or
+`UNVERIFIABLE` results. Codes `20010202` (1,855) and `20010204` (35) account for
+1,890 associations; the others are `20010105` (95), `20010207` (40),
+`20010703` (126) and `20010705` (158).
+This establishes selected-target normalized catalogue equivalence only;
+model quality, full retrieval catalogue and inference-context equivalence remain
+unassessed. Original pins, **STALE** freshness and review states remain unchanged.
+No deployment, database mutation, paid call or job-board HTTP occurred. See the
+[comparison checkpoint](ncs-pin-revalidation-report.md#verified-production-comparison).
+Protected receipt:
+`~/.local/state/jobtology-hop/ncs-revalidation/report-20261020T155251Z.json`
+(mode `0600`), SHA256
+`4c8206c2585ff8778851134fe52085d4c52645a85fea24dab5fcb2e3d188dad8`.
+The repository-only checkpoint below predates this production comparison.
+
+Updated: **2026-10-21 KST — repository-only NCS pin comparison report.** The new
+[read-only report CLI](ncs-pin-revalidation-report.md) accepts an exact current
+run ID and bounded occupation codes, discovers backend cohort pins, proves old
+frozen SQL 036 catalogue hashes against archived READY normalized rows, and
+compares current target content in one bounded read-only snapshot. It reports
+equal content, changed/missing targets or unverifiable evidence, retaining
+original pins and STALE status. It does not claim model quality or full v2
+context equivalence, and makes no paid/source requests. The 22 focused unit tests
+and nine actual PostgreSQL 17 synthetic integration checks passed in a separate
+disposable test database; no production comparison or mutation was performed.
+
 Updated: **2026-10-20 KST — repository-only source audit corrections; final
 current-SQL checks passed, including filter pushdown.** SQL 031 now preserves JobKorea delta omissions using
 the latest accepted native-ID observation across READY non-SMOKE runs; every
