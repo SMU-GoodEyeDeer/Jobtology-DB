@@ -6,7 +6,9 @@ it in. `019_catalog_approval.sql`, `020_catalog_source_graph.sql`,
 `023_scoped_catalog_edges.sql`, `024_sealed_catalog.sql`,
 `025_live_source_feed.sql`, `026_live_ncs_demand.sql`,
 `027_product_role_inputs.sql`, `028_flat_graph_projection.sql`,
-`028_product_role_demand_base.sql`, and `029_flat_catalog_compatibility.sql` are
+`028_product_role_demand_base.sql`, `029_flat_catalog_compatibility.sql`,
+`030_live_ncs_unit.sql`, `031_multi_source_live_postings.sql`, and
+`032_inferred_occupation_context.sql` are
 ordered actions in `install.hwf`.
 It creates `catalog.catalog_approval` (immutable audit rows) and the independent
 singleton `catalog.catalog_active_release`. `029_flat_catalog_compatibility.sql`
@@ -22,8 +24,9 @@ On an isolated, authorized target, install prerequisites in `ontology/install.hw
 order, or run the updated Hop installer with its configured PostgreSQL connection.
 For an already-installed ontology schema, the full catalog SQL install/replay
 sequence is below. Both distinct `028_*.sql` files are required, in this order;
-apply `030_live_ncs_unit.sql` after those files and the reader grants last
-(`ontology/install.hwf` also ends with 030):
+apply `030_live_ncs_unit.sql`, `031_multi_source_live_postings.sql`, and
+`032_inferred_occupation_context.sql` after
+those files and the reader grants last (`ontology/install.hwf` also ends with 032):
 
 ```sh
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/019_catalog_approval.sql
@@ -39,12 +42,14 @@ psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/028_flat_graph
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/028_product_role_demand_base.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/029_flat_catalog_compatibility.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/030_live_ncs_unit.sql
+psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/031_multi_source_live_postings.sql
+psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/032_inferred_occupation_context.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/catalog_reader_grants.psql
 ```
 
 If `019_catalog_approval.sql`, `020_catalog_source_graph.sql`, and the reader
 grant are already installed, start at `021_scoped_validation.sql` and continue
-through `030_live_ncs_unit.sql` in the exact order above, including
+through `032_inferred_occupation_context.sql` in the exact order above, including
 both `028_*.sql` files, then rerun the current reader grant. Inspect the existing
 `ingestion.validation_issue` definition and take the normal operator backup first.
 Migration 021 changes only CTE planner
@@ -208,8 +213,9 @@ or demand metrics.
 
 ## Live source feed (hop-live-source-v1)
 
-These independent `catalog` functions return `jsonb` directly from the latest
-READY non-SMOKE ingestion run per source. They **do not** use the sealed/approved
+These independent `catalog` functions return `jsonb` from READY non-SMOKE
+ingestion observations. JobKorea retains the latest accepted observation per
+native posting ID across eligible runs; ALIO and Nara use their latest READY run. They **do not** use the sealed/approved
 release, its graph, or the approval gate. All responses include
 `contract_version: "hop-live-source-v1"` and `sources` entries with `source_id`,
 `run_id`, and ISO-8601 `data_as_of` (run completion). No job description,
@@ -217,12 +223,45 @@ eligibility, preference, selection, or disqualification text is returned.
 
 | Signature | Response |
 |---|---|
-| `live_postings_v1(search text DEFAULT NULL, ncs_category text DEFAULT NULL, region text DEFAULT NULL, open_on date DEFAULT NULL, page_size integer DEFAULT 20, page_offset integer DEFAULT 0)` | `filters:{q,ncs_category,region,open_on}`, `limit`, `offset`, `total`, `items` with posting ID, title, organization, dates, ongoing, regions, employment types, recruitment type, education, paired NCS categories, headcount, and HTTP(S) source URL |
-| `live_posting_v1(posting_choice text)` | `item` with the same posting projection; only a posting in the latest READY job run is found |
+| `live_postings_v1(search text DEFAULT NULL, ncs_category text DEFAULT NULL, region text DEFAULT NULL, open_on date DEFAULT NULL, page_size integer DEFAULT 20, page_offset integer DEFAULT 0)` | `filters:{q,ncs_category,region,open_on}`, `limit`, `offset`, `total`, `items` with posting ID, source ID, title, organization, dates, ongoing, regions, employment types, recruitment type, education, paired NCS categories, headcount, and HTTP(S) source URL |
+| `live_posting_v1(posting_choice text)` | `item` with the same posting projection; the same retained source observation as the list is found |
 | `live_exam_sessions_v1(qualification text DEFAULT NULL, from_date date DEFAULT NULL, to_date date DEFAULT NULL, page_size integer DEFAULT 20, page_offset integer DEFAULT 0)` | `filters:{qualification,from,to}`, `limit`, `offset`, `total`, `items` with qualification code/name, year, round, category, session name, and `written`/`practical` registration, exam and result dates |
 
-Postings require `job_alio`; exams require `qnet_schedule` and optionally join
-`ncs_qualification` for names. Search is a literal case-insensitive substring of
+Postings include `jobkorea`, `job_alio`, and `nara_job`; any available source
+suffices. JobKorea uses selected, metadata-accepted local listings across READY
+non-SMOKE runs. A later accepted row replaces the same native ID; omission from
+a later delta does not close or hide an older accepted posting. Invalid,
+unselected, failed, loading and SMOKE observations cannot replace accepted rows.
+ALIO keeps list/detail pairing and bare IDs. Nara requires its current complete
+list/detail/positions/files observation. JobKorea IDs use `jobkorea:<native-id>`
+and Nara uses `nara_job:<native-id>` in list and detail.
+
+Every posting has `source_id` and `source_provenance:{source_id,run_id,data_as_of}` for its
+exact observation. The list's top-level `sources` describes the latest available
+source runs, which can differ from a retained JobKorea item's run. Detail
+`sources` pins its selected item's exact observation. `data_as_of` is run
+completion/import time; it never claims collection time. Raw private export
+paths, document locators and signed input references are not returned.
+
+Source priority is JobKorea, ALIO, then Nara, applied before pagination. Within a
+source, closing dates ascend (null last), followed by posting ID. Unclassified
+listings keep an empty `ncs_categories` array and do not match source NCS filters.
+Employer names retain their source metadata meaning and do not verify identity.
+The feed does not synthesize narrative or inferred occupation evidence.
+
+Items expose `source_status`, `deadline_kind`, `deadline_basis`, `deadline_raw`,
+`application_start_date`, `application_start_at`, `deadline_at` and
+`ongoing_basis`. Unknown values remain null. An explicit CLOSED status fails
+`open_on`, including when its deadline is null. Fixed instants intersect the
+requested KST calendar day; application-start dates and instants constrain
+availability without becoming `date_posted`. Instant deadlines provide their
+KST calendar day as `closing_date`, retaining the instant separately. Malformed
+calendar values remain unknown. JobKorea `ongoing` is derived against the current
+time and labels the source/status/date or `USER_POLICY` basis; a policy-derived
+rolling deadline is never presented as a source-stated date.
+
+Exams require `qnet_schedule` and optionally join `ncs_qualification` for names.
+Search is a literal case-insensitive substring of
 title or organization name; NCS code is case-insensitive exact, NCS name and
 region are exact. `open_on` intersects posting dates. Qualification matches code
 exactly or name by case-insensitive substring. Exam date bounds match any valid
@@ -230,7 +269,23 @@ session date inclusively. Empty strings normalize to null; limits are 1–100,
 offsets nonnegative. Errors are `LIVE_SOURCE_UNAVAILABLE`, `INVALID_LIVE_PAGE`,
 `INVALID_LIVE_FILTER`, and `LIVE_POSTING_NOT_FOUND` (SQLSTATE P0001).
 
-For a reader-only upgrade on an already compatible catalog runtime, run the five
+For an already compatible catalog with its restricted reader role and grants,
+apply only 031 and 032 as the function owner:
+
+```sh
+psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/031_multi_source_live_postings.sql
+psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/032_inferred_occupation_context.sql
+```
+
+Existing posting function signatures retain their grants. SQL 032 conditionally
+grants EXECUTE on only the new context function when `jobtology_catalog_reader`
+already exists; it preserves all unrelated privileges and does not rerun the full
+grant reset. Fresh installations or installations missing the restricted role
+still need `catalog_reader_grants.psql` as a privilege administrator. New helpers
+deny PUBLIC execution. Neither reader modifies the approved release, original
+source pins, product role inputs, or competency evidence.
+
+For a broader reader upgrade missing the live-reader migrations, run the seven
 SQL files below, then the reader grant script as a privilege administrator (not
 via Hop). If reinstalling approval-gate SQL, use the complete
 [install/replay sequence](#install-and-approve-operator-only) instead:
@@ -241,14 +296,17 @@ psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/026_live_ncs_d
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/027_product_role_inputs.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/028_product_role_demand_base.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/030_live_ncs_unit.sql
+psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/031_multi_source_live_postings.sql
+psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/032_inferred_occupation_context.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/catalog_reader_grants.psql
 ```
 
 For A-only, use the 025 SQL and grant script from commit
 `5d27a4b940b307b67efbb0a45c23e026836c57be` only. Do not mix that installation
 with the current working-tree grant script or with `026_live_ncs_demand.sql`,
-`027_product_role_inputs.sql`, `028_product_role_demand_base.sql`, or
-`030_live_ncs_unit.sql`.
+`027_product_role_inputs.sql`, `028_product_role_demand_base.sql`,
+`030_live_ncs_unit.sql`, `031_multi_source_live_postings.sql`, or
+`032_inferred_occupation_context.sql`.
 
 ## Live NCS unit (hop-live-source-v1)
 
@@ -309,7 +367,7 @@ The same selection governs per-code contributor-only `publication_ids` in
 product-role inputs; posting counts are distinct by `(posting_source,posting_id)`.
 
 For a reader-only upgrade on an already compatible catalog runtime, apply the
-five files in this order, then rerun reader grants as privilege admin. Replaying
+six files in this order, then rerun reader grants as privilege admin. Replaying
 approval-gate SQL requires the complete
 [install/replay sequence](#install-and-approve-operator-only) instead:
 
@@ -319,6 +377,8 @@ psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/026_live_ncs_d
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/027_product_role_inputs.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/028_product_role_demand_base.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/030_live_ncs_unit.sql
+psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/031_multi_source_live_postings.sql
+psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/032_inferred_occupation_context.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/catalog_reader_grants.psql
 ```
 
@@ -350,7 +410,7 @@ codes (`INVALID_PRODUCT_ROLE_INPUT`); a missing READY competency run raises
 `LIVE_SOURCE_UNAVAILABLE`. It is not a sealed-catalog approval or publication.
 
 For a reader-only upgrade on an already compatible catalog runtime, apply the
-five files in this order, then rerun reader grants as privilege admin. Replaying
+six files in this order, then rerun reader grants as privilege admin. Replaying
 approval-gate SQL requires the complete
 [install/replay sequence](#install-and-approve-operator-only) instead:
 
@@ -360,6 +420,8 @@ psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/026_live_ncs_d
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/027_product_role_inputs.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/028_product_role_demand_base.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/030_live_ncs_unit.sql
+psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/031_multi_source_live_postings.sql
+psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/032_inferred_occupation_context.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/catalog_reader_grants.psql
 ```
 
@@ -396,3 +458,40 @@ its synthetic reviewed-load row is only a negative mode-gate fixture, not
 native proof. Run `claims.py` followed by `graph.py` for the full reviewed graph
 regression. Tests using the fixed `jobtology-ontology-test-*` names must run
 sequentially, not alongside each other; `catalog_graph.py` uses unique names.
+
+## Separate inferred occupation context
+
+`catalog.inferred_occupation_context_v1(occupation_codes text[] DEFAULT NULL,
+page_size integer DEFAULT 20, page_offset integer DEFAULT 0)` returns the
+`jobtology-inferred-occupation-context-v1` contract. Filters accept at most 100
+NCS eight-digit or O*NET occupation codes. Pages contain at most 100 associations;
+the summary counts all filtered associations and distinct source postings,
+including counts by source and occupation. Empty arrays select no occupations;
+NULL selects all. It is available only through the restricted catalog reader.
+Validated filters are passed into the inference adapters; an NCS-only request
+skips the O*NET branch and vice versa. Source hashes are computed only for
+matching posting observations and the requested comparison scheme. This avoids
+unrelated hash work without establishing a production latency bound.
+
+The reader uses completed NCS publication cohorts and VERIFIED O*NET graph
+publication rows. Optional unavailable inference adapters produce no associations.
+Items carry `METADATA_INFERRED`/`MODEL_INFERRED`, actual review status, STAGING,
+NULL/UNASSESSED confidence, separate source/catalog pins and freshness states.
+They include a safe current posting preview, or null if no current observation
+exists. No inferred category is inserted into source NCS classifications, sealed
+release artifacts, required competencies, or product-role evidence.
+
+NCS source freshness compares the frozen input manifest's exact normalized hash
+with the retained current observation. O*NET compares its frozen source-facts hash
+with the current graph-facts projection. Missing comparison adapters are UNKNOWN;
+a changed or missing source is STALE. Catalogue freshness checks the current NCS
+run, or O*NET release and target content hash. `current_associations` requires
+both source and catalogue CURRENT. Separate source-current, catalogue-current,
+stale and unknown counts prevent source-current/catalogue-stale data from being
+reported as fully current. These are inference context signals, not approved
+competency evidence or employer requirements.
+
+The focused `hop/ontology/tests/inferred_occupation_context.py` checks SQL reader
+projection, optional native-shaped O*NET rows, source pins, catalogue staleness,
+counts, previews, filtering, replay and grants. It does not qualify a new model
+result or Neo4j publication and makes no provider or job-board request.

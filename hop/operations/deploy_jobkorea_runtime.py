@@ -41,6 +41,8 @@ ALLOWLIST = (
     "ontology/sql/028_product_role_demand_base.sql",
     "ontology/sql/029_flat_catalog_compatibility.sql",
     "ontology/sql/030_live_ncs_unit.sql",
+    "ontology/sql/031_multi_source_live_postings.sql",
+    "ontology/sql/032_inferred_occupation_context.sql",
     "ontology/install.hwf",
     "ontology/install_flat_graph.hwf",
     "ontology/load_release.hwf",

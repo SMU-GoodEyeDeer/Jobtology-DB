@@ -1,5 +1,61 @@
 # Current Hop migration handoff
 
+Updated: **2026-10-20 KST — repository-only source audit corrections; final
+current-SQL checks passed, including filter pushdown.** SQL 031 now preserves JobKorea delta omissions using
+the latest accepted native-ID observation across READY non-SMOKE runs; every
+posting carries its exact observation run/time. ALIO IDs remain bare, Nara's
+current complete observation uses `nara_job:<native-id>`, and JobKorea retains
+first source priority. CLOSED/null-deadline, fixed-instant KST boundaries,
+application starts, invalid calendar dates, explicit deadline/status metadata and
+policy-labelled ongoing are handled by the public projection. SQL 032 adds a
+separate bounded inferred-occupation context reader with actual review/confidence
+states, source/catalogue pin freshness, safe current posting previews and counts
+by source/occupation. It changes neither sealed release artifacts nor approved
+competency/product-role evidence. The installer, deployment allowlist, restricted
+grants and focused fixtures are updated. After the provenance source-ID/detail-run
+and minimal upgrade-grant follow-ups, the coordinator's final disposable
+PostgreSQL 18 run passed both the live feed and inferred context SQL projection
+suites, including the native-shaped optional O*NET reader branch. The temporary
+container and source staging were removed. The 40 focused local deployment,
+installer and READY-statistics unit tests, Ruff on changed Python files, Python
+compilation and whitespace checks also pass. A subsequent SQL 032 optimization
+passes occupation filters into the private inference adapters, skips unrelated
+schemes and hashes only matching posting observations for the needed comparison.
+The coordinator reran both suites on the optimized current SQL in disposable
+PostgreSQL 18; the expanded filtered-equivalence, skipped-branch and restricted-hash
+regressions passed. All 29 actual SQL JSON responses also passed the backend
+`Posting`, `Postings` and `OccupationContext` models. The disposable container and
+source staging were removed after this final run. No production timing
+improvement is claimed. These are synthetic reader checks;
+they do not establish updated production counts or a new graph publication.
+No production mutation/deployment, job-board HTTP or paid inference occurred.
+
+Earlier checkpoint: **2026-10-20 KST — repository-only JobKorea live catalog
+correction, superseded by the source audit corrections above.**
+Additive `031_multi_source_live_postings.sql` extends the existing posting list
+and detail functions to selected, metadata-accepted JobKorea local listings from
+the latest READY non-SMOKE run, alongside the existing ALIO paired records.
+JobKorea sorts first before pagination and uses `jobkorea:<native-id>`; ALIO IDs
+remain bare. Items carry `source_id` and responses retain exact run provenance.
+Unknown dates remain null, and import completion is not collection time.
+No NCS classifications, descriptions or verified employer identities are inferred.
+The canonical installer appends 031 and the focused live-feed fixture covers
+ordering across a page boundary, collisions, filters, latest-run selection,
+selected/accepted exclusions, source availability, replay and restricted grants.
+The canonical `run.boot(); live_feed.check()` passed on Goldship in a disposable,
+network-disabled PostgreSQL 18 container limited to 512 MB and one CPU; the
+container was removed afterward. This passed the original ALIO/exam checks and
+the new multi-source checks. The 18 deployment/workflow unit tests, Ruff on the changed runtime/test
+Python files, Python compilation and whitespace checks also passed. At this earlier
+checkpoint, a read-only inline candidate against the then-latest real runs
+returned 8,890 postings (8,434 JobKorea plus 456 ALIO postings from
+912 representations), with all first 20 IDs namespaced to JobKorea; its response
+passed the strict backend `PostingsResponse` model. This historical two-source
+sample excludes Nara and does not describe the final projection's current total.
+This readback did not install the functions. No production mutation, deployment, source HTTP or paid call
+occurred. An already compatible catalog needs only SQL 031 for this correction;
+existing function grants are preserved.
+
 Updated: **2026-10-16 KST — admin dashboard release preparation.** The user
 requested an eight-character minimum dashboard password and authorized commit
 and push of the dashboard changes. Configuration, validation tests and operator

@@ -112,10 +112,18 @@ def check() -> None:
     assert (page['limit'], page['offset'], page['total']) == (20, 0, 3)
     assert [item['posting_id'] for item in page['items']] == ['A', 'B', 'C']
     item = page['items'][0]
-    assert set(item) == {'posting_id', 'title', 'organization_code', 'organization_name',
+    assert set(item) == {'posting_id', 'source_id', 'title', 'organization_code',
+                         'organization_name',
                          'date_posted', 'closing_date', 'ongoing', 'regions',
                          'employment_types', 'recruitment_type', 'education',
-                         'ncs_categories', 'headcount', 'source_url'}
+                         'ncs_categories', 'headcount', 'source_url', 'source_status',
+                         'deadline_kind',
+                         'deadline_basis', 'deadline_raw', 'application_start_date',
+                         'application_start_at', 'deadline_at', 'ongoing_basis',
+                         'source_provenance'}
+    assert item['source_provenance'] == dict(source_id='job_alio',
+                                             run_id='fixture-job_alio',
+                                             data_as_of='2026-09-01T00:01:00+00:00')
     assert item['regions'] == ['서울', '부산']
     assert item['employment_types'] == ['정규직', '비정규직']
     assert item['ncs_categories'] == [{'code': 'R600002', 'name': '경영.회계.사무'},
@@ -218,7 +226,130 @@ def check() -> None:
     error(grants, 'CATALOG_READER_PRIVILEGE_LEAK')
     run.sql('REVOKE USAGE ON SCHEMA cs FROM jobtology_catalog_reader')
     run.sql(grants)
+    check_multi_source(job)
     print('LIVE SOURCE FEED CHECKS PASSED', flush=True)
+
+
+def check_multi_source(alio: dict) -> None:
+    listing = dict(kind='JobPosting', representation='local_listing', metadata_accepted=True,
+                   organization_name='잡코리아 기업', source_status='UNKNOWN', regions='서울',
+                   deadline_kind='ROLLING', deadline_basis='USER_POLICY',
+                   description_text='PRIVATE description')
+    run.load_sources({'jobkorea': [
+        listing | dict(posting_id='123', title='데이터 채용', closing_date='2026-12-31',
+                       deadline_kind='FIXED_DATE', deadline_basis='SOURCE_FIELD',
+                       application_start_date='2026-09-01'),
+        listing | dict(posting_id='124', title='상시 채용'),
+        listing | dict(posting_id='closed', title='마감', source_status='CLOSED',
+                       deadline_kind='UNKNOWN', deadline_basis='SOURCE_STATUS'),
+        listing | dict(posting_id='instant', title='시각 마감', deadline_kind='FIXED_INSTANT',
+                       deadline_basis='SOURCE_FIELD', deadline_at='2026-10-10T15:00:00Z',
+                       application_start_at='2026-10-09T15:00:00Z'),
+        listing | dict(posting_id='invalid', title='날짜 오류', closing_date='2026-02-31'),
+        listing | dict(posting_id='rejected', title='rejected', metadata_accepted=False),
+        listing | dict(posting_id='unaccepted', metadata_accepted=None),
+        listing | dict(posting_id='wrong-kind', kind='Other'),
+        listing | dict(posting_id='wrong-representation', representation='detail'),
+    ]})
+    # The delta updates one row, keeps omitted rows, and cannot overwrite an
+    # accepted prior observation with an invalid/unselected/failed/smoke row.
+    for rid, state, mode, stamp in (
+            ('jk-delta', 'READY', 'FULL', '2026-10-02'),
+            ('jk-failed', 'FAILED', 'FULL', '2026-10-03'),
+            ('jk-loading', 'LOADING', 'FULL', '2026-10-04'),
+            ('jk-smoke', 'READY', 'SMOKE', '2026-10-05')):
+        run.sql('INSERT INTO ingestion.run'
+                '(run_id,source_id,mode,policy_revision,state,created_at,completed_at) VALUES '
+                f"({run.q(rid)},'jobkorea',{run.q(mode)},'fixture',{run.q(state)},"
+                f"{run.q(stamp)},{run.q(stamp)});"
+                'INSERT INTO ingestion.partition(run_id,partition_id,kind,page_size) '
+                f"VALUES({run.q(rid)},'all','FILE',1); INSERT INTO ingestion.document "
+                '(run_id,document_id,partition_id,page_no,raw_path,raw_sha256,byte_length,encoding,'
+                'http_status,retrieved_at,selected) VALUES '
+                f"({run.q(rid)},'doc','all',1,'PRIVATE.json',repeat('c',64),1,'UTF-8',200,now(),true)")
+        for idx, value in enumerate([
+                listing | dict(posting_id='123', title='변경 채용'),
+                listing | dict(posting_id='invalid-run', title='invalid snapshot'),
+                listing | dict(posting_id='124', title='invalid override',
+                               metadata_accepted=False)]):
+            if rid == 'jk-delta' and value['posting_id'] == 'invalid-run':
+                continue
+            run.sql('INSERT INTO ingestion.record'
+                    '(run_id,document_id,locator,source_record_id,source_payload,normalized) '
+                    'VALUES '
+                    f"({run.q(rid)},'doc',{run.q(str(idx))},{run.q(value['posting_id'])},"
+                    f'{run.js(value)},{run.js(value)})')
+    run.sql("INSERT INTO ingestion.document"
+            "(run_id,document_id,partition_id,page_no,attempt_no,raw_path,raw_sha256,byte_length,"
+            "encoding,http_status,retrieved_at,selected) VALUES "
+            "('jk-delta','unselected','all',1,2,'PRIVATE.json',repeat('b',64),1,'UTF-8',200,now(),false)")
+    excluded = listing | dict(posting_id='unselected')
+    run.sql('INSERT INTO ingestion.record'
+            '(run_id,document_id,locator,source_record_id,source_payload,normalized) VALUES '
+            f"('jk-delta','unselected','0','unselected',{run.js(excluded)},{run.js(excluded)})")
+    assert run.sql("SELECT NOT catalog._live_posting_open("
+                   "'{\"application_start_date\":\"2026-10-12\"}'::jsonb,'2026-10-11')") == 't'
+    nara = dict(kind='JobPosting', posting_id='123', title='나라 채용',
+                organization_name='나라 기관', ongoing=True, date_posted='2026-09-01',
+                closing_date='2026-10-10', regions='서울')
+    run.load_sources({'nara_job': [nara | dict(representation=r)
+                                  for r in ('list', 'detail', 'positions', 'files')]})
+    for idx, representation in enumerate(('list', 'detail')):
+        value = alio | dict(posting_id='123', title='ALIO same ID', representation=representation)
+        run.sql('INSERT INTO ingestion.record'
+                '(run_id,document_id,locator,source_record_id,source_payload,normalized) VALUES '
+                f"('fixture-job_alio','doc','collision-{idx}',{run.q('123:' + representation)},"
+                f'{run.js(value)},{run.js(value)})')
+    page = response('SELECT catalog.live_postings_v1()')
+    assert page['total'] == 10, page
+    assert [i['posting_id'] for i in page['items']] == [
+        'jobkorea:instant', 'jobkorea:123', 'jobkorea:124', 'jobkorea:closed',
+        'jobkorea:invalid', '123', 'A', 'B', 'C', 'nara_job:123']
+    first = response("SELECT catalog.live_posting_v1('jobkorea:123')")['item']
+    retained_detail = response("SELECT catalog.live_posting_v1('jobkorea:124')")
+    retained = retained_detail['item']
+    assert first['title'] == '변경 채용' and first['source_provenance']['run_id'] == 'jk-delta'
+    assert retained['title'] == '상시 채용'
+    assert first['source_provenance'] == dict(source_id='jobkorea', run_id='jk-delta',
+                                              data_as_of='2026-10-02T00:00:00+00:00')
+    assert retained['source_provenance'] == dict(source_id='jobkorea', run_id='fixture-jobkorea',
+                                                 data_as_of='2026-09-01T00:01:00+00:00')
+    assert retained_detail['sources'] == [retained['source_provenance']]
+    assert page['sources'][0]['run_id'] == 'jk-delta'
+    assert retained['deadline_kind'] == 'ROLLING' and retained['deadline_basis'] == 'USER_POLICY'
+    assert retained['ongoing'] is True and retained['ongoing_basis'] == 'USER_POLICY'
+    closed = response("SELECT catalog.live_posting_v1('jobkorea:closed')")['item']
+    assert closed['ongoing'] is False and closed['source_status'] == 'CLOSED'
+    instant = response("SELECT catalog.live_posting_v1('jobkorea:instant')")['item']
+    assert instant['closing_date'] == '2026-10-11' and instant['deadline_at'] is not None
+    assert response("SELECT catalog.live_postings_v1('마감',NULL,NULL,'2026-10-12')")['total'] == 0
+    for day, total in (('2026-10-11', 1), ('2026-10-12', 0), ('2026-10-09', 0)):
+        assert response(
+            f"SELECT catalog.live_postings_v1('시각 마감',NULL,NULL,'{day}')")['total'] == total
+    assert response("SELECT catalog.live_posting_v1('jobkorea:invalid')")[
+        'item']['closing_date'] is None
+    assert response("SELECT catalog.live_posting_v1('nara_job:123')")[
+        'item']['title'] == '나라 채용'
+    assert response("SELECT catalog.live_posting_v1('123')")['item']['title'] == 'ALIO same ID'
+    boundary = response('SELECT catalog.live_postings_v1(NULL,NULL,NULL,NULL,2,4)')['items']
+    assert [i['posting_id'] for i in boundary] == ['jobkorea:invalid', '123']
+    assert all(i['ncs_categories'] == [] for i in page['items'][:5])
+    assert 'PRIVATE' not in json.dumps(page)
+    for missing in ('jobkorea:rejected', 'jobkorea:unaccepted', 'jobkorea:wrong-kind',
+                    'jobkorea:wrong-representation', 'jobkorea:unselected',
+                    'jobkorea:invalid-run', 'jobkorea:missing', 'unsupported:123'):
+        error(f'SELECT catalog.live_posting_v1({run.q(missing)})', 'LIVE_POSTING_NOT_FOUND')
+    migration = (run.ROOT / 'hop/ontology/sql/031_multi_source_live_postings.sql').read_text()
+    run.sql(migration)
+    assert response('SET ROLE jobtology_catalog_reader; SELECT catalog.live_postings_v1()') == page
+    error('SET ROLE jobtology_catalog_reader; SELECT * FROM catalog._live_source_observations()',
+          'permission denied')
+    run.sql("UPDATE ingestion.run SET state='FAILED' WHERE source_id='job_alio'")
+    assert response('SELECT catalog.live_postings_v1()')['total'] == 6
+    error("SELECT catalog.live_posting_v1('123')", 'LIVE_SOURCE_UNAVAILABLE')
+    run.sql("UPDATE ingestion.run SET state='FAILED' WHERE source_id IN ('jobkorea','nara_job')")
+    error('SELECT catalog.live_postings_v1()', 'LIVE_SOURCE_UNAVAILABLE')
+    error("SELECT catalog.live_posting_v1('jobkorea:123')", 'LIVE_SOURCE_UNAVAILABLE')
 
 
 if __name__ == '__main__':
