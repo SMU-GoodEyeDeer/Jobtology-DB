@@ -23,10 +23,10 @@ the report marks comparisons `UNVERIFIABLE`. Use a new output filename for each
 receipt; creation is exclusive with mode `0600`. Standard output contains only
 aggregate counts. Errors suppress driver details and credentials.
 
-The CLI discovers published backend associations and their original cohort pins
+The CLI discovers published backend-reader associations and their original cohort pins
 through the occupation-filtered `catalog._inferred_occupation_rows(text[])`
 adapter. It requires SQL 032's inferred-context reader to be installed. It
-counts those backend associations, not all historical candidates or physical
+counts those backend-reader associations, not all historical candidates or physical
 Neo4j edges. Each original-pin/occupation pair has its own report row. A code
 without a published association has an explicit `UNVERIFIABLE` row and zero
 associations. No posting text, URL, source payload or credentials are exported.
@@ -65,7 +65,7 @@ and does not rewrite any source input or historical receipt.
 
 The receipt includes original/current pins, frozen/published/recomputed SQL 036
 hashes, unit counts, run evidence, and status counts for both cohort/occupation
-rows and backend associations. Hash equality establishes only this normalized
+rows and backend-reader associations. Hash equality establishes only this normalized
 source catalogue comparison. SQL 032's v2 context hash and whole-catalogue
 manifest hash use different formulas; neither is substituted or asserted equal.
 The report does not assess model quality, recall, source-posting freshness, full
@@ -92,3 +92,35 @@ Without it, the integration suite skips. It never uses the report's admin DSN
 as a fallback. Synthetic fixtures verify canonical hash ordering, changes,
 missing targets, unavailable/mismatched evidence, duplicate unit codes, malformed
 and inconsistent hierarchy, and PostgreSQL's read-only write rejection.
+
+## Verified production comparison
+
+At `2026-10-20T15:52:51.053887+00:00` (2026-10-21 KST), a bounded production
+snapshot using the reporter's snapshot SQL in a `REPEATABLE READ READ ONLY`
+transaction with a 120-second statement timeout confirmed current NCS run
+`26b8f6cc-c32b-4e3a-a529-a37a329b898b`. For all six selected occupations, the
+recomputed original hash matched the frozen and published SQL 036 hashes, and
+the current target hash matched that proved original hash. All six rows and
+2,309 published associations were `PIN_CHANGED_CONTENT_EQUAL`; all other status
+counts were zero.
+
+| Occupation code | Published associations |
+| --- | ---: |
+| `20010105` | 95 |
+| `20010202` | 1,855 |
+| `20010204` | 35 |
+| `20010207` | 40 |
+| `20010703` | 126 |
+| `20010705` | 158 |
+| **Total** | **2,309** |
+
+The two backend-developer occupation codes `20010202` and `20010204` total 1,890 associations.
+This proves canonical normalized content equality for the selected targets only.
+It does not establish model quality, full retrieval catalogue equivalence or
+inference-context equivalence. Original pins, **STALE** freshness, review states
+and graph data remain unchanged. No deployment, database mutation, paid call or
+job-board HTTP occurred.
+
+The protected local receipt has mode `0600` and remains outside Git:
+`~/.local/state/jobtology-hop/ncs-revalidation/report-20261020T155251Z.json`,
+SHA256 `4c8206c2585ff8778851134fe52085d4c52645a85fea24dab5fcb2e3d188dad8`.
