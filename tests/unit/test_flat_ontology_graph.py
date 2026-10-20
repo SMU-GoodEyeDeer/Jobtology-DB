@@ -107,12 +107,13 @@ def test_focused_and_canonical_installers_end_with_the_same_contract() -> None:
         if name == "install_flat_graph.hwf":
             expected = flat_migrations
         else:
-            assert expected[-5:] == [
+            assert expected[-6:] == [
                 flat_migrations[0],
                 "028_product_role_demand_base.sql",
                 flat_migrations[1],
                 "030_live_ncs_unit.sql",
                 "031_multi_source_live_postings.sql",
+                "032_inferred_occupation_context.sql",
             ]
         assert [item.findtext("sqlfilename") for item in sql_actions] == [
             "${PROJECT_HOME}/ontology/sql/" + filename for filename in expected
