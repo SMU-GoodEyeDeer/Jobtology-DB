@@ -1,5 +1,28 @@
 # Current Hop migration handoff
 
+Updated: **2026-10-20 KST — repository-only JobKorea live catalog correction.**
+Additive `031_multi_source_live_postings.sql` extends the existing posting list
+and detail functions to selected, metadata-accepted JobKorea local listings from
+the latest READY non-SMOKE run, alongside the existing ALIO paired records.
+JobKorea sorts first before pagination and uses `jobkorea:<native-id>`; ALIO IDs
+remain bare. Items carry `source_id` and responses retain exact run provenance.
+Unknown dates remain null, and import completion is not collection time.
+No NCS classifications, descriptions or verified employer identities are inferred.
+The canonical installer appends 031 and the focused live-feed fixture covers
+ordering across a page boundary, collisions, filters, latest-run selection,
+selected/accepted exclusions, source availability, replay and restricted grants.
+The canonical `run.boot(); live_feed.check()` passed on Goldship in a disposable,
+network-disabled PostgreSQL 18 container limited to 512 MB and one CPU; the
+container was removed afterward. This passed the original ALIO/exam checks and
+the new multi-source checks. The 18 deployment/workflow unit tests, Ruff on the changed runtime/test
+Python files, Python compilation and whitespace checks also passed. A read-only inline candidate against the real
+latest runs returned 8,890 postings (8,434 JobKorea plus 456 ALIO postings from
+912 representations), with all first 20 IDs namespaced to JobKorea; its response
+passed the strict backend `PostingsResponse` model. This readback did not install
+the functions. No production mutation, deployment, source HTTP or paid call
+occurred. An already compatible catalog needs only SQL 031 for this correction;
+existing function grants are preserved.
+
 Updated: **2026-10-16 KST — admin dashboard release preparation.** The user
 requested an eight-character minimum dashboard password and authorized commit
 and push of the dashboard changes. Configuration, validation tests and operator

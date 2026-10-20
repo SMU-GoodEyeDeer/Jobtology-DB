@@ -6,7 +6,8 @@ it in. `019_catalog_approval.sql`, `020_catalog_source_graph.sql`,
 `023_scoped_catalog_edges.sql`, `024_sealed_catalog.sql`,
 `025_live_source_feed.sql`, `026_live_ncs_demand.sql`,
 `027_product_role_inputs.sql`, `028_flat_graph_projection.sql`,
-`028_product_role_demand_base.sql`, and `029_flat_catalog_compatibility.sql` are
+`028_product_role_demand_base.sql`, `029_flat_catalog_compatibility.sql`,
+`030_live_ncs_unit.sql`, and `031_multi_source_live_postings.sql` are
 ordered actions in `install.hwf`.
 It creates `catalog.catalog_approval` (immutable audit rows) and the independent
 singleton `catalog.catalog_active_release`. `029_flat_catalog_compatibility.sql`
@@ -22,8 +23,8 @@ On an isolated, authorized target, install prerequisites in `ontology/install.hw
 order, or run the updated Hop installer with its configured PostgreSQL connection.
 For an already-installed ontology schema, the full catalog SQL install/replay
 sequence is below. Both distinct `028_*.sql` files are required, in this order;
-apply `030_live_ncs_unit.sql` after those files and the reader grants last
-(`ontology/install.hwf` also ends with 030):
+apply `030_live_ncs_unit.sql` and `031_multi_source_live_postings.sql` after
+those files and the reader grants last (`ontology/install.hwf` also ends with 031):
 
 ```sh
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/019_catalog_approval.sql
@@ -39,12 +40,13 @@ psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/028_flat_graph
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/028_product_role_demand_base.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/029_flat_catalog_compatibility.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/030_live_ncs_unit.sql
+psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/031_multi_source_live_postings.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/catalog_reader_grants.psql
 ```
 
 If `019_catalog_approval.sql`, `020_catalog_source_graph.sql`, and the reader
 grant are already installed, start at `021_scoped_validation.sql` and continue
-through `030_live_ncs_unit.sql` in the exact order above, including
+through `031_multi_source_live_postings.sql` in the exact order above, including
 both `028_*.sql` files, then rerun the current reader grant. Inspect the existing
 `ingestion.validation_issue` definition and take the normal operator backup first.
 Migration 021 changes only CTE planner
@@ -217,12 +219,33 @@ eligibility, preference, selection, or disqualification text is returned.
 
 | Signature | Response |
 |---|---|
-| `live_postings_v1(search text DEFAULT NULL, ncs_category text DEFAULT NULL, region text DEFAULT NULL, open_on date DEFAULT NULL, page_size integer DEFAULT 20, page_offset integer DEFAULT 0)` | `filters:{q,ncs_category,region,open_on}`, `limit`, `offset`, `total`, `items` with posting ID, title, organization, dates, ongoing, regions, employment types, recruitment type, education, paired NCS categories, headcount, and HTTP(S) source URL |
-| `live_posting_v1(posting_choice text)` | `item` with the same posting projection; only a posting in the latest READY job run is found |
+| `live_postings_v1(search text DEFAULT NULL, ncs_category text DEFAULT NULL, region text DEFAULT NULL, open_on date DEFAULT NULL, page_size integer DEFAULT 20, page_offset integer DEFAULT 0)` | `filters:{q,ncs_category,region,open_on}`, `limit`, `offset`, `total`, `items` with posting ID, source ID, title, organization, dates, ongoing, regions, employment types, recruitment type, education, paired NCS categories, headcount, and HTTP(S) source URL |
+| `live_posting_v1(posting_choice text)` | `item` with the same posting projection; only a posting in its source's latest READY run is found |
 | `live_exam_sessions_v1(qualification text DEFAULT NULL, from_date date DEFAULT NULL, to_date date DEFAULT NULL, page_size integer DEFAULT 20, page_offset integer DEFAULT 0)` | `filters:{qualification,from,to}`, `limit`, `offset`, `total`, `items` with qualification code/name, year, round, category, session name, and `written`/`practical` registration, exam and result dates |
 
-Postings require `job_alio`; exams require `qnet_schedule` and optionally join
-`ncs_qualification` for names. Search is a literal case-insensitive substring of
+Postings include the latest READY non-SMOKE runs for `jobkorea` and `job_alio`;
+either source suffices. JobKorea items come from selected local-listing records
+with accepted metadata, including records with missing descriptions and unknown
+source status. ALIO keeps its list/detail pairing and bare posting IDs. JobKorea
+IDs use `jobkorea:<native-id>` in both list and detail. Every posting includes
+`source_id`; detail provenance contains only the chosen source's exact run.
+The list's `sources` contains all supported runs used by the query, even when a
+filter matches no records from one source. `data_as_of` is run completion/import
+time, not collection time. The user-reported JobKorea collection evidence remains
+separate; this feed does not relabel import timestamps as scrape timestamps.
+
+JobKorea sorts before ALIO globally, before pagination. Within each source the
+existing closing-date ascending (null last), then posting-ID order remains.
+Unclassified listings have an empty `ncs_categories` array and do not match NCS
+filters. Unknown dates remain null. JobKorea's known application-start date
+constrains `open_on` without becoming the response's `date_posted`.
+Employer names retain their source metadata meaning and do not verify identity.
+No source body or inferred occupation evidence is synthesized by this feed.
+Unknown posting namespaces raise `LIVE_POSTING_NOT_FOUND`; an unavailable chosen
+source raises `LIVE_SOURCE_UNAVAILABLE`.
+
+Exams require `qnet_schedule` and optionally join `ncs_qualification` for names.
+Search is a literal case-insensitive substring of
 title or organization name; NCS code is case-insensitive exact, NCS name and
 region are exact. `open_on` intersects posting dates. Qualification matches code
 exactly or name by case-insensitive substring. Exam date bounds match any valid
@@ -230,7 +253,18 @@ session date inclusively. Empty strings normalize to null; limits are 1–100,
 offsets nonnegative. Errors are `LIVE_SOURCE_UNAVAILABLE`, `INVALID_LIVE_PAGE`,
 `INVALID_LIVE_FILTER`, and `LIVE_POSTING_NOT_FOUND` (SQLSTATE P0001).
 
-For a reader-only upgrade on an already compatible catalog runtime, run the five
+For this JobKorea correction on an already compatible catalog with the existing
+live-posting functions and reader grants, apply **only 031** as the function owner:
+
+```sh
+psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/031_multi_source_live_postings.sql
+```
+
+The unchanged public signatures preserve existing reader grants. The new helper
+denies PUBLIC execution. No reader-grant or approval-gate replay is required for
+this focused upgrade.
+
+For a broader reader upgrade missing the live-reader migrations, run the six
 SQL files below, then the reader grant script as a privilege administrator (not
 via Hop). If reinstalling approval-gate SQL, use the complete
 [install/replay sequence](#install-and-approve-operator-only) instead:
@@ -241,14 +275,15 @@ psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/026_live_ncs_d
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/027_product_role_inputs.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/028_product_role_demand_base.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/030_live_ncs_unit.sql
+psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/031_multi_source_live_postings.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/catalog_reader_grants.psql
 ```
 
 For A-only, use the 025 SQL and grant script from commit
 `5d27a4b940b307b67efbb0a45c23e026836c57be` only. Do not mix that installation
 with the current working-tree grant script or with `026_live_ncs_demand.sql`,
-`027_product_role_inputs.sql`, `028_product_role_demand_base.sql`, or
-`030_live_ncs_unit.sql`.
+`027_product_role_inputs.sql`, `028_product_role_demand_base.sql`,
+`030_live_ncs_unit.sql`, or `031_multi_source_live_postings.sql`.
 
 ## Live NCS unit (hop-live-source-v1)
 
@@ -309,7 +344,7 @@ The same selection governs per-code contributor-only `publication_ids` in
 product-role inputs; posting counts are distinct by `(posting_source,posting_id)`.
 
 For a reader-only upgrade on an already compatible catalog runtime, apply the
-five files in this order, then rerun reader grants as privilege admin. Replaying
+six files in this order, then rerun reader grants as privilege admin. Replaying
 approval-gate SQL requires the complete
 [install/replay sequence](#install-and-approve-operator-only) instead:
 
@@ -319,6 +354,7 @@ psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/026_live_ncs_d
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/027_product_role_inputs.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/028_product_role_demand_base.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/030_live_ncs_unit.sql
+psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/031_multi_source_live_postings.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/catalog_reader_grants.psql
 ```
 
@@ -350,7 +386,7 @@ codes (`INVALID_PRODUCT_ROLE_INPUT`); a missing READY competency run raises
 `LIVE_SOURCE_UNAVAILABLE`. It is not a sealed-catalog approval or publication.
 
 For a reader-only upgrade on an already compatible catalog runtime, apply the
-five files in this order, then rerun reader grants as privilege admin. Replaying
+six files in this order, then rerun reader grants as privilege admin. Replaying
 approval-gate SQL requires the complete
 [install/replay sequence](#install-and-approve-operator-only) instead:
 
@@ -360,6 +396,7 @@ psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/026_live_ncs_d
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/027_product_role_inputs.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/028_product_role_demand_base.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/030_live_ncs_unit.sql
+psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/031_multi_source_live_postings.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/catalog_reader_grants.psql
 ```
 

@@ -112,7 +112,7 @@ def check() -> None:
     assert (page['limit'], page['offset'], page['total']) == (20, 0, 3)
     assert [item['posting_id'] for item in page['items']] == ['A', 'B', 'C']
     item = page['items'][0]
-    assert set(item) == {'posting_id', 'title', 'organization_code', 'organization_name',
+    assert set(item) == {'posting_id', 'source_id', 'title', 'organization_code', 'organization_name',
                          'date_posted', 'closing_date', 'ongoing', 'regions',
                          'employment_types', 'recruitment_type', 'education',
                          'ncs_categories', 'headcount', 'source_url'}
@@ -218,7 +218,123 @@ def check() -> None:
     error(grants, 'CATALOG_READER_PRIVILEGE_LEAK')
     run.sql('REVOKE USAGE ON SCHEMA cs FROM jobtology_catalog_reader')
     run.sql(grants)
+    check_multi_source(job)
     print('LIVE SOURCE FEED CHECKS PASSED', flush=True)
+
+
+def check_multi_source(alio: dict) -> None:
+    # Metadata-only JobKorea postings participate without a detail pair or inferred NCS.
+    listing = dict(kind='JobPosting', representation='local_listing', metadata_accepted=True,
+                   organization_name='잡코리아 기업', employer_identity_kind='NAME_UNVERIFIED',
+                   content_status='MISSING', source_status='UNKNOWN',
+                   application_start_date='2027-01-01', regions='서울',
+                   employment_type='정규직', deadline_kind='ROLLING',
+                   description_text='PRIVATE description')
+    run.load_sources({'jobkorea': [
+        listing | dict(posting_id='123', title='데이터 채용', closing_date='2026-12-31',
+                       application_start_date='2026-09-01'),
+        listing | dict(posting_id='124', title='상시 채용', closing_date=None,
+                       application_start_date=None),
+        listing | dict(posting_id='125', title='날짜 미상', closing_date='UNKNOWN'),
+        listing | dict(posting_id='rejected', metadata_accepted=False),
+        listing | dict(posting_id='unaccepted', metadata_accepted=None),
+        listing | dict(posting_id='wrong-kind', kind='Other'),
+        listing | dict(posting_id='wrong-representation', representation='detail'),
+    ]})
+    # The same native ID exists in ALIO, where its historical bare ID stays stable.
+    for index, representation in enumerate(('list', 'detail')):
+        value = alio | dict(posting_id='123', title='ALIO same ID', representation=representation)
+        run.sql('INSERT INTO ingestion.record'
+                '(run_id,document_id,locator,source_record_id,source_payload,normalized) VALUES '
+                f"('fixture-job_alio','doc','collision-{index}',{run.q('123:' + representation)},"
+                f'{run.js(value)},{run.js(value)})')
+    run.sql("INSERT INTO ingestion.document"
+            "(run_id,document_id,partition_id,page_no,attempt_no,raw_path,raw_sha256,byte_length,"
+            "encoding,http_status,retrieved_at,selected) VALUES "
+            "('fixture-jobkorea','unselected','all',1,2,'other.json',repeat('b',64),1,'UTF-8',"
+            "200,now(),false)")
+    excluded = listing | dict(posting_id='unselected')
+    run.sql('INSERT INTO ingestion.record'
+            '(run_id,document_id,locator,source_record_id,source_payload,normalized) VALUES '
+            f"('fixture-jobkorea','unselected','0','unselected',{run.js(excluded)},{run.js(excluded)})")
+    # An older READY, newer failed/loading and newer SMOKE snapshot cannot leak records.
+    for run_id, state, mode, created in (
+            ('jk-old', 'READY', 'FULL', '2026-08-01'),
+            ('jk-failed', 'FAILED', 'FULL', '2026-10-01'),
+            ('jk-loading', 'LOADING', 'FULL', '2026-10-02'),
+            ('jk-smoke', 'READY', 'SMOKE', '2026-10-03')):
+        run.sql('INSERT INTO ingestion.run'
+                '(run_id,source_id,mode,policy_revision,state,created_at,completed_at) VALUES '
+                f"({run.q(run_id)},'jobkorea',{run.q(mode)},'fixture',{run.q(state)},"
+                f"{run.q(created)},{run.q(created)});")
+        run.sql('INSERT INTO ingestion.partition(run_id,partition_id,kind,page_size) '
+                f"VALUES({run.q(run_id)},'all','FILE',1); INSERT INTO ingestion.document "
+                '(run_id,document_id,partition_id,page_no,raw_path,raw_sha256,byte_length,encoding,'
+                'http_status,retrieved_at,selected) VALUES '
+                f"({run.q(run_id)},'doc','all',1,'shadow.json',repeat('c',64),1,'UTF-8',200,now(),true)")
+        value = listing | dict(posting_id=run_id, title='excluded snapshot')
+        run.sql('INSERT INTO ingestion.record'
+                '(run_id,document_id,locator,source_record_id,source_payload,normalized) VALUES '
+                f"({run.q(run_id)},'doc','0',{run.q(run_id)},{run.js(value)},{run.js(value)})")
+
+    page = response('SELECT catalog.live_postings_v1()')
+    assert page['total'] == 7, page
+    assert [item['posting_id'] for item in page['items']] == [
+        'jobkorea:123', 'jobkorea:124', 'jobkorea:125', '123', 'A', 'B', 'C']
+    assert page['sources'] == [
+        {'source_id': source, 'run_id': 'fixture-' + source,
+         'data_as_of': '2026-09-01T00:01:00+00:00'} for source in ('jobkorea', 'job_alio')]
+    assert [item['source_id'] for item in page['items']] == ['jobkorea'] * 3 + ['job_alio'] * 4
+    # ALIO deadlines are earlier; priority must apply globally before LIMIT/OFFSET.
+    assert [i['posting_id'] for i in response(
+        'SELECT catalog.live_postings_v1(NULL,NULL,NULL,NULL,2,0)')['items']] == [
+            'jobkorea:123', 'jobkorea:124']
+    assert [i['posting_id'] for i in response(
+        'SELECT catalog.live_postings_v1(NULL,NULL,NULL,NULL,2,2)')['items']] == [
+            'jobkorea:125', '123']
+    detail = response("SELECT catalog.live_posting_v1('jobkorea:123')")
+    assert detail['item'] == page['items'][0]
+    assert detail['sources'] == page['sources'][:1]
+    native = response("SELECT catalog.live_posting_v1('123')")
+    assert native['item']['title'] == 'ALIO same ID'
+    assert native['sources'] == page['sources'][1:]
+    for item in page['items'][:3]:
+        assert item['ncs_categories'] == [] and item['date_posted'] is None
+        assert item['organization_code'] is None and item['ongoing'] is None
+        assert 'PRIVATE' not in json.dumps(item)
+    assert all(item['closing_date'] is None for item in page['items'][1:3])
+    assert response("SELECT catalog.live_postings_v1('잡코리아')")['total'] == 3
+    assert response("SELECT catalog.live_postings_v1('데이터')")['total'] == 3
+    assert response("SELECT catalog.live_postings_v1(NULL,'정보통신')")['total'] == 3
+    assert response("SELECT catalog.live_postings_v1(NULL,NULL,'서울')")['total'] == 6
+    # Application-start evidence governs availability but never becomes date_posted.
+    available = response("SELECT catalog.live_postings_v1(NULL,NULL,NULL,'2026-10-11')")
+    assert [i['posting_id'] for i in available['items']] == ['jobkorea:123', 'jobkorea:124', 'C']
+    assert response("SELECT catalog.live_postings_v1('날짜 미상',NULL,NULL,'2026-10-11')")['total'] == 0
+    for missing in ('jobkorea:rejected', 'jobkorea:unaccepted', 'jobkorea:unselected',
+                    'jobkorea:jk-old', 'jobkorea:jk-failed', 'jobkorea:jk-loading',
+                    'jobkorea:jk-smoke', 'jobkorea:wrong-kind', 'jobkorea:wrong-representation',
+                    'jobkorea:missing', 'nara_job:123'):
+        error(f'SELECT catalog.live_posting_v1({run.q(missing)})', 'LIVE_POSTING_NOT_FOUND')
+    # Additive installation/replay retains the reader's grants on existing functions.
+    migration = (run.ROOT / 'hop/ontology/sql/031_multi_source_live_postings.sql').read_text()
+    run.sql(migration)
+    assert response('SET ROLE jobtology_catalog_reader; '
+                    'SELECT catalog.live_postings_v1()') == page
+    error("SET ROLE jobtology_catalog_reader; SELECT * FROM "
+          "catalog._live_source_postings('fixture-jobkorea','jobkorea')", 'permission denied')
+    assert run.sql("SELECT NOT EXISTS(SELECT 1 FROM pg_proc p, "
+                   "LATERAL aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) a "
+                   "WHERE p.oid='catalog._live_source_postings(text,text)'::regprocedure "
+                   "AND a.grantee=0 AND a.privilege_type='EXECUTE')") == 't'
+    # Missing one supported source still permits the other; missing both is unavailable.
+    run.sql("UPDATE ingestion.run SET state='FAILED' WHERE source_id='job_alio'")
+    assert response('SELECT catalog.live_postings_v1()')['total'] == 3
+    error("SELECT catalog.live_posting_v1('123')", 'LIVE_SOURCE_UNAVAILABLE')
+    run.sql("UPDATE ingestion.run SET state='FAILED' WHERE source_id='jobkorea'")
+    error('SELECT catalog.live_postings_v1()', 'LIVE_SOURCE_UNAVAILABLE')
+    error("SELECT catalog.live_posting_v1('jobkorea:123')", 'LIVE_SOURCE_UNAVAILABLE')
+    error("SELECT catalog.live_posting_v1('unsupported:123')", 'LIVE_POSTING_NOT_FOUND')
 
 
 if __name__ == '__main__':
