@@ -7,8 +7,9 @@ it in. `019_catalog_approval.sql`, `020_catalog_source_graph.sql`,
 `025_live_source_feed.sql`, `026_live_ncs_demand.sql`,
 `027_product_role_inputs.sql`, `028_flat_graph_projection.sql`,
 `028_product_role_demand_base.sql`, `029_flat_catalog_compatibility.sql`,
-`030_live_ncs_unit.sql`, `031_multi_source_live_postings.sql`, and
-`032_inferred_occupation_context.sql` are
+`030_live_ncs_unit.sql`, `031_multi_source_live_postings.sql`,
+`032_inferred_occupation_context.sql`, `033_posting_occupation_classifications.sql`,
+`034_ncs_onet_crosswalk.sql`, and `035_ncs_catalog_revalidation.sql` are
 ordered actions in `install.hwf`.
 It creates `catalog.catalog_approval` (immutable audit rows) and the independent
 singleton `catalog.catalog_active_release`. `029_flat_catalog_compatibility.sql`
@@ -24,9 +25,10 @@ On an isolated, authorized target, install prerequisites in `ontology/install.hw
 order, or run the updated Hop installer with its configured PostgreSQL connection.
 For an already-installed ontology schema, the full catalog SQL install/replay
 sequence is below. Both distinct `028_*.sql` files are required, in this order;
-apply `030_live_ncs_unit.sql`, `031_multi_source_live_postings.sql`, and
-`032_inferred_occupation_context.sql` after
-those files and the reader grants last (`ontology/install.hwf` also ends with 032):
+apply `030_live_ncs_unit.sql`, `031_multi_source_live_postings.sql`,
+`032_inferred_occupation_context.sql`, `033_posting_occupation_classifications.sql`,
+`034_ncs_onet_crosswalk.sql`, and `035_ncs_catalog_revalidation.sql` after those
+files and the reader grants last (`ontology/install.hwf` also ends with 035):
 
 ```sh
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/019_catalog_approval.sql
@@ -44,12 +46,15 @@ psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/029_flat_catal
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/030_live_ncs_unit.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/031_multi_source_live_postings.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/032_inferred_occupation_context.sql
+psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/033_posting_occupation_classifications.sql
+psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/034_ncs_onet_crosswalk.sql
+psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/035_ncs_catalog_revalidation.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/catalog_reader_grants.psql
 ```
 
 If `019_catalog_approval.sql`, `020_catalog_source_graph.sql`, and the reader
 grant are already installed, start at `021_scoped_validation.sql` and continue
-through `032_inferred_occupation_context.sql` in the exact order above, including
+through `035_ncs_catalog_revalidation.sql` in the exact order above, including
 both `028_*.sql` files, then rerun the current reader grant. Inspect the existing
 `ingestion.validation_issue` definition and take the normal operator backup first.
 Migration 021 changes only CTE planner
@@ -77,7 +82,7 @@ The grant script creates `jobtology_catalog_reader` as a LOGIN/NOINHERIT role
 without a password. Provision authentication separately. It fails if that role
 can use the `ontology` schema (including via PUBLIC); remove that leakage before
 deploying it. Do not add the reader to privileged roles. Only the catalog schema
-and eleven read function signatures are granted. Tables, the internal gate,
+and the listed read function signatures are granted. Tables, the internal gate,
 approval, and ontology preview functions are not granted. Install as a trusted
 schema owner with access to ontology/ingestion/retention; restrict owner and
 approver credentials independently of the reader role. Do not run the grant
@@ -495,3 +500,112 @@ The focused `hop/ontology/tests/inferred_occupation_context.py` checks SQL reade
 projection, optional native-shaped O*NET rows, source pins, catalogue staleness,
 counts, previews, filtering, replay and grants. It does not qualify a new model
 result or Neo4j publication and makes no provider or job-board request.
+
+
+## Posting classifications and NCS–O*NET crosswalk upgrade
+
+On an already compatible catalog with SQL 031 and 032 installed, apply the
+following additive readers with the catalog migration/admin role before deploying
+the matching BE/FE. These migrations preserve original source NCS fields,
+historical inference pins/review states and approved release inputs. No source
+refresh, model request or graph publication runs during installation.
+
+```sh
+psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/033_posting_occupation_classifications.sql
+psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/034_ncs_onet_crosswalk.sql
+psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/035_ncs_catalog_revalidation.sql
+psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/catalog_reader_grants.psql
+```
+
+`live_postings_v1` and `live_posting_v1` now include
+`item.occupation_associations`: nonrecursive, explicitly inferred NCS/O*NET
+occupation records with the original source/catalog pins, actual review/stage,
+NULL/UNASSESSED confidence, source/catalog freshness and
+`competency_evidence=false`. `ncs_categories` remains source-provided only.
+An empty inference list means no published association is available for this
+posting; it does not establish that the posting has no relevant competencies.
+
+The optional `ncs_category` filter matches a source category code prefix/name or
+a published NCS occupation code prefix whose **source and catalog are both
+CURRENT**. Responses expose
+`filters.ncs_match_scope=SOURCE_OR_CURRENT_INFERRED`. Stale and unknown links
+remain visible in item details but never broaden a current inferred category
+filter. Review status stays separate from freshness: an UNREVIEWED association
+can have current hashes while still being an unverified inference.
+
+Page enrichment batches all selected posting keys. Without a category filter,
+there is one inference-adapter read for the page; a category filter adds a
+separate NCS-only match batch for accurate totals before pagination. Source
+hashes are computed only for observations needed by the selected associations.
+The private helpers retain no PUBLIC or catalog-reader execution grant.
+
+SQL 034 adds the separately versioned, retrieval-only crosswalk reader
+`catalog.ncs_onet_crosswalk_v1(text,integer,integer)`. Only this reader is granted;
+proposal/review operators and append-only records remain private. See the
+crosswalk operator documentation for creating and reviewing pinned mappings.
+Shared-posting and lexical proposals do not imply NCS/O*NET equivalence,
+verified employer requirements or user competency credit.
+
+A catalog pin change is not repaired by installing these readers. Preserve stale
+pins until a separately reviewed full catalog/context revalidation or rematching
+policy proves the new basis. The [read-only pin comparison](../../docs/hop-migration/ncs-pin-revalidation-report.md)
+proves selected normalized target content only; it never rewrites freshness.
+
+
+## Full-context-equal NCS pin revalidation
+
+SQL 035 adds a private operator action for the narrower case where the entire
+NCS retrieval catalogue and v2 hierarchy context are byte-equivalent under their
+canonical PostgreSQL formulas. It reconstructs **all** selected READY archive
+units and occupations for both pins, verifies globally unique valid unit codes
+and consistent hierarchy, proves every original frozen catalogue/context row,
+and compares complete counts and hashes. Selected-target equality alone cannot
+pass. Changed, removed or added occupations, incomplete archives, altered
+hierarchy or unverifiable frozen inputs fail closed. The action performs no paid
+requests and changes no original source, inference pin, result or review status.
+
+The read-only production comparison on 2026-10-25 KST found 15,520 units and
+1,094 occupations identical between the pins below, with zero original frozen
+catalogue/context mismatches. The full retrieval catalogue hash was
+`714737edd972e426d28cc651ab693bff93984c1b210c49460d59b6320cb388a7`;
+the full v2 context hash was
+`d5b77ca093668bd0fd09df4effd77de97da2a473dd498d888ce055994487f0b0`.
+That read-only receipt did **not** apply revalidation. After merging/installing
+SQL 033, 034 and 035 in the **catalog database**, an authorized migration/admin
+operator can review and run:
+
+```sql
+-- Verify this still reports the exact intended target; do not substitute LATEST.
+SELECT run_id FROM ingestion.latest_ready_run WHERE source_id='ncs_competency';
+BEGIN;
+SET LOCAL statement_timeout='120s';
+SELECT catalog.revalidate_ncs_catalog(
+ 'ba32f673-255c-4990-80d4-8dbef6008e2f',
+ 'ce5655eb-8881-47bf-affc-81158719b43d');
+COMMIT;
+```
+
+The operator function independently repeats the full proof against the live
+archive, checks that the exact target remains latest READY, and records an
+append-only `FULL_CONTEXT_EQUAL_V1` audit. Replaying the exact call returns the
+original verification timestamp. No reader role receives access to the operator,
+private proof helpers or audit table; update, delete and truncate are blocked.
+
+Current classifications backed by this audit retain their **original** catalog
+pin and expose `catalog_revalidation` with `original_pin`, `current_pin`,
+`policy`, `context_hash` and `verified_at`. They may count as catalog-current only
+while that exact verified target remains latest READY and the original
+per-occupation hash matches the audit. A later pin receives no inherited
+verification. Source freshness is still checked independently, and unchanged
+review status/confidence does not become verified semantic accuracy or user
+competency credit. Other catalog changes still require a separate proof or
+controlled rematching under the retained accounting scope.
+
+
+Focused SQL verification uses disposable PostgreSQL containers and synthetic
+archives only; it sends no source or model requests:
+
+```sh
+uv run python hop/ontology/tests/posting_classifications.py
+uv run python hop/ontology/tests/ncs_catalog_revalidation.py
+```

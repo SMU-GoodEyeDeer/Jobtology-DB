@@ -108,7 +108,8 @@ def check() -> None:
     assert page['contract_version'] == 'hop-live-source-v1'
     assert page['sources'] == [{'source_id': 'job_alio', 'run_id': 'fixture-job_alio',
                                 'data_as_of': '2026-09-01T00:01:00+00:00'}]
-    assert page['filters'] == {'q': None, 'ncs_category': None, 'region': None, 'open_on': None}
+    assert page['filters'] == {'q': None, 'ncs_category': None, 'region': None, 'open_on': None,
+                               'ncs_match_scope': 'SOURCE_OR_CURRENT_INFERRED'}
     assert (page['limit'], page['offset'], page['total']) == (20, 0, 3)
     assert [item['posting_id'] for item in page['items']] == ['A', 'B', 'C']
     item = page['items'][0]
@@ -116,7 +117,8 @@ def check() -> None:
                          'organization_name',
                          'date_posted', 'closing_date', 'ongoing', 'regions',
                          'employment_types', 'recruitment_type', 'education',
-                         'ncs_categories', 'headcount', 'source_url', 'source_status',
+                         'ncs_categories', 'occupation_associations', 'headcount',
+                         'source_url', 'source_status',
                          'deadline_kind',
                          'deadline_basis', 'deadline_raw', 'application_start_date',
                          'application_start_at', 'deadline_at', 'ongoing_basis',
@@ -341,6 +343,9 @@ def check_multi_source(alio: dict) -> None:
         error(f'SELECT catalog.live_posting_v1({run.q(missing)})', 'LIVE_POSTING_NOT_FOUND')
     migration = (run.ROOT / 'hop/ontology/sql/031_multi_source_live_postings.sql').read_text()
     run.sql(migration)
+    # Replaying an earlier reader is followed by the current additive projection.
+    run.sql((run.ROOT / 'hop/ontology/sql/033_posting_occupation_classifications.sql').read_text())
+    run.sql((run.ROOT / 'hop/ontology/sql/035_ncs_catalog_revalidation.sql').read_text())
     assert response('SET ROLE jobtology_catalog_reader; SELECT catalog.live_postings_v1()') == page
     error('SET ROLE jobtology_catalog_reader; SELECT * FROM catalog._live_source_observations()',
           'permission denied')

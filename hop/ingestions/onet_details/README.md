@@ -128,3 +128,75 @@ node using its highest-priority label. See the official
 [Browser styling instructions](https://neo4j.com/docs/browser/operations/browser-styling/).
 These are optional client display settings; no parser bundle, SQL, graph
 property or qualified native runtime changes are required.
+
+
+## NCS ↔ O*NET crosswalks
+
+Ontology SQL `034_ncs_onet_crosswalk.sql` adds retrieval-only links. Apply it after
+SQL 033. The public reader is `catalog.ncs_onet_crosswalk_v1(node_id, limit, offset)`;
+the restricted catalog reader receives execution rights only, with no table or
+proposal/review write access.
+
+Two deterministic suggestion paths use existing local evidence and make no model
+or job-board requests:
+
+- Occupation pairs inferred for the same posting become `SHARED_POSTINGS`,
+  `PROPOSED`, `RELATED` suggestions. Original source/catalog pins, individual
+  inference review status and stale/unknown freshness are retained. Five samples
+  are exposed; the count includes all matching postings.
+- Explicit bilingual technical cues in NCS definitions and O*NET tasks, elements
+  or software examples become `BILINGUAL_CUE`, `PROPOSED`, `RELATED` suggestions.
+  The reader exposes exact matched substrings and both endpoint versions.
+  These cues are search hints, not evidence of semantic equivalence.
+
+A ten-digit NCS unit family ID resolves to the latest actual unit version in the
+current READY catalog. Returned IDs and codes retain that version. This does not
+establish equivalence between versions. `urn:jobtology:ncs:*` inputs are accepted
+as canonical aliases for the native `ncs:*` source graph IDs. The skill catalog
+alias `onet:skill:<element-code>` resolves only to the current O*NET ELEMENT
+with that exact code; the response retains its actual `urn:jobtology:onet-detail:*`
+identity and version.
+
+A crosswalk's relation is `RELATED`, `PARTIAL` or `EXACT`; its review state is
+separate. All responses carry `competency_evidence=false`, including approved
+comparisons. No analysis coverage, proficiency or planning requirements change.
+The application assembles virtual exploration edges; this migration does not
+bypass the guarded Neo4j graph publishers.
+
+An operator can freeze a specific comparison and append an individual review.
+Set `JOBTOLOGY_ADMIN_POSTGRES_DSN` through the existing protected environment,
+then use the repository interpreter:
+
+```sh
+python hop/operations/manage_ncs_onet_crosswalk.py list \
+  --node-id ncs:unit:2001020101
+python hop/operations/manage_ncs_onet_crosswalk.py propose \
+  --source-id 'ncs:unit:<exact-unit-code>' \
+  --target-id 'urn:jobtology:onet-detail:task:<task-id>' \
+  --relation PARTIAL --evidence-file /private/comparison.json
+```
+
+The comparison JSON must contain `summary` (20–3,000 characters), `source_quote`
+and `target_quote`. Both quotes must occur verbatim in the current endpoint's
+name or definition. Optional translation notes/reference provenance may be
+included; they do not prove equivalence. Compare the performance/task definitions
+and scope before proposing `PARTIAL` or `EXACT` rather than relying on skill names.
+Identical proposals replay idempotently. The returned mapping identifier includes
+the frozen evidence, relation and endpoint versions.
+
+```sh
+python hop/operations/manage_ncs_onet_crosswalk.py review \
+  --mapping-id 'crosswalk:<returned-hash>' --decision APPROVED \
+  --reviewer-kind ASSISTANT --reviewer '<actual-reviewer>' \
+  --note-file /private/review.txt --expected-review-id 0
+```
+
+Use `HUMAN` only for an actual human review. The review note must contain 20–3,000
+characters. A first review expects ID `0`; a later decision requires the current
+review ID, avoiding concurrent review overwrites. Rejection hides the link from
+exploration while retaining both original proposal and every review event.
+Automatic cue/co-occurrence candidates for the same frozen endpoints do not
+immediately reappear after an explicit review decision.
+Changed catalog versions make old comparisons stale and prevent new approval;
+create a new version-pinned proposal after reassessment. Review never rewrites
+old pins or upgrades inherited inference review status.
