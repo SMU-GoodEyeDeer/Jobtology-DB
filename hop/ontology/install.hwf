@@ -561,6 +561,48 @@
       <draw>Y</draw>
       <parallel>N</parallel>
     </action>
+    <action>
+      <name>ontology 033_posting_occupation_classifications</name>
+      <type>SQL</type>
+      <connection>jobtology-postgres</connection>
+      <sqlfromfile>Y</sqlfromfile>
+      <sqlfilename>${PROJECT_HOME}/ontology/sql/033_posting_occupation_classifications.sql</sqlfilename>
+      <sqlfilename_encoding>UTF-8</sqlfilename_encoding>
+      <useVariableSubstitution>N</useVariableSubstitution>
+      <sendOneStatement>Y</sendOneStatement>
+      <xloc>800</xloc>
+      <yloc>1200</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+    </action>
+    <action>
+      <name>ontology 034_ncs_onet_crosswalk</name>
+      <type>SQL</type>
+      <connection>jobtology-postgres</connection>
+      <sqlfromfile>Y</sqlfromfile>
+      <sqlfilename>${PROJECT_HOME}/ontology/sql/034_ncs_onet_crosswalk.sql</sqlfilename>
+      <sqlfilename_encoding>UTF-8</sqlfilename_encoding>
+      <useVariableSubstitution>N</useVariableSubstitution>
+      <sendOneStatement>Y</sendOneStatement>
+      <xloc>80</xloc>
+      <yloc>1400</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+    </action>
+    <action>
+      <name>ontology 035_ncs_catalog_revalidation</name>
+      <type>SQL</type>
+      <connection>jobtology-postgres</connection>
+      <sqlfromfile>Y</sqlfromfile>
+      <sqlfilename>${PROJECT_HOME}/ontology/sql/035_ncs_catalog_revalidation.sql</sqlfilename>
+      <sqlfilename_encoding>UTF-8</sqlfilename_encoding>
+      <useVariableSubstitution>N</useVariableSubstitution>
+      <sendOneStatement>Y</sendOneStatement>
+      <xloc>320</xloc>
+      <yloc>1400</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+    </action>
   </actions>
   <hops>
     <hop>
@@ -1083,6 +1125,48 @@
     </hop>
     <hop>
       <from>ontology 032_inferred_occupation_context</from>
+      <to>ontology 033_posting_occupation_classifications</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>ontology 033_posting_occupation_classifications</from>
+      <to>Abort</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>ontology 033_posting_occupation_classifications</from>
+      <to>ontology 034_ncs_onet_crosswalk</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>ontology 034_ncs_onet_crosswalk</from>
+      <to>Abort</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>ontology 034_ncs_onet_crosswalk</from>
+      <to>ontology 035_ncs_catalog_revalidation</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>ontology 035_ncs_catalog_revalidation</from>
+      <to>Abort</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>ontology 035_ncs_catalog_revalidation</from>
       <to>Success</to>
       <enabled>Y</enabled>
       <evaluation>Y</evaluation>
