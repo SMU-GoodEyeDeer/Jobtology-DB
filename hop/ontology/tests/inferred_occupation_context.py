@@ -26,7 +26,7 @@ def check() -> None:
     original = run.sql("SELECT pg_get_functiondef('catalog._inferred_occupation_rows(text[])'::regprocedure)")
     # Test adapter emits known current, stale and unverifiable source pins.
     # It cannot modify a source or approve any competency evidence.
-    definition = original[:original.index('AS $function$')]
+    definition = original[:original.index('AS $function$')].replace('LANGUAGE sql', 'LANGUAGE plpgsql')
     rows = []
     for key, code, source_pin, freshness in (
             ('current', '20010201', pin, 'CURRENT'),
@@ -129,6 +129,8 @@ INSERT INTO classification.graph_load_node VALUES('load','onet:15-1252.00','targ
     run.sql('REVOKE EXECUTE ON FUNCTION catalog.inferred_occupation_context_v1(text[],integer,integer) '
             'FROM jobtology_catalog_reader')
     run.sql((run.ROOT / 'hop/ontology/sql/032_inferred_occupation_context.sql').read_text())
+    run.sql((run.ROOT / 'hop/ontology/sql/033_posting_occupation_classifications.sql').read_text())
+    run.sql((run.ROOT / 'hop/ontology/sql/035_ncs_catalog_revalidation.sql').read_text())
     assert response('SET ROLE jobtology_catalog_reader; '
                     'SELECT catalog.inferred_occupation_context_v1()') == before
     assert run.sql("SELECT has_function_privilege('jobtology_catalog_reader',"
