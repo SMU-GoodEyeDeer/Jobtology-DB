@@ -9,7 +9,8 @@ it in. `019_catalog_approval.sql`, `020_catalog_source_graph.sql`,
 `028_product_role_demand_base.sql`, `029_flat_catalog_compatibility.sql`,
 `030_live_ncs_unit.sql`, `031_multi_source_live_postings.sql`,
 `032_inferred_occupation_context.sql`, `033_posting_occupation_classifications.sql`,
-`034_ncs_onet_crosswalk.sql`, and `035_ncs_catalog_revalidation.sql` are
+`034_ncs_onet_crosswalk.sql`, `035_ncs_catalog_revalidation.sql`, and
+`036_crosswalk_reader_performance.sql` are
 ordered actions in `install.hwf`.
 It creates `catalog.catalog_approval` (immutable audit rows) and the independent
 singleton `catalog.catalog_active_release`. `029_flat_catalog_compatibility.sql`
@@ -27,8 +28,9 @@ For an already-installed ontology schema, the full catalog SQL install/replay
 sequence is below. Both distinct `028_*.sql` files are required, in this order;
 apply `030_live_ncs_unit.sql`, `031_multi_source_live_postings.sql`,
 `032_inferred_occupation_context.sql`, `033_posting_occupation_classifications.sql`,
-`034_ncs_onet_crosswalk.sql`, and `035_ncs_catalog_revalidation.sql` after those
-files and the reader grants last (`ontology/install.hwf` also ends with 035):
+`034_ncs_onet_crosswalk.sql`, `035_ncs_catalog_revalidation.sql`, and
+`036_crosswalk_reader_performance.sql` after those
+files and the reader grants last (`ontology/install.hwf` also ends with 036):
 
 ```sh
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/019_catalog_approval.sql
@@ -49,12 +51,13 @@ psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/032_inferred_o
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/033_posting_occupation_classifications.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/034_ncs_onet_crosswalk.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/035_ncs_catalog_revalidation.sql
+psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/036_crosswalk_reader_performance.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/catalog_reader_grants.psql
 ```
 
 If `019_catalog_approval.sql`, `020_catalog_source_graph.sql`, and the reader
 grant are already installed, start at `021_scoped_validation.sql` and continue
-through `035_ncs_catalog_revalidation.sql` in the exact order above, including
+through `036_crosswalk_reader_performance.sql` in the exact order above, including
 both `028_*.sql` files, then rerun the current reader grant. Inspect the existing
 `ingestion.validation_issue` definition and take the normal operator backup first.
 Migration 021 changes only CTE planner
@@ -514,6 +517,7 @@ refresh, model request or graph publication runs during installation.
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/033_posting_occupation_classifications.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/034_ncs_onet_crosswalk.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/035_ncs_catalog_revalidation.sql
+psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/036_crosswalk_reader_performance.sql
 psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f hop/ontology/sql/catalog_reader_grants.psql
 ```
 
@@ -609,3 +613,62 @@ archives only; it sends no source or model requests:
 uv run python hop/ontology/tests/posting_classifications.py
 uv run python hop/ontology/tests/ncs_catalog_revalidation.py
 ```
+
+### Crosswalk reader performance upgrade (SQL 036)
+
+For an already compatible catalogue with SQL 033–035 installed, run only this
+idempotent reader replacement in the **catalogue database** using the migration
+owner. Existing reader grants are preserved; the private helper remains revoked
+from PUBLIC. No application/backend restart is required for the SQL replacement.
+
+```sh
+psql -X -v ON_ERROR_STOP=1 -d "$DATABASE_URL" \
+  -f hop/ontology/sql/036_crosswalk_reader_performance.sql
+```
+
+SQL 034's inlined node CTE allowed PostgreSQL to push catalogue-node existence
+checks below the occupation-pair aggregate. The NCS catalogue was consequently
+resolved once per posting, which caused the reported occupation crosswalk
+request to exceed the backend's five-second query budget. SQL 036 materializes
+pairs, resolves distinct pinned endpoints before filtering, and batches the exact
+NCS occupation aggregates into one selected-record scan per requested READY pin.
+NULL pins still select the current NCS pin; original pins and the resolver's
+aggregate ordering/content hashes are preserved.
+
+A new private `_live_source_observations(text[])` overload pushes wanted native
+IDs before JobKorea latest-observation selection and Nara representation
+aggregation, skipping unrelated sources. The established no-argument reader is
+unchanged. Only posting/source groups with both occupation schemes need current
+observations and freshness hashes. SQL 036 adds no index, cache, table, external
+source/model call, data mutation or catalogue revalidation. It preserves exact
+JSON, pagination totals, original pins, source/catalogue freshness, review
+statuses and rejection suppression.
+
+The PostgreSQL 17 regression uses 2,002 associations: SQL 034 calls the single-node
+resolver 2,004 times; SQL 036 uses one O*NET resolver call plus one batched NCS
+catalogue scan. Thirty-nine focused integration/installer/deployment checks pass,
+including legacy JSON equivalence and the bounded projection's exact equality to
+filtered SQL 031 results across all three source namespaces.
+
+On 2026-10-25 UTC, actual read-only production inline full-reader candidates
+completed under unchanged five-second statement timeouts:
+
+| Filter | Total / first-page items | Measured wall time |
+| --- | --- | --- |
+| `ncs:occupation:20010202` | 21 / 6 | 3.844s |
+| `urn:jobtology:onet:occupation:15-1252.00` | 99 / 6 | 4.738s |
+| Same O*NET filter, `limit=100` | 99 / 99 | 4.957s |
+
+The shared-proposal bodies measured 3.606s and 4.530s respectively; their plans
+read 15,520 pinned NCS records once for 22 and 100 distinct endpoints. These
+measure inline SQL candidates, not an installed function or HTTP request. Source
+selection/hashing remains in the measured path, and the O*NET timing leaves
+limited headroom: no cold/loaded-host latency guarantee is established. The
+existing installed reader had exceeded 15 seconds. No production DDL or data
+write was performed during diagnosis or qualification.
+
+After separately authorized installation, check both the first page and a later
+page under the application's query timeout. Confirm the unchanged total and
+original pins as well as latency. Roll back the reader definition, if needed, by
+reinstalling only the `_ncs_onet_shared_posting_proposals(text)` definition from
+SQL 034; this restores its previous performance behavior without touching data.

@@ -107,7 +107,7 @@ def test_focused_and_canonical_installers_end_with_the_same_contract() -> None:
         if name == "install_flat_graph.hwf":
             expected = flat_migrations
         else:
-            assert expected[-9:] == [
+            assert expected[-10:] == [
                 flat_migrations[0],
                 "028_product_role_demand_base.sql",
                 flat_migrations[1],
@@ -117,6 +117,7 @@ def test_focused_and_canonical_installers_end_with_the_same_contract() -> None:
                 "033_posting_occupation_classifications.sql",
                 "034_ncs_onet_crosswalk.sql",
                 "035_ncs_catalog_revalidation.sql",
+                "036_crosswalk_reader_performance.sql",
             ]
         assert [item.findtext("sqlfilename") for item in sql_actions] == [
             "${PROJECT_HOME}/ontology/sql/" + filename for filename in expected
