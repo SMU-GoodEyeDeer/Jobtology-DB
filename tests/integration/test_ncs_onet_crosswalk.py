@@ -113,9 +113,34 @@ LANGUAGE sql STABLE AS $$
                         )
                     )
                 )
+                connection.execute("""
+CREATE FUNCTION catalog._live_source_observations(posting_choices text[])
+RETURNS TABLE(posting_id text,source_id text,normalized jsonb) LANGUAGE plpgsql STABLE AS $$
+ BEGIN
+  IF cardinality(posting_choices)=0 THEN RETURN; END IF;
+  RETURN QUERY SELECT p.* FROM catalog._live_source_observations() p
+   WHERE $1 IS NULL OR p.posting_id=ANY($1);
+ END $$;
+""")
+                install_performance_reader(connection)
                 yield connection
         finally:
             admin.execute(sql.SQL("DROP DATABASE {} WITH (FORCE)").format(sql.Identifier(name)))
+
+
+def install_performance_reader(connection: Connection[Any]) -> None:
+    """Install the shared reader against this fixture's source-observation stub.
+
+    The real bounded source reader and complete migration are exercised separately
+    in test_crosswalk_source_observations.py against native-shaped source tables.
+    """
+    from psycopg import sql
+
+    migration = (ROOT / "hop/ontology/sql/036_crosswalk_reader_performance.sql").read_text()
+    reader = migration[
+        migration.index("CREATE OR REPLACE FUNCTION catalog._ncs_onet_shared_posting_proposals") :
+    ]
+    connection.execute(sql.SQL(cast(LiteralString, "BEGIN;\n" + reader)))
 
 
 def read(
@@ -400,3 +425,144 @@ UPDATE ingestion.ready_record SET normalized=jsonb_set(normalized,'{definition}'
     assert read(database, "onet:skill:" + "x" * (500 - len("onet:skill:")))["total"] == 0
     with pytest.raises(Exception, match="INVALID_CROSSWALK_FILTER"):
         read(database, "onet:skill:" + "x" * (501 - len("onet:skill:")))
+
+
+def test_shared_endpoint_resolution_scales_with_pinned_endpoints(
+    database: Connection[Any],
+) -> None:
+    """Endpoint filters must never move below grouping onto posting rows."""
+    database.execute("""
+INSERT INTO catalog.fixture_association
+ SELECT 'jobkorea:bulk-'||i,f.source_id,f.occupation_scheme,f.occupation_code,
+  f.source_freshness,f.catalog_freshness,
+  f.association||jsonb_build_object('association_id',(f.association->>'association_id')||'-'||i)
+ FROM catalog.fixture_association f CROSS JOIN generate_series(1,1000) i;
+ALTER FUNCTION catalog._crosswalk_node(text,text) RENAME TO _qa_original_crosswalk_node;
+CREATE SEQUENCE catalog.qa_endpoint_calls;
+CREATE FUNCTION catalog._crosswalk_node(node_id text,pin text DEFAULT NULL) RETURNS jsonb
+ LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
+ BEGIN
+  PERFORM nextval('catalog.qa_endpoint_calls');
+  RETURN catalog._qa_original_crosswalk_node(node_id,pin);
+ END $$;
+""")
+    database.execute("SET statement_timeout='3s'")
+    result = database.execute(
+        "SELECT p FROM catalog._ncs_onet_shared_posting_proposals(%s) p", (OCC,)
+    ).fetchall()
+    assert len(result) == 1
+    assert result[0][0]["evidence"]["shared_postings"] == 1001
+    assert result[0][0]["source_freshness"] == "STALE"  # Bulk rows have no current observation.
+    assert database.execute("SELECT last_value FROM catalog.qa_endpoint_calls").fetchone() == (
+        1,
+    )  # O*NET resolves once; NCS endpoints share the batched pinned-record scan.
+    database.execute("SELECT setval('catalog.qa_endpoint_calls',1,false)")
+    assert (
+        database.execute(
+            "SELECT p FROM catalog._ncs_onet_shared_posting_proposals(%s) p", (ONET,)
+        ).fetchall()
+        == result
+    )
+    assert database.execute("SELECT last_value FROM catalog.qa_endpoint_calls").fetchone() == (1,)
+
+
+def test_performance_upgrade_preserves_legacy_json_and_replays(
+    database: Connection[Any],
+) -> None:
+    from psycopg import sql
+
+    database.execute("""
+INSERT INTO catalog.fixture_association SELECT posting_key,source_id,occupation_scheme,occupation_code,
+ 'STALE','STALE',jsonb_set(association,'{catalog_pins,pin}','"ncs-v2"')
+ FROM catalog.fixture_association WHERE occupation_scheme='NCS';
+INSERT INTO catalog.fixture_association SELECT posting_key,source_id,occupation_scheme,'99-9999.00',
+ source_freshness,catalog_freshness,association||'{"association_id":"missing-target"}'::jsonb
+ FROM catalog.fixture_association WHERE occupation_scheme='ONET';
+INSERT INTO catalog.fixture_association SELECT posting_key,source_id,occupation_scheme,occupation_code,
+ source_freshness,'STALE',jsonb_set(association,'{catalog_pins,pin}','null')
+ FROM catalog.fixture_association WHERE occupation_scheme='NCS' AND association#>>'{catalog_pins,pin}'='ncs-v1';
+""")
+    identity = propose(database)
+    legacy = (ROOT / "hop/ontology/sql/034_ncs_onet_crosswalk.sql").read_text()
+    legacy = (
+        "CREATE OR REPLACE FUNCTION catalog._qa_legacy_shared_proposals"
+        + legacy.split("CREATE OR REPLACE FUNCTION catalog._ncs_onet_shared_posting_proposals", 1)[
+            1
+        ].split("$$;", 1)[0]
+        + "$$;"
+    )
+    database.execute(sql.SQL(cast(LiteralString, legacy)))
+    for node in (OCC, ONET, UNIT):
+        expected = database.execute(
+            "SELECT p FROM catalog._qa_legacy_shared_proposals(%s) p ORDER BY p->>'mapping_id'",
+            (node,),
+        ).fetchall()
+        actual = database.execute(
+            "SELECT p FROM catalog._ncs_onet_shared_posting_proposals(%s) p ORDER BY p->>'mapping_id'",
+            (node,),
+        ).fetchall()
+        assert actual == expected
+        if node != UNIT:
+            assert len(actual) == 3  # Old/new/NULL original pins remain separate.
+    before = read(database)
+    install_performance_reader(database)
+    assert read(database) == before
+    assert database.execute("SELECT mapping_id FROM catalog.ncs_onet_mapping").fetchall() == [
+        (identity,)
+    ]
+    assert database.execute("""
+SELECT prosecdef,provolatile,proconfig,
+ has_function_privilege('public','catalog._ncs_onet_shared_posting_proposals(text)','EXECUTE')
+ FROM pg_proc WHERE oid='catalog._ncs_onet_shared_posting_proposals(text)'::regprocedure
+""").fetchone() == (True, "s", ["search_path=pg_catalog, pg_temp"], False)
+
+
+@pytest.mark.parametrize("unpaired", ["NCS", "ONET", "DIFFERENT_SOURCE"])
+def test_unpaired_anchors_skip_source_observation_and_hash_work(
+    database: Connection[Any],
+    unpaired: str,
+) -> None:
+    node = ONET if unpaired == "ONET" else OCC
+    if unpaired == "DIFFERENT_SOURCE":
+        database.execute(
+            "UPDATE catalog.fixture_association SET source_id='other-source' WHERE occupation_scheme='ONET'"
+        )
+    else:
+        database.execute(
+            "DELETE FROM catalog.fixture_association WHERE occupation_scheme<>%s", (unpaired,)
+        )
+    database.execute("SELECT setval('catalog.qa_observation_calls',1,false)")
+    assert read(database, node)["total"] == 0
+    assert database.execute("SELECT is_called FROM catalog.qa_observation_calls").fetchone() == (
+        False,
+    )
+
+
+@pytest.mark.parametrize(
+    ("source", "state", "mode"),
+    [
+        ("other-source", "READY", "FULL"),
+        ("ncs_competency", "FAILED", "FULL"),
+        ("ncs_competency", "READY", "SMOKE"),
+    ],
+)
+def test_batched_ncs_nodes_retain_exact_ready_source_and_non_smoke_guards(
+    database: Connection[Any],
+    source: str,
+    state: str,
+    mode: str,
+) -> None:
+    database.execute("INSERT INTO ingestion.run VALUES('bad-pin',%s,%s,%s)", (source, state, mode))
+    database.execute("""
+INSERT INTO ingestion.ready_record SELECT 'bad-pin',source_id,normalized
+ FROM ingestion.ready_record WHERE run_id='ncs-v1';
+INSERT INTO catalog.fixture_association SELECT posting_key,source_id,occupation_scheme,occupation_code,
+ source_freshness,catalog_freshness,jsonb_set(association,'{catalog_pins,pin}','"bad-pin"')
+ FROM catalog.fixture_association WHERE occupation_scheme='NCS';
+""")
+    assert database.execute("SELECT catalog._crosswalk_node(%s,'bad-pin')", (OCC,)).fetchone() == (
+        None,
+    )
+    result = read(database, ONET)
+    assert result["total"] == 1
+    assert result["items"][0]["source"]["catalog_pin"] == "ncs-v1"

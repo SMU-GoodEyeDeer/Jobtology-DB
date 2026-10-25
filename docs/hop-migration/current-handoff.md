@@ -1,5 +1,33 @@
 # Current Hop migration handoff
 
+Updated: **2026-10-25 UTC — repository-only crosswalk timeout correction.**
+Additive ontology SQL 036 materializes occupation pairs, resolves distinct pinned
+endpoints, and batches exact NCS occupation aggregates into one READY catalogue
+record scan per pin. Its private bounded source-observation overload pushes
+wanted IDs before source selection/aggregation and skips unrelated sources;
+existing no-argument readers remain unchanged. Unpaired anchors need no source
+freshness work. The original production SQL 034 plan pushed catalogue-node
+checks down to individual posting rows; the 2,002-association regression proves
+2,004 old single-node calls versus one O*NET call and one NCS batch scan.
+Original SQL 033/034/035, full-input revalidation, original pins, source freshness
+and actual review semantics remain unchanged. Thirty-nine focused PostgreSQL 17
+integration/installer/deployment tests pass, including exact legacy JSON,
+NULL/old/new/unavailable pins, source namespaces/deltas and migration replay.
+Read-only production **inline full-reader** candidates completed under the
+unchanged 5s bound: NCS `20010202` returned 21 total / 6 items in 3.844s wall;
+O*NET `15-1252.00` returned 99 / 6 in 4.738s, and its `limit=100` page
+returned all 99 in 4.957s. Shared-body plans read 15,520 pinned
+NCS records once for 22 / 100 endpoints; no installed-reader/HTTP or cold/loaded
+latency guarantee is established. The canonical installer and deployment
+allowlist append SQL 036; see the
+[operator command](../../hop/ontology/catalog.md#crosswalk-reader-performance-upgrade-sql-036).
+No production mutation, paid call or job-board HTTP was performed. Deployment
+and installed-reader verification remain pending.
+Protected receipt:
+`~/.local/state/jobtology-hop/crosswalk-reader-20261025T052259Z/receipt.json`
+(mode `0600`), SHA256
+`6675d263285386dc4d4511a89957c195d7e6013232c256d886d7848522a6fe99`.
+
 Updated: **2026-10-21 KST — read-only production NCS pin comparison verified.**
 At database transaction time `2026-10-20T15:52:51.053887+00:00`, the report's
 bounded read-only snapshot confirmed current NCS pin
