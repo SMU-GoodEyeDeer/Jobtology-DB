@@ -121,6 +121,38 @@ def service(service_id: str, label: str, status: str, message: str) -> dict[str,
     }
 
 
+def telemetry_failure(error: Exception, target: str) -> dict[str, Any]:
+    # Classify locally but never return exception text: drivers include credentials
+    # and hostnames even in connection/authentication failures without SQLSTATE.
+    sqlstate = getattr(error, "sqlstate", "") or ""
+    code = getattr(error, "code", "") or ""
+    text = str(error).lower()
+    if (
+        sqlstate.startswith("28")
+        or "password authentication failed" in text
+        or "Unauthorized" in code
+    ):
+        reason = "authentication_failed"
+        message = "Authentication failed. Repair the configured read-only service credentials."
+    elif sqlstate == "42501" or "Forbidden" in code:
+        reason = "permission_denied"
+        message = "Read permission denied. Verify the dedicated telemetry reader grants."
+    elif sqlstate in {"42P01", "42703"}:
+        reason = "schema_mismatch"
+        message = "Telemetry schema is unavailable. Verify the installed ingestion schema."
+    elif sqlstate == "57014" or isinstance(error, TimeoutError):
+        reason = "query_timeout"
+        message = "The bounded telemetry query timed out."
+    else:
+        reason = "connection_or_query_failed"
+        message = "Connection or bounded telemetry query failed. Check server configuration."
+    result = service(
+        target, "PostgreSQL" if target == "postgres" else "Neo4j", "unavailable", message
+    )
+    result["error_code"] = reason
+    return result
+
+
 def empty_source(source_id: str) -> dict[str, Any]:
     return {
         "id": source_id,
@@ -184,16 +216,8 @@ class NativeTelemetry:
                     "summary": summary,
                 }
             )
-        except Exception:
-            # Driver exception text may contain credentials, paths, SQL and hosts.
-            return {
-                "service": service(
-                    "postgres",
-                    "PostgreSQL",
-                    "unavailable",
-                    "Ledger unavailable or its query timed out.",
-                )
-            }
+        except Exception as error:
+            return {"service": telemetry_failure(error, "postgres")}
 
     def graph(self) -> dict[str, Any]:
         if not self.settings.neo4j_uri or not self.settings.neo4j_password:
@@ -231,12 +255,8 @@ class NativeTelemetry:
                 driver.close()
             data["service"] = service("neo4j", "Neo4j", "healthy", "Actual graph counts available.")
             return data
-        except Exception:
-            return {
-                "service": service(
-                    "neo4j", "Neo4j", "unavailable", "Graph unavailable or its query timed out."
-                )
-            }
+        except Exception as error:
+            return {"service": telemetry_failure(error, "neo4j")}
 
     def collect(self) -> dict[str, Any]:
         with ThreadPoolExecutor(max_workers=2) as executor:

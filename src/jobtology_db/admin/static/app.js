@@ -136,6 +136,10 @@
   }
   function showLogin(message) {
     clearTimeout(state.timer);
+    managementGeneration += 1;
+    $("created-invitation").replaceChildren(); $("created-invitation").hidden = true;
+    managementTabs.forEach((name) => $(name + "-list").replaceChildren());
+    ["invitation-dialog", "user-access-dialog"].forEach((name) => { if ($(name).open) $(name).close(); });
     state.session = null;
     state.data = null;
     state.statusError = null;
@@ -323,7 +327,9 @@
       const info = statusInfo(service.status);
       const value = element("span", "service-state " + info.className, info.label.charAt(0).toUpperCase() + info.label.slice(1));
       row.title = textValue(service.message, "") + (service.checked_at ? " · " + date(service.checked_at) : "");
-      row.append(name, value); return row;
+      const identity = element("div"); identity.append(name);
+      if (service.status !== "healthy") identity.append(element("p", "service-diagnostic", textValue(service.message, "")));
+      row.append(identity, value); return row;
     }));
   }
   function renderBars(target, rows, labelField, limit, relationship = false) {
@@ -422,21 +428,160 @@
       card.append(heading, stats, element("p", "", "Confidence: " + textValue(row.confidence, "UNASSESSED") + " · Review status is preserved for each match.")); return card;
     }));
   }
+  const managementTabs = ["invitations", "users", "sessions"];
+  const allTabs = ["overview", "activity", "graph", ...managementTabs];
+  const management = { invitations: {offset: 0, total: 0}, users: {offset: 0, total: 0}, sessions: {offset: 0, total: 0} };
+  let invitationEditing = null;
+  let userEditing = null;
+  let managementGeneration = 0;
+  const localDateInput = (value) => {
+    if (!value) return "";
+    const parsed = new Date(value);
+    if (!Number.isFinite(parsed.getTime())) return "";
+    return new Date(parsed.getTime() - parsed.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  };
+  function managementError(name, message) {
+    const target = $(name + "-error"); target.hidden = !message; target.textContent = message || "";
+  }
+  async function loadManagement(name) {
+    if (!state.session || state.loggingOut || !managementTabs.includes(name)) return;
+    const current = management[name]; const generation = managementGeneration;
+    const requestNumber = current.request = (current.request || 0) + 1;
+    managementError(name, "");
+    empty($(name + "-list"), "Loading…");
+    const params = new URLSearchParams({limit: "50", offset: String(current.offset)});
+    const userId = $("session-user-filter").value.trim();
+    if (name === "sessions" && userId) params.set("user_id", userId);
+    try {
+      const result = await api("/api/application/" + name + "?" + params);
+      if (!state.session || generation !== managementGeneration || current.request !== requestNumber) return;
+      current.total = result.total;
+      renderManagement(name, array(result.items));
+      $(name + "-page").textContent = result.total ? (current.offset + 1) + "–" + Math.min(current.offset + 50, result.total) + " of " + result.total : "0 results";
+      document.querySelectorAll('[data-page="' + name + '"]').forEach((button) => { button.disabled = button.dataset.direction === "-1" ? current.offset === 0 : current.offset + 50 >= result.total; });
+    } catch (error) {
+      if (generation !== managementGeneration || !state.session || current.request !== requestNumber) return;
+      if (error.status === 401) { showLogin(error.message); return; }
+      managementError(name, error.message); empty($(name + "-list"), "Application management unavailable", "Check configuration or refresh to retry.");
+    }
+  }
+  async function managementWrite(name, suffix, method, body, button) {
+    button.disabled = true;
+    try {
+      await api("/api/application/" + name + "/" + suffix, {method, headers: {"X-CSRF-Token": state.session.csrf_token}, ...(body ? {body: JSON.stringify(body)} : {})});
+      toast("Change saved."); await loadManagement(name);
+    } catch (error) { if (error.status === 401) showLogin(error.message); else managementError(name, error.message); }
+    finally { button.disabled = false; }
+  }
+  function managementButton(label, callback) {
+    const button = element("button", "button secondary", label); button.addEventListener("click", () => callback(button)); return button;
+  }
+  function expiryInstant(value) {
+    if (typeof value !== "string") return NaN;
+    const parts = value.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/);
+    if (!parts || Number(parts[4]) > 23 || Number(parts[5]) > 59 || Number(parts[6]) > 59) return NaN;
+    const calendar = new Date(value.slice(0, 10) + "T00:00:00Z");
+    if (calendar.getUTCFullYear() !== Number(parts[1]) || calendar.getUTCMonth() + 1 !== Number(parts[2]) || calendar.getUTCDate() !== Number(parts[3])) return NaN;
+    return new Date(value).getTime();
+  }
+  function accessExpiry(value, hasAdmission) {
+    if (!hasAdmission) return "No admission";
+    if (value === null) return "Unlimited";
+    if (typeof value !== "string" || !value.trim()) return "Unavailable";
+    const expires = expiryInstant(value);
+    if (!Number.isFinite(expires)) return "Unavailable";
+    return (expires <= Date.now() ? "Expired · " : "") + date(value);
+  }
+  function sessionStatus(row) {
+    if (row.revoked_at !== null) {
+      if (typeof row.revoked_at !== "string" || !row.revoked_at.trim()) return "Unavailable";
+      return Number.isFinite(expiryInstant(row.revoked_at)) ? "Revoked · " + date(row.revoked_at) : "Revocation time unavailable";
+    }
+    if (typeof row.expires_at !== "string" || !row.expires_at.trim()) return "Unavailable";
+    const expires = expiryInstant(row.expires_at);
+    if (!Number.isFinite(expires)) return "Unavailable";
+    return expires <= Date.now() ? "Expired" : "Active";
+  }
+  function renderManagement(name, rows) {
+    if (!rows.length) { empty($(name + "-list"), "No " + name + " found"); return; }
+    const columns = name === "invitations" ? ["Label / code hint", "Redemptions", "Code expiry", "Access duration", "Actions"] : name === "users" ? ["User", "Status / access", "Access expiry", "Sessions", "Actions"] : ["User / session", "Created", "Expires", "Status", "Actions"];
+    const scroll = element("div", "table-scroll"); const table = element("table", "management-table"); const head = element("thead"); const tr = element("tr"); columns.forEach((column) => tr.append(element("th", "", column))); head.append(tr); const tbody = element("tbody");
+    for (const row of rows) {
+      const tr = element("tr"); const actions = element("td", "management-row-actions");
+      const values = name === "invitations" ? [row.label + " · " + textValue(row.code_hint, ""), count(row.use_count) + " / " + (row.max_uses === null ? "Unlimited" : count(row.max_uses)), row.expires_at ? date(row.expires_at) : "No expiry", row.access_hours === null ? "Unlimited" : row.access_hours + " hours"] : name === "users" ? [textValue(row.display_name, row.id), textValue(row.status) + " · " + textValue(row.access_source) + (row.invitation_label ? " · " + row.invitation_label : ""), accessExpiry(row.access_expires_at, ["LEGACY", "INVITATION"].includes(row.access_source)), count(row.active_sessions)] : [textValue(row.display_name, row.user_id) + " · " + row.id, date(row.created_at), date(row.expires_at), sessionStatus(row)];
+      values.forEach((value, index) => { const cell = element("td", "", value); if (index === 0) cell.append(element("span", "secondary-line", name === "sessions" ? row.user_id : row.id)); tr.append(cell); });
+      if (name === "invitations") {
+        if (row.revoked_at) actions.append(badge("revoked"));
+        else actions.append(managementButton("Edit", () => openInvitation(row)), managementButton("Revoke code", (button) => { if (confirm("Revoke this invitation? Admitted users keep their access.")) managementWrite(name, row.id + "/revoke", "POST", null, button); }));
+      } else if (name === "users") {
+        actions.append(managementButton(row.status === "ACTIVE" ? "Suspend" : "Restore", (button) => { if (confirm("Change access for " + textValue(row.display_name, row.id) + "?")) managementWrite(name, row.id, "PATCH", {status: row.status === "ACTIVE" ? "DEACTIVATED" : "ACTIVE"}, button); }), managementButton("Edit expiry", () => { userEditing = row.id; $("user-access-form").elements.access_expires_at.value = localDateInput(row.access_expires_at); $("user-access-error").hidden = true; $("user-access-dialog").showModal(); }), managementButton("Revoke sessions", (button) => { if (confirm("Revoke all sessions for this user?")) managementWrite(name, row.id + "/revoke-sessions", "POST", null, button); }));
+      } else if (!row.revoked_at) actions.append(managementButton("Revoke session", (button) => { if (confirm("Revoke this session?")) managementWrite(name, row.id + "/revoke", "POST", null, button); }));
+      tr.append(actions); tbody.append(tr);
+    }
+    table.append(head, tbody); scroll.append(table); $(name + "-list").replaceChildren(scroll); trackTableOverflow(scroll);
+  }
+  function openInvitation(row = null) {
+    invitationEditing = row?.id || null; const form = $("invitation-form"); form.reset();
+    form.elements.label.value = row?.label || ""; form.elements.expires_at.value = localDateInput(row?.expires_at);
+    form.elements.access_hours.value = row?.access_hours ?? "";
+    form.elements.usage.value = row ? row.max_uses === null ? "unlimited" : row.max_uses === 1 ? "single" : "multi" : "single";
+    form.elements.max_uses.value = row?.max_uses > 1 ? row.max_uses : 10;
+    $("max-uses-field").hidden = form.elements.usage.value !== "multi";
+    $("invitation-dialog-title").textContent = row ? "Edit invitation" : "Create invitation";
+    $("invitation-form-error").hidden = true; $("invitation-dialog").showModal();
+  }
+  $("create-invitation").addEventListener("click", () => openInvitation());
+  $("invitation-form").elements.usage.addEventListener("change", (event) => { $("max-uses-field").hidden = event.target.value !== "multi"; });
+  $("invitation-form").addEventListener("submit", async (event) => {
+    event.preventDefault(); const form = event.target; const button = form.querySelector('[type="submit"]'); if (button.disabled || !state.session) return;
+    const fields = form.elements; const body = {label: fields.label.value.trim(), expires_at: fields.expires_at.value ? new Date(fields.expires_at.value).toISOString() : null, access_hours: fields.access_hours.value ? Number(fields.access_hours.value) : null, max_uses: fields.usage.value === "single" ? 1 : fields.usage.value === "unlimited" ? null : Number(fields.max_uses.value)};
+    const activeSession = state.session;
+    button.disabled = true; $("invitation-form-error").hidden = true;
+    try {
+      const result = await api("/api/application/invitations" + (invitationEditing ? "/" + invitationEditing : ""), {method: invitationEditing ? "PATCH" : "POST", headers: {"X-CSRF-Token": state.session.csrf_token}, body: JSON.stringify(body)});
+      if (state.session !== activeSession || state.loggingOut) return;
+      $("invitation-dialog").close();
+      if (!invitationEditing) {
+        const target = $("created-invitation"); const image = element("img", "invitation-qr"); image.alt = "Invitation QR code"; image.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(result.qr_svg);
+        const link = element("a", "button secondary", "Download QR"); link.href = image.src; link.download = "jobtology-invitation.svg";
+        const copy = (label, value) => managementButton(label, async () => { try { await navigator.clipboard.writeText(value); toast("Copied."); } catch { toast("Copy failed. Select and copy the displayed value."); } });
+        target.replaceChildren(element("h2", "", "Invitation created"), element("p", "", "Save this code now. It cannot be retrieved again."), element("code", "invitation-secret", result.code), element("p", "invitation-secret", result.invite_url), image, copy("Copy code", result.code), copy("Copy link", result.invite_url), link, managementButton("Dismiss code", () => { target.replaceChildren(); target.hidden = true; })); target.hidden = false;
+      }
+      await loadManagement("invitations");
+    } catch (error) { if (state.session !== activeSession || state.loggingOut) return; if (error.status === 401) showLogin(error.message); else { $("invitation-form-error").textContent = error.message; $("invitation-form-error").hidden = false; } }
+    finally { button.disabled = false; }
+  });
+  $("user-access-form").addEventListener("submit", async (event) => {
+    event.preventDefault(); const button = event.target.querySelector('[type="submit"]'); if (button.disabled || !state.session) return; button.disabled = true;
+    const input = event.target.elements.access_expires_at.value;
+    const activeSession = state.session;
+    try { await api("/api/application/users/" + userEditing, {method: "PATCH", headers: {"X-CSRF-Token": state.session.csrf_token}, body: JSON.stringify({access_expires_at: input ? new Date(input).toISOString() : null})}); if (state.session !== activeSession || state.loggingOut) return; $("user-access-dialog").close(); await loadManagement("users"); }
+    catch (error) { if (state.session !== activeSession || state.loggingOut) return; if (error.status === 401) showLogin(error.message); else { $("user-access-error").textContent = error.message; $("user-access-error").hidden = false; } }
+    finally { button.disabled = false; }
+  });
+  document.querySelectorAll("[data-close-dialog]").forEach((button) => button.addEventListener("click", () => $(button.dataset.closeDialog).close()));
+  document.querySelectorAll("[data-reload]").forEach((button) => button.addEventListener("click", () => loadManagement(button.dataset.reload)));
+  document.querySelectorAll("[data-page]").forEach((button) => button.addEventListener("click", () => { const name = button.dataset.page; management[name].offset = Math.max(0, management[name].offset + Number(button.dataset.direction) * 50); loadManagement(name); }));
+  $("filter-sessions").addEventListener("click", () => { management.sessions.offset = 0; loadManagement("sessions"); });
   function selectTab(tab) {
-    if (!["overview", "activity", "graph"].includes(tab)) return;
+    if (!allTabs.includes(tab)) return;
     state.tab = tab;
     const titles = { overview: ["Overview", "Operations overview", "The latest on your sources, pipelines, and knowledge graph."], activity: ["Activity", "Execution activity", "Track reported runs and manage configured operations."], graph: ["Knowledge graph", "Knowledge graph", "Explore graph composition, source coverage, and inferred matches."] };
+    titles.invitations = ["Invitations", "Invitation access", "Issue signup codes and set redemption limits and access duration."];
+    titles.users = ["Users", "User access", "Manage account status, expiry, and sessions."];
+    titles.sessions = ["Sessions", "User sessions", "Inspect session metadata and revoke access."];
     const [crumb, title, description] = titles[tab];
     $("breadcrumb-current").textContent = crumb;
     $("page-title").replaceChildren(document.createTextNode(title), element("span", "title-dot", "."));
     $("page-description").textContent = description;
     document.title = crumb + " · Jobtology Admin";
-    for (const name of ["overview", "activity", "graph"]) {
+    for (const name of allTabs) {
       $("panel-" + name).hidden = name !== tab;
       const tabButton = $("tab-" + name); tabButton.classList.toggle("active", name === tab); tabButton.setAttribute("aria-selected", String(name === tab)); tabButton.tabIndex = name === tab ? 0 : -1;
     }
     document.querySelectorAll(".nav-item").forEach((node) => { const selected = node.dataset.tab === tab; node.classList.toggle("selected", selected); if (selected) node.setAttribute("aria-current", "page"); else node.removeAttribute("aria-current"); });
     renderNotices();
+    if (managementTabs.includes(tab)) loadManagement(tab);
     requestAnimationFrame(updateTableCues);
     closeMenu();
   }
@@ -537,8 +682,8 @@
   document.addEventListener("keydown", (event) => { if (event.key === "Escape") { closeMenu(); $("user-menu").hidden = true; $("user-menu-button").setAttribute("aria-expanded", "false"); } });
   document.querySelector(".view-tabs").addEventListener("keydown", (event) => {
     if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
-    event.preventDefault(); const tabs = ["overview", "activity", "graph"]; const index = tabs.indexOf(state.tab);
-    const target = event.key === "Home" ? 0 : event.key === "End" ? 2 : (index + (event.key === "ArrowRight" ? 1 : 2)) % 3;
+    event.preventDefault(); const tabs = allTabs; const index = tabs.indexOf(state.tab);
+    const target = event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : (index + (event.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length;
     selectTab(tabs[target]); $("tab-" + tabs[target]).focus();
   });
   $("logout-button").addEventListener("click", async () => {

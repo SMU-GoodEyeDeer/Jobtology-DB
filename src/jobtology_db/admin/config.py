@@ -114,6 +114,8 @@ class AdminSettings(BaseSettings):
     queue_path: Path = Path("/var/lib/jobtology-admin/queue.sqlite3")
     actions_file: Path | None = None
     controls_enabled: bool = False
+    application_api_url: str | None = None
+    application_api_token: SecretStr | None = None
     worker_stale_seconds: int = Field(default=45, ge=15, le=300)
 
     @model_validator(mode="after")
@@ -126,6 +128,24 @@ class AdminSettings(BaseSettings):
             ("bolt://", "bolt+s://", "bolt+ssc://", "neo4j://", "neo4j+s://", "neo4j+ssc://")
         ):
             raise ValueError("invalid Neo4j URI scheme")
+        if self.application_api_token and len(self.application_api_token.get_secret_value()) < 32:
+            raise ValueError("application API token must contain at least 32 characters")
+        if self.application_api_url:
+            from urllib.parse import urlsplit
+
+            parsed = urlsplit(self.application_api_url)
+            if (
+                parsed.scheme not in {"http", "https"}
+                or not parsed.hostname
+                or parsed.username
+                or parsed.password
+                or parsed.path not in {"", "/"}
+                or parsed.query
+                or parsed.fragment
+            ):
+                raise ValueError(
+                    "application API URL must be an HTTP(S) origin without credentials"
+                )
         return self
 
     def origins(self) -> set[str]:

@@ -266,3 +266,91 @@ The live native ledger currently reports run states and timing, with no reliable
 per-run completion percentage. The dashboard leaves progress percentages unknown
 and renders a percentage only when an API response explicitly reports one; it
 does not estimate completion from elapsed time or invent a percentage from state.
+
+## Application invitations, users and sessions
+
+The existing authenticated dashboard adds **Invitations**, **Users** and
+**Sessions** alongside ingestion telemetry. Configure these server-side runtime
+variables in the dashboard deployment:
+
+| Variable | Value |
+| --- | --- |
+| `JOBTOLOGY_ADMIN_APPLICATION_API_URL` | Private backend HTTP(S) origin, e.g. `http://backend-private:8000`; no path, query or embedded credentials |
+| `JOBTOLOGY_ADMIN_APPLICATION_API_TOKEN` | Independent random bearer secret of at least 32 characters, matching backend `JOBTOLOGY_MANAGEMENT_TOKEN` |
+
+Before enabling management, apply backend Alembic revision `20261102_01` to the
+application database. Backend `JOBTOLOGY_INVITATION_REQUIRED=true` is the default;
+keep it enabled for invite-only signup and admitted-account expiry checks. Set
+backend `JOBTOLOGY_MANAGEMENT_TOKEN` to the same independent secret configured in
+the dashboard, at least 32 characters. This does not replace or share the
+separate dashboard username/password/session secret.
+
+The client appends fixed `/internal/admin` routes. Keep the backend management
+listener private; deny `/internal/admin` on the public backend ingress or use an
+equivalent private routing boundary. Omitting routes from OpenAPI does not
+restrict network access. Tokens remain in the server process; browser requests use the
+existing dashboard session, same-origin protection and CSRF token. No CORS grant
+or browser-visible management token is needed. The dashboard never connects to
+the application database as a writer. Its ingestion reader and separate host
+worker controls remain unchanged. Requests use no environment proxy, follow no
+redirect, have a 3s connect / 8s I/O timeout plus an 8s response deadline checked
+between chunks, and reject responses larger than 512 KiB. A blocked final read
+can last up to one additional I/O timeout. Lists are limited to 100 rows per
+request; the UI pages through 50 rows. Unconfigured or inaccessible management
+APIs display a clear unavailable message without disrupting ingestion telemetry.
+Demo mode does not permit application management.
+
+Create invitations with a label, optional code expiry, optional access hours,
+and single, multiple or unlimited redemptions. Fractional access hours are
+supported. Code expiry controls when a new account can redeem; access duration
+starts at first admission. Later Google login does not reset that deadline.
+Existing accounts are grandfathered as `LEGACY`. Editing an invitation affects
+future redemptions, and revoking its code does not revoke users already admitted.
+Use **Users** to suspend/restore an account, edit its individual access expiry or
+revoke all its sessions. **Sessions** shows metadata only, can filter by user ID,
+and can revoke individual sessions; it never displays session credentials.
+
+The raw invitation code, link and QR are returned only at creation. Save or copy
+them before dismissing the result or signing out. The QR downloads as a local
+SVG and uses no external QR service. The backend stores a code hash; listings
+show only a hint. The creation result is not stored in browser local/session
+storage and is cleared on sign-out. Avoid including codes or invitation links
+in issue reports and logs.
+
+## Verified telemetry diagnosis — November 2, 2026
+
+Read-only checks against the currently running dashboard on Goldship established
+that the admin HTTP process is available and uses live mode. Its PostgreSQL DSN
+is configured, the configured target's TCP port is reachable, and PostgreSQL
+rejects the supplied credential with **password authentication failed**.
+The failure occurs during connection, before any telemetry SQL executes.
+Neo4j URI/password runtime variables are absent, so graph telemetry correctly
+reports **not configured**. These observations establish two deployment
+configuration problems; changing query SQL cannot repair them. No live
+credentials, grants, network configuration or container were changed by this
+investigation, and no job-board or paid provider request was made.
+
+For the PostgreSQL repair, a database owner should verify the intended dedicated
+`jobtology_admin_reader` account and database, reconcile its password with the
+protected `JOBTOLOGY_ADMIN_POSTGRES_DSN` value in Coolify, and check the minimal
+column grants in [`postgres-readonly.sql`](../deploy/admin/postgres-readonly.sql).
+Set passwords interactively or through the existing secret store; never paste
+them into source, issue text or diagnostic output. Preserve the reader's lack of
+writer privileges. Restart/redeploy the dashboard after the reviewed secret
+update and verify PostgreSQL health plus non-null ledger values while logged in.
+Do not substitute the Hop ingestion writer or a database owner credential.
+
+For Neo4j, provision or identify a supported dedicated reader and set
+`JOBTOLOGY_ADMIN_NEO4J_URI`, `JOBTOLOGY_ADMIN_NEO4J_USER`,
+`JOBTOLOGY_ADMIN_NEO4J_PASSWORD` and `JOBTOLOGY_ADMIN_NEO4J_DATABASE` in protected
+runtime configuration. Verify private-network reachability and read privileges
+for that database. If the installed edition cannot provide a separate reader,
+keep graph telemetry unavailable until an appropriate access boundary exists.
+
+The repository now classifies authentication failures, read-permission failures,
+missing telemetry schema and query timeouts into fixed, safe diagnostics shown
+in System health. Driver exception text, SQL, connection strings, hosts and
+passwords are never returned to the browser. Missing credentials still produce
+`not_configured`, and unavailable counts remain null rather than zero. The new
+diagnostics require deployment; they do not imply that live credentials have
+already been repaired.
