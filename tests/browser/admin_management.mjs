@@ -4,7 +4,8 @@
  */
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || "playwright");
@@ -47,7 +48,15 @@ const sessions = [
   { id: identifier, user_id: users[0].id, display_name: "Expired session", created_at: "2000-01-01T00:00:00Z", expires_at: "2000-01-02T00:00:00Z", revoked_at: null },
   { id: users[1].id, user_id: users[1].id, display_name: "Unknown session", expires_at: "2050", revoked_at: null },
 ];
-const dashboard = { mode: "live", generated_at: new Date().toISOString(), summary: {}, graph: {}, services: [], sources: [], runs: [], jobs: [], actions: [], notices: [] };
+const dashboard = {
+  mode: "live", generated_at: new Date().toISOString(),
+  summary: { source_postings: 22635, total_nodes: 52300, total_relationships: 100000, active_runs: 0, failed_runs_24h: 0 },
+  graph: { status: "healthy", checked_at: new Date().toISOString(), node_counts: [{ label: "SourcePosting", count: 22635 }], relationship_counts: [{ type: "HAS_SOURCE", count: 22635 }], postings_by_source: [{ source_id: "archive", count: 22635 }], inference: [{ kind: "INFERRED_NCS_OCCUPATION", total: 5000, reviewed: 20, unreviewed: 4980, confidence: "UNASSESSED" }] },
+  services: [{ id: "postgres", label: "PostgreSQL", status: "healthy" }, { id: "neo4j", label: "Neo4j", status: "unavailable", message: "Authentication failed. Check the configured credentials." }],
+  sources: [{ id: "archive", name: "Local archive", mode: "LOCAL_ONLY", postings: 22635, records: 22635, last_success_at: new Date().toISOString(), state: "ready" }],
+  runs: [{ id: identifier, source_id: "archive", source_name: "Local archive", operation: "Import", state: "succeeded", started_at: new Date().toISOString(), duration_seconds: 60, records: 22635 }],
+  jobs: [], actions: [{ id: "fixture-profile", label: "Fixture operation", description: "Synthetic profile only.", enabled: true }], notices: [],
+};
 const requests = [];
 const holds = [];
 let authenticated = false;
@@ -67,6 +76,9 @@ await page.route("**/*", async (route) => {
   const request = route.request(); const url = new URL(request.url());
   assert.equal(url.origin, origin, "fixture must not make external HTTP requests");
   if (!url.pathname.startsWith("/api/")) { await route.continue(); return; }
+  if (request.method() !== "GET" && url.pathname !== "/api/login") {
+    assert.equal(request.headers()["x-csrf-token"], "fixture-csrf-" + operator, "authenticated writes keep their session CSRF token");
+  }
   const record = { path: url.pathname, method: request.method(), body: request.postDataJSON() };
   requests.push(record);
   const index = holds.findIndex((hold) => hold.matches(record));
@@ -91,7 +103,7 @@ async function login(name) {
   await page.locator("#login-submit").click(); await page.locator("#app-view").waitFor({ state: "visible" });
 }
 async function logout() {
-  await page.locator("#user-menu-button").click(); await page.locator("#logout-button").click();
+  await page.locator("#logout-button").click();
   await page.locator("#login-view").waitFor({ state: "visible" });
 }
 async function showUsers() {
@@ -111,8 +123,31 @@ async function releaseAndWait(hold, status, body) {
   const response = page.waitForResponse((response) => response.status() === status && new URL(response.url()).pathname === request.path && response.request().method() === request.method);
   hold.release({ status, body }); await response; await page.waitForTimeout(100);
 }
+async function screenshot(name) {
+  if (!process.env.ADMIN_SCREENSHOT_DIR) return;
+  await mkdir(process.env.ADMIN_SCREENSHOT_DIR, { recursive: true });
+  await page.locator("#toast").evaluate((node) => { node.hidden = true; });
+  await page.screenshot({ path: join(process.env.ADMIN_SCREENSHOT_DIR, name + ".png"), fullPage: true });
+}
+async function fitsViewport() {
+  const layout = await page.evaluate(() => ({ width: innerWidth, scrollWidth: document.documentElement.scrollWidth }));
+  assert(layout.scrollWidth <= layout.width, JSON.stringify(layout));
+}
 try {
-  await page.goto(origin); await login("operator-1"); await showUsers();
+  await page.goto(origin); await page.locator("#login-view").waitFor({ state: "visible" });
+  await screenshot("login-1440"); await login("operator-1");
+  await page.locator("#metrics dd").first().waitFor();
+  assert.match(await page.locator("#services-list").textContent(), /Authentication failed/);
+  await screenshot("overview-1440");
+  await page.locator("#tab-overview").focus(); await page.keyboard.press("ArrowRight");
+  assert.equal(await page.locator("#tab-activity").getAttribute("aria-selected"), "true");
+  await page.getByRole("button", { name: "Review & run", exact: true }).click();
+  assert.equal(await page.locator("#confirmation-profile").textContent(), "fixture-profile");
+  await page.locator("#cancel-operation").click();
+  await page.locator("#tab-graph").click();
+  assert.equal(await page.locator("#node-details tbody tr td").first().textContent(), "SourcePosting");
+  assert.equal(await page.locator("#relationship-details tbody tr td").first().textContent(), "HAS_SOURCE");
+  await showUsers();
   assert.match(await row("Expired user").locator("td").nth(1).textContent(), /ACTIVE/);
   assert.match(await row("Expired user").locator("td").nth(2).textContent(), /^Expired/);
   for (const name of ["Missing expiry", "Malformed expiry", "Invalid calendar"]) {
@@ -223,6 +258,14 @@ try {
   await page.locator("#created-invitation").waitFor({ state: "visible" });
   assert.match(await page.locator("#created-invitation").textContent(), /fixture-creation-only-code/);
   assert.equal(await page.locator(".invitation-qr").evaluate((image) => image.complete && image.naturalWidth > 0), true);
+  assert.match(await page.locator("#created-invitation").textContent(), /Share the link or scan the QR, then sign in with Google/);
+  assert.equal(await page.locator("#created-invitation").evaluate((node) => document.activeElement === node), true);
+  assert.match(await page.getByRole("link", { name: "Download QR", exact: true }).getAttribute("href"), /^data:image\/svg\+xml/);
+  assert.equal(await page.getByRole("link", { name: "Download QR", exact: true }).getAttribute("download"), "jobtology-invitation.svg");
+  for (const width of [1440, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 }); await fitsViewport(); await screenshot("invitation-created-" + width);
+  }
+  await page.setViewportSize({ width: 1440, height: 1000 });
   await page.locator("#create-invitation").click();
   assert.equal(await page.locator("#invitation-dialog").evaluate((dialog) => dialog.open), false, "undismissed code must not be overwritten by another creation");
   await page.getByRole("button", { name: "Edit", exact: true }).click();
@@ -240,19 +283,25 @@ try {
 
   for (const width of [1440, 390, 320]) {
     await page.setViewportSize({ width, height: 900 });
-    for (const tab of ["invitations", "users", "sessions"]) {
-      await page.locator("#tab-" + tab).click(); await page.locator(`#${tab}-list tbody tr`).first().waitFor();
-      const layout = await page.evaluate(() => ({ width: innerWidth, scrollWidth: document.documentElement.scrollWidth }));
-      assert(layout.scrollWidth <= layout.width, JSON.stringify({ tab, ...layout }));
+    for (const tab of ["overview", "activity", "graph", "invitations", "users", "sessions"]) {
+      await page.locator("#tab-" + tab).click();
+      if (["invitations", "users", "sessions"].includes(tab)) await page.locator(`#${tab}-list tbody tr`).first().waitFor();
+      await fitsViewport(); await screenshot(tab + "-" + width);
     }
+    await page.locator("#tab-invitations").click(); await page.locator("#create-invitation").click();
+    await fitsViewport(); await screenshot("invitation-form-" + width);
+    await page.locator('[data-close-dialog="invitation-dialog"]').click();
+    await page.locator("#tab-users").click(); await page.locator("#users-list tbody tr").first().waitFor();
+    await openExpiry("Known expiry"); await fitsViewport(); await screenshot("expiry-form-" + width);
+    await expiryCancel.click(); await page.locator("#tab-sessions").click(); await page.locator("#sessions-list tbody tr").first().waitFor();
   }
   assert.equal(await page.locator("#sessions-list tbody tr").nth(0).locator("td").nth(3).textContent(), "Expired");
   assert.equal(await page.locator("#sessions-list tbody tr").nth(1).locator("td").nth(3).textContent(), "Unavailable");
-  await logout(); assert.equal(await page.locator("#created-invitation").textContent(), "");
+  await logout(); assert.equal(await page.locator("#created-invitation").textContent(), ""); await fitsViewport(); await screenshot("login-320");
   assert.deepEqual(errors, []);
   assert.deepEqual(resourceErrors.sort(), injectedErrors.sort(), "only deliberately injected resource errors are expected");
   assert.equal(holds.length, 0);
-  console.log(JSON.stringify({ passed: true, viewports: [1440, 390, 320], staleRowResponses: [200, 401, 409], explicitExpiryClearing: true, reusedExpiryDialogsPreserved: true, pendingInvitationPreserved: true, noExternalRequests: true, javascriptErrors: errors }));
+  console.log(JSON.stringify({ passed: true, viewports: [1440, 390, 320], staleRowResponses: [200, 401, 409], explicitExpiryClearing: true, reusedExpiryDialogsPreserved: true, pendingInvitationPreserved: true, sessionCsrfPreserved: true, noExternalRequests: true, javascriptErrors: errors }));
 } finally {
   await browser.close(); await new Promise((resolve) => server.close(resolve));
 }
