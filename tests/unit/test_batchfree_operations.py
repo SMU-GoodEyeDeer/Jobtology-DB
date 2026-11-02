@@ -197,6 +197,7 @@ def test_native_grid_uses_one_query_batch_per_transaction(operations: Any, tmp_p
     path = tmp_path / "grid.hpl"
     operations.dates.build_snapshot(path, "RETURN $offset AS signature", "/tmp/fixture")
     operations.configure_grid(path, "offset", ["0", "5000"], "Integer")
+    assert ET.parse(path).getroot().findtext("transform[type='Neo4jCypherOutput']/unwind") == "N"
     root = ET.parse(path).getroot()
     grid = next(t for t in root.findall("transform") if t.findtext("type") == "DataGrid")
     assert [x.findtext("item") for x in grid.findall("data/line")] == ["0", "5000"]

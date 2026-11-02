@@ -152,6 +152,9 @@ def configure_grid(path: Path, field: str, values: list[str], kind: str = "Strin
     for key, value in (("parameter", field), ("field", field), ("type", kind)):
         ET.SubElement(mapping, key).text = value
     neo.find("batch_size").text = "1"  # type: ignore[union-attr]
+    # The source verifier now batches via $rows. Private grid operations bind
+    # their own scalar parameter for each bounded query and must not inherit it.
+    neo.find("unwind").text = "N"  # type: ignore[union-attr]
     ET.ElementTree(root).write(path, encoding="utf-8", xml_declaration=True)
     path.chmod(0o600)
 

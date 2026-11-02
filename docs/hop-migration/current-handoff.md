@@ -1,5 +1,68 @@
 # Current Hop migration handoff
 
+Updated: **2026-11-03 KST — JobKorea replacement operationally complete; SERVING event 3 verified.**
+The exact supplied **5,482-record / 13,960,786-byte** export has SHA256
+`4343f52738cce2eff0de13d6e9d1f98415db3384532d3a21ff0124ed8b55dfa6`.
+Collection time is unknown. Processing used supplied local/archive bytes without
+job-board HTTP or historical paid-response reuse. All supplied records lack
+narrative content.
+
+Both matchers covered all 5,482 observations: **10,547 paid requests / 417 local
+abstentions**, with no charged retry. The **23 technical rejections** remain
+unlinked. Settled cost is **$7.07435240** (NCS $2.65541002 / O*NET $4.41894238),
+including upstream BYOK charges and zero router fees, below the $10 target / $12
+ceiling. Historical evidence, charges and provisional exposure remain unchanged.
+
+SERVING event 3 selects the exact source run
+`jobkorea-ndjson-c5633b6d40809cc0b788bea454727dfd99850569f5f5b27ab15bc9426daef62f`,
+NCS pin `5f5959bd-b965-436a-830a-db75efafd7b8`, **READY NCS token
+`df4a3fc7-42c3-4cb1-b308-f5fe04280581` / 1,632 links**, and **VERIFIED O*NET
+publication `99cf2ce7-542c-460a-94d4-ccd048015692` / 1,562 links** for task
+`jkr-20261103-onet`. Published links contain **22 ASSISTANT_REVIEWED / 3,172
+UNREVIEWED / zero HUMAN_REVIEWED**, with NULL / UNASSESSED confidence. These are
+metadata inferences, not source-stated duties or competency evidence.
+
+Verified graph retirement removed **6,912 old-only nodes / 12,185 old edges**.
+The final graph has **204,639 nodes / 777,713 relationships**, with exact fresh
+5,482 / 1,632 / 1,562 posting/NCS/O*NET counts. Preservation is
+**VERIFIED_FINAL_PRESERVATION**: **228 protected multisets have zero differences,
+27 application tables are exact, and all 973,675 original protected graph entries
+match**. Older unrelated NULL-cost ERROR rows and historical ledgers were not reset.
+
+Actual deployed catalog-reader verification enumerated **68 pages / all 5,482
+exact JobKorea IDs**, retaining **1,240 other-source postings**. Source/detail,
+contexts and exact chat-graph checks passed with zero failures. SQL039 repaired
+the O*NET crosswalk read path without changing the three qualified reader/projector
+hashes, v1 policy, table schemas, ledgers or source pins. Under the unchanged
+five-second bound, cold O*NET crosswalk read was **1.956 s** and cold NCS **3.719 s**;
+in-process cached reads were **0.008 ms / 0.005 ms** respectively. Public readiness
+returned **200** and an unauthenticated API request returned **401**.
+**Authenticated HTTP and browser flows were not verified.** These reader and
+health/auth-gate checks do not claim browser coverage.
+
+The coordinator restored **only the exact Hop cron prefix (one entry)** and
+verified all other entries unchanged. No BE or FE deployment was needed for this
+import. On the next canonical ontology installation, retain order **SQL037 →
+SQL038 → SQL039**; SQL039 is the final crosswalk-only step. Earlier reader replay
+must be followed by the qualified policy and crosswalk definitions. See the
+[replacement runbook](jobkorea-replacement-runbook.md) for the reusable procedure,
+qualified source files and full execution record.
+
+Protected receipt paths below are relative to
+`~/.local/state/jobtology-hop/jobkorea-replacement-20261103-4343f52738cc/`.
+Raw exports, request/response bodies, source URLs and private review packets stay
+outside Git.
+
+| Final result | Receipt / SHA256 |
+| --- | --- |
+| Matching roll-up | `full-remainder-drain/final-reconciliation/matching-final-receipt.json` — `d5dbc6ef70b26c2735202ea9f2b5b1de331b8c2134541ad2eab372a9ce01826b` |
+| Publication bindings | `owned-publication-bindings-11fdee96336e/bindings.json` — `d56a012450d184d5cb088e52040274b34d3807ec0beb5179d00faa0e1824d502` |
+| Final preservation | `final-preservation-final-ae16aeefd663/receipt.json` — `eac627fe2b2000e6caac8c6f65f165e5119011ece01be116c511a5cbcd761adc` |
+| SQL039 deployment | `sql039-deployment-90d159c347c5/receipt.json` — `6ef6a26d4d905eb5b186b223a546be0e23c05a992f12cfe045f18a52ebb9a819` |
+| Deployed reader checks | `focused-deployed-reader-62b101598648/receipt.json` — `7c69d969ef89df836168cc62fe46e7b0bd6c30b4972f37fae2517dd4b58e8a00` |
+| Public health/auth gate | `public-health-authgate-0e9534e3b453/receipt.json` — `bb0c008f72d9559aaacaf902e75070df923da34e1644ef5b9c69e064f0a7ad53` |
+| Exact cron restoration | `cron-restoration-574731155c8c/receipt.json` — `865299903ca691b089bb64c4d44fa8dc66ea25a9cf86985cb9495b51c1fec30a` |
+
 Updated: **2026-11-03 KST — graph telemetry disabled pending an enforced reader
 boundary.** Both `JOBTOLOGY_ADMIN_NEO4J_URI` and
 `JOBTOLOGY_ADMIN_NEO4J_PASSWORD` were removed from Coolify runtime configuration.

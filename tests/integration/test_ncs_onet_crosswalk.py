@@ -141,6 +141,9 @@ def install_performance_reader(connection: Connection[Any]) -> None:
         migration.index("CREATE OR REPLACE FUNCTION catalog._ncs_onet_shared_posting_proposals") :
     ]
     connection.execute(sql.SQL(cast(LiteralString, "BEGIN;\n" + reader)))
+    connection.execute(sql.SQL(cast(LiteralString, (
+        ROOT / "hop/ontology/sql/039_crosswalk_pair_workset.sql"
+    ).read_text())))
 
 
 def read(

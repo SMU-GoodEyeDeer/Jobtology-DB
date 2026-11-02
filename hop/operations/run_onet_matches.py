@@ -29,6 +29,7 @@ from pathlib import Path
 from typing import Any
 
 import reconcile_runtime as common
+import replacement_matching_scope as replacement
 
 REPO = common.ROOT.parent
 sys.path.insert(0, str(REPO))
@@ -47,10 +48,12 @@ WORKFLOWS = {
     "install": "llm/onet/install.hwf",
     "install-reconciliation": "llm/onet/install_reconciliation.hwf",
     "install-route-incident": "llm/onet/install_route_incident.hwf",
+    "install-replacement-scope": "llm/onet/install_replacement_scope.hwf",
     "execute": "llm/onet/execute_matches.hwf",
     "publish": "llm/onet/publish_matches.hwf",
 }
-STAGES = ("freeze", "prepare", "deploy", "install", "install-reconciliation",
+STAGES = ("freeze", "prepare", "deploy", "install", "install-replacement-scope",
+          "install-reconciliation",
           "install-route-incident", "dry", "pilot", "approve-scale", "full", "resume",
           "publish", "status")
 
@@ -185,6 +188,15 @@ def freeze(args: argparse.Namespace) -> Path:
                                  ("lexicon.py", lexicon))}
     source_identity = file_identity(args.source_file)
     catalogue_identity = file_identity(args.catalogue_file)
+    scope_path = getattr(args, "replacement_manifest", None)
+    scope = replacement.load(scope_path, args.replacement_sha256) if scope_path else None
+    if scope:
+        if getattr(args, "continuation_proof", None):
+            raise RuntimeError("Replacement is a new cohort, never an original-cohort continuation")
+        if (args.task_id, args.release_id, args.database_id, source_identity["sha256"],
+            catalogue_identity["sha256"]) != (scope["onet_task_id"], scope["onet_release_id"],
+            scope["onet_database_id"], scope["cohort_sha256"], scope["onet_catalogue_file_sha256"]):
+            raise RuntimeError("Replacement source/catalogue/task pins differ from reviewed scope")
     if source_identity["sha256"] != args.source_sha256:
         raise RuntimeError("Original frozen source export SHA256 differs")
     if catalogue_identity["sha256"] != args.catalogue_sha256:
@@ -208,6 +220,11 @@ def freeze(args: argparse.Namespace) -> Path:
         counts = check_cohort(rows, continuation["_counts"])
         settings_value.update({"continuation_proof_sha256": args.continuation_sha256,
                                "predecessor_task_id": continuation["task_predecessor"]})
+    elif scope:
+        replacement.validate_rows(scope, rows)
+        counts = check_cohort(rows, {"jobkorea": scope["posting_count"]})
+        settings_value["max_cost_usd"] = str(replacement.CAPS["onet"])
+        settings_value["replacement_scope_sha256"] = args.replacement_sha256
     else:
         counts = check_cohort(rows)
     catalogue = json.loads(args.catalogue_file.read_bytes())
@@ -248,6 +265,8 @@ def freeze(args: argparse.Namespace) -> Path:
         "counts": counts, "task_cap_usd": str(CAP), "cost_scope": SCOPE,
         "settings": settings_value, "rows": frozen,
     }
+    if scope:
+        manifest["replacement_scope"] = replacement.reference(scope_path, args.replacement_sha256)
     if continuation is not None:
         manifest["continuation_proof"] = {"path": str(continuation_path.resolve()),
                                           **file_identity(continuation_path)}
@@ -327,7 +346,21 @@ def manifest_inputs(path: Path) -> dict[str, Any]:
     for relative, expected in value["code_artifacts"].items():
         if file_identity(path.parent / relative) != expected:
             raise RuntimeError("Retained frozen prompt/retrieval/hint code changed")
-    if "continuation_proof" in value:
+    scope = replacement.from_manifest(value)
+    if scope:
+        if "continuation_proof" in value:
+            raise RuntimeError("Replacement cannot use historical continuation proof")
+        replacement.validate_rows(scope, value["rows"])
+        check_cohort(value["rows"], {"jobkorea": scope["posting_count"]})
+        if (value["task_id"], value["release_id"], value["database_id"],
+            value["source_export"]["sha256"], value["catalogue_export"]["sha256"],
+            value["settings"].get("max_cost_usd"),
+            value["settings"].get("replacement_scope_sha256")) != (
+            scope["onet_task_id"], scope["onet_release_id"], scope["onet_database_id"],
+            scope["cohort_sha256"], scope["onet_catalogue_file_sha256"], "7",
+            value["replacement_scope"]["sha256"]):
+            raise RuntimeError("Frozen replacement scope/settings changed")
+    elif "continuation_proof" in value:
         import onet_continuation
 
         proof = onet_continuation.verify_manifest(value)
@@ -549,7 +582,8 @@ def pilot_ids(rows: list[dict[str, Any]], eligible: list[str], per_source: int =
     return result
 
 
-def explicit_pilot_ids(path: Path, rows: list[dict[str, Any]], eligible: list[str]
+def explicit_pilot_ids(path: Path, rows: list[dict[str, Any]], eligible: list[str],
+                       scope: dict[str, Any] | None = None
                        ) -> tuple[list[str], dict[str, Any]]:
     evidence = file_identity(path)
     data = path.read_bytes()
@@ -559,12 +593,13 @@ def explicit_pilot_ids(path: Path, rows: list[dict[str, Any]], eligible: list[st
         selected = json.loads(data)
     except (ValueError, UnicodeDecodeError) as exc:
         raise RuntimeError("Pilot posting-ID file must contain an exact JSON list") from exc
-    if not isinstance(selected, list) or len(selected) != 36:
-        raise RuntimeError("Explicit pilot requires a JSON list of exactly 36 posting IDs")
+    expected = 24 if scope else 36
+    if not isinstance(selected, list) or len(selected) != expected:
+        raise RuntimeError(f"Explicit pilot requires a JSON list of exactly {expected} posting IDs")
     if any(not isinstance(posting, str) or not SAFE_ID.fullmatch(posting)
            for posting in selected):
         raise RuntimeError("Explicit pilot posting IDs must be exact safe strings")
-    if len(set(selected)) != 36:
+    if len(set(selected)) != expected:
         raise RuntimeError("Explicit pilot posting IDs must be unique")
     sources = {row["posting_identity"]: row["source_id"] for row in rows}
     if any(posting not in sources for posting in selected):
@@ -573,7 +608,11 @@ def explicit_pilot_ids(path: Path, rows: list[dict[str, Any]], eligible: list[st
     if any(posting not in available for posting in selected):
         raise RuntimeError("Explicit pilot contains an already planned or sent posting")
     selected_sources = [sources[posting] for posting in selected]
-    if {source: selected_sources.count(source) for source in COUNTS} != dict.fromkeys(COUNTS, 12):
+    if scope and set(selected_sources) != {"jobkorea"}:
+        raise RuntimeError("Replacement pilot must contain only new JobKorea inputs")
+    if not scope and {source: selected_sources.count(source) for source in COUNTS} != dict.fromkeys(
+        COUNTS, 12
+    ):
         raise RuntimeError("Explicit pilot requires exactly 12 frozen postings per source")
     return selected, {"method": "EXPLICIT_POSTING_IDS_FILE", "path": str(path.resolve()),
                       "file_identity": evidence, "posting_ids": selected}
@@ -621,7 +660,9 @@ def dry(args: argparse.Namespace) -> None:
         if bound > reserve:
             raise RuntimeError("Frozen request exceeds its conservative USD reservation")
         empty += not row["candidates"]
-    ids = pilot_ids(manifest["rows"], [row["posting_identity"] for row in manifest["rows"]])
+    scope = replacement.from_manifest(manifest)
+    selector = replacement.pilot_ids if scope else pilot_ids
+    ids = selector(manifest["rows"], [row["posting_identity"] for row in manifest["rows"]])
     print(json.dumps({"status": "PASSED_OFFLINE_DRY", "task_id": manifest["task_id"],
                       "counts": manifest["counts"], "no_candidate_inputs": empty,
                       "largest_request_reservation_bound_usd": str(maximum),
@@ -833,6 +874,7 @@ def execute_batches(args: argparse.Namespace, runtime: dict[str, str], manifest:
     if pilot_file is not None and args.stage != "pilot":
         raise RuntimeError("Explicit pilot posting-ID files apply only to the pilot stage")
     task_id = identity(manifest["task_id"])
+    scope = replacement.from_manifest(manifest)
     reserve = Decimal(manifest["settings"]["request_reserve_usd"])
     receipt["artifact_hashes"] = artifacts(runtime["hop"], "execute")
     receipt["batches"] = []
@@ -840,7 +882,7 @@ def execute_batches(args: argparse.Namespace, runtime: dict[str, str], manifest:
     while True:
         live = runtime_state(runtime["pg"], task_id)
         require_idle(live)
-        counts = manifest["counts"] if "continuation_proof" in manifest else COUNTS
+        counts = manifest["counts"] if scope or "continuation_proof" in manifest else COUNTS
         if (live.get("task") or {}).get("frozen_input_count") != sum(counts.values()):
             raise RuntimeError("Seal the exact authorized source cohort before execution")
         states = (live.get("task") or {}).get("states") or {}
@@ -850,16 +892,24 @@ def execute_batches(args: argparse.Namespace, runtime: dict[str, str], manifest:
         if not eligible and pilot_file is None:
             return
         require_accounting(live, reserve)
+        scope_remaining = None
+        if scope:
+            receipt["replacement_before"] = replacement.state(runtime["pg"], sql, scope)
+            scope_remaining = replacement.remaining(receipt["replacement_before"], "onet")
+            if scope_remaining < reserve:
+                raise RuntimeError("Replacement budget is below one conservative reservation")
         if pilot_file is not None:
             selected, receipt["pilot_selection"] = explicit_pilot_ids(
+                pilot_file, manifest["rows"], eligible, scope) if scope else explicit_pilot_ids(
                 pilot_file, manifest["rows"], eligible)
             write_json(directory / "receipt.json", receipt)
         else:
-            selected = (pilot_ids(manifest["rows"], eligible) if args.stage == "pilot" else
+            selector = replacement.pilot_ids if scope else pilot_ids
+            selected = (selector(manifest["rows"], eligible) if args.stage == "pilot" else
                         balanced_ids(manifest["rows"], eligible, args.batch_size)
                         if args.balanced_sources else eligible[:args.batch_size])
-        if args.stage == "pilot" and len(selected) != 36:
-            raise RuntimeError("The balanced pilot requires 12 untouched rows per source")
+        if args.stage == "pilot" and len(selected) != (24 if scope else 36):
+            raise RuntimeError("Pilot requires its exact reviewed untouched source selection")
         if args.stage == "full" and not (live.get("task") or {}).get("scale_approved"):
             raise RuntimeError("Measured pilot review is required before full-scale requests")
         batch_id = args.batch_id or "onet-" + args.stage + "-" + uuid.uuid4().hex
@@ -867,9 +917,12 @@ def execute_batches(args: argparse.Namespace, runtime: dict[str, str], manifest:
                  "task_id": task_id, "started_at": now(), "posting_count": len(selected)}
         receipt["batch_id"] = batch_id
         receipt["batches"].append(batch)
+        batch_cap = Decimal("0.25") if args.stage == "pilot" else CAP
+        if scope_remaining is not None:
+            batch_cap = min(batch_cap, scope_remaining)
         batch["planned"] = sql_json(runtime["pg"], "onet_matching.plan_batch('" + task_id +
             "','" + identity(batch_id) + "'," + json_sql(selected) + ",'" + args.stage.upper() +
-            "'," + str(len(selected)) + "," + ("0.25" if args.stage == "pilot" else "40") + ")")
+            "'," + str(len(selected)) + "," + str(batch_cap) + ")")
         child = directory / ("batch-" + str(len(receipt["batches"])).zfill(4))
         child.mkdir(mode=0o700)
         remaining = args.deadline_seconds - int(time.monotonic() - started)
@@ -881,6 +934,9 @@ def execute_batches(args: argparse.Namespace, runtime: dict[str, str], manifest:
             raise RuntimeError("Native matcher artifact bytes changed during execution")
         batch["after"] = runtime_state(runtime["pg"], task_id, batch_id)
         require_accounting(batch["after"], Decimal("0"))
+        if scope:
+            batch["replacement_after"] = replacement.state(runtime["pg"], sql, scope)
+            replacement.remaining(batch["replacement_after"], "onet")
         require_batch_complete(batch["after"]["batch"])
         if batch["after"]["legacy_baseline"] != receipt["before"]["legacy_baseline"]:
             raise RuntimeError("Existing source or NCS matcher baseline changed")
@@ -901,7 +957,8 @@ def artifacts(hop: str, stage: str) -> dict[str, str]:
         relative = pending.pop()
         if relative in hashes:
             continue
-        if not re.fullmatch(r"llm/onet/[a-zA-Z0-9_./-]+\.(hwf|hpl|sql)", relative):
+        if (relative != "llm/sql/038_replacement_policy.sql" and
+            not re.fullmatch(r"llm/onet/[a-zA-Z0-9_./-]+\.(hwf|hpl|sql)", relative)):
             raise RuntimeError("Native matcher dependency escapes its additive namespace")
         if ".." in Path(relative).parts:
             raise RuntimeError("Unsafe native matcher dependency")
@@ -933,6 +990,9 @@ cat "$path"
 
 def runtime_artifacts() -> dict[str, str]:
     result = {}
+    policy = common.ROOT / "llm/sql/038_replacement_policy.sql"
+    if policy.is_file():
+        result["llm/sql/038_replacement_policy.sql"] = file_identity(policy)["sha256"]
     folder = common.ROOT / "llm/onet"
     for path in sorted(folder.rglob("*")):
         relative = path.relative_to(folder)
@@ -1159,8 +1219,10 @@ def run_native(runtime: dict[str, str], stage: str, params: dict[str, str], dire
 
 
 def execute(args: argparse.Namespace) -> None:
-    is_install = args.stage in ("install", "install-reconciliation", "install-route-incident")
+    is_install = args.stage in (
+        "install", "install-reconciliation", "install-route-incident", "install-replacement-scope")
     manifest = manifest_inputs(args.manifest) if not is_install else None
+    scope = replacement.from_manifest(manifest) if manifest else None
     task_id = manifest["task_id"] if manifest else args.task_id
     batch_id = args.batch_id
     with operation_lock():
@@ -1194,6 +1256,15 @@ def execute(args: argparse.Namespace) -> None:
                 before = runtime_state(runtime["pg"], task_id, batch_id)
                 receipt["before"] = before
                 require_idle(before)
+                if scope:
+                    receipt["replacement_scope"] = manifest["replacement_scope"]
+                    receipt["replacement_before"] = replacement.state(runtime["pg"], sql, scope)
+                    replacement.require_policy(receipt["replacement_before"])
+                    if not receipt["replacement_before"].get("reinference_gate_installed"):
+                        raise RuntimeError("Install separately qualified replacement SQL007 first")
+                    receipt["replacement_artifacts"] = artifacts(
+                        runtime["hop"], "install-replacement-scope")
+                    replacement.remaining(receipt["replacement_before"], "onet")
                 if "continuation_proof" in manifest:
                     import onet_continuation
 
@@ -1212,6 +1283,9 @@ def execute(args: argparse.Namespace) -> None:
                         "onet_matching.approve_scale('" + identity(task_id) + "'," +
                         json_sql(args.review_actor) + " #>> '{}'," + json_sql(notes) + " #>> '{}')")
                 elif args.stage == "resume":
+                    if (scope and
+                        (before.get("batch") or {}).get("task_id") != scope["onet_task_id"]):
+                        raise RuntimeError("Replacement resume cannot execute a foreign task batch")
                     require_accounting(before, Decimal(manifest["settings"]["request_reserve_usd"]))
                     receipt["artifact_hashes"] = artifacts(runtime["hop"], "execute")
                     run_native(runtime, "execute", {"ONET_BATCH_ID": identity(batch_id),
@@ -1237,6 +1311,9 @@ def execute(args: argparse.Namespace) -> None:
                     receipt["publication_id"] = publication_id
                 after = runtime_state(runtime["pg"], task_id, batch_id)
                 receipt["after"] = after
+                if scope:
+                    receipt["replacement_after"] = replacement.state(runtime["pg"], sql, scope)
+                    replacement.remaining(receipt["replacement_after"], "onet")
                 if before["legacy_baseline"] != after["legacy_baseline"]:
                     raise RuntimeError("Existing source or NCS matcher baseline changed")
                 require_idle(after)
@@ -1328,7 +1405,14 @@ def main() -> None:
     parser.add_argument("--review-actor", type=identity, default="COORDINATOR")
     parser.add_argument("--review-notes-file", type=Path)
     parser.add_argument("--isolated-proof", type=Path)
+    parser.add_argument("--replacement-manifest", type=Path,
+                        help="Freeze only: separately reviewed JobKorea replacement scope")
+    parser.add_argument("--replacement-sha256")
     args = parser.parse_args()
+    if bool(args.replacement_manifest) != bool(args.replacement_sha256):
+        parser.error("Replacement scope requires --replacement-manifest and --replacement-sha256")
+    if args.replacement_manifest and (args.stage != "freeze" or args.continuation_proof):
+        parser.error("Replacement scope applies to a new freeze, never historical continuation")
     if args.continuation_proof is not None and (
         args.stage != "freeze" or not SHA256.fullmatch(args.continuation_sha256 or "")
     ):
@@ -1359,7 +1443,8 @@ def main() -> None:
         deploy(args)
     else:
         if args.stage not in (
-            "install", "install-reconciliation", "install-route-incident"
+            "install", "install-reconciliation", "install-route-incident",
+            "install-replacement-scope"
         ) and args.manifest is None:
             parser.error("This stage requires the exact frozen --manifest")
         if args.stage == "resume" and args.batch_id is None:

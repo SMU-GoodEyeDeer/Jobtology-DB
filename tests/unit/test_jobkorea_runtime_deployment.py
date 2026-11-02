@@ -351,3 +351,26 @@ def test_file_deployment_rejects_missing_full_baseline_before_backup(
     with pytest.raises(RuntimeError, match="Full file-deployment baseline changed or absent"):
         module.apply(manifest, runtime, database)
     assert calls == []
+
+
+def test_replacement_migration_is_deployable_before_its_canonical_installer(
+    deployment: tuple[Any, ...], monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module, *_ = deployment
+    monkeypatch.undo()
+    migration = "ontology/sql/037_jobkorea_replacement.sql"
+    assert migration in module.ALLOWLIST
+    assert module.ALLOWLIST.index(migration) < module.ALLOWLIST.index("ontology/install.hwf")
+    assert migration in module.dependencies()
+    workflow = ET.parse(module.ROOT / "ontology/install.hwf")
+    sql_actions = [action.findtext("sqlfilename") for action in workflow.findall("actions/action")
+                   if action.findtext("type") == "SQL"]
+    bounded_crosswalk = "ontology/sql/039_crosswalk_pair_workset.sql"
+    assert bounded_crosswalk in module.ALLOWLIST
+    assert (
+        module.ALLOWLIST.index(bounded_crosswalk) < module.ALLOWLIST.index("ontology/install.hwf")
+    )
+    assert bounded_crosswalk in module.dependencies()
+    assert sql_actions[-3:] == ["${PROJECT_HOME}/" + migration,
+                               "${PROJECT_HOME}/llm/sql/038_replacement_policy.sql",
+                               "${PROJECT_HOME}/" + bounded_crosswalk]

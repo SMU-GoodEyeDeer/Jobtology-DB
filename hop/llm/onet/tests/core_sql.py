@@ -18,7 +18,14 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(ROOT))
-from hop.llm.onet.prompt import PROMPT_HASH, admitted_fields, build_request  # noqa: E402
+from hop.llm.onet.prompt import (  # noqa: E402
+    PROMPT_HASH,
+    PROMPT_TEXT,
+    PROMPT_VERSION,
+    SCHEMA,
+    admitted_fields,
+    build_request,
+)
 
 spec = importlib.util.spec_from_file_location(
     "onet_catalog_fixture", ROOT / "hop/ingestions/onet/tests/core_sql.py"
@@ -55,6 +62,32 @@ INSERT INTO ingestion.source_graph_projection VALUES('fixture-source','jobkorea'
 """)
         for sql in sorted((ROOT / "hop/llm/onet/sql").glob("*.sql")):
             f.sql(sql.read_text())
+        # Production preparation registers the retained successor insert-only;
+        # the frozen base installer deliberately retains its original prompt.
+        f.sql("INSERT INTO onet_matching.prompt_contract(version,prompt_text,prompt_hash,schema) "
+              "VALUES(" + quote(PROMPT_VERSION) + "," + quote(PROMPT_TEXT) + "," +
+              quote(PROMPT_HASH) + "," + quoted(SCHEMA) + ") ON CONFLICT(version) DO NOTHING")
+        # Different source observations may be freshly inferred only for the
+        # separately reviewed replacement. Same-run retries stay prohibited.
+        replacement_run = "jobkorea-ndjson-c5633b6d40809cc0b788bea454727dfd99850569f5f5b27ab15bc9426daef62f"
+        replacement_task = {"task_id": "jkr-20261103-onet", "settings": {
+            "replacement_scope_sha256": "a" * 64, "max_cost_usd": "7"}}
+        current_input = {"source_id": "jobkorea", "source_run_id": replacement_run}
+        old_input = {"source_id": "jobkorea", "source_run_id": "historical-run"}
+        for name, task_row, new_row, old_row, expected in (
+            ("replacement-fresh-observation", replacement_task, current_input, old_input, "t"),
+            ("replacement-same-run-no-retry", replacement_task, current_input, current_input, "f"),
+            ("legacy-task-no-new-exception", {**replacement_task, "task_id": "legacy"}, current_input, old_input, "f"),
+            ("replacement-budget-pin", {**replacement_task, "settings": {"replacement_scope_sha256": "a" * 64, "max_cost_usd": "8"}}, current_input, old_input, "f"),
+            ("replacement-missing-review-hash", {**replacement_task, "settings": {"max_cost_usd": "7"}}, current_input, old_input, "f"),
+            ("replacement-exact-run", replacement_task, old_input, current_input, "f"),
+            ("replacement-jobkorea-only", replacement_task, {**current_input, "source_id": "nara_job"}, old_input, "f"),
+        ):
+            f.expect(f.sql("SELECT onet_matching.replacement_reinference_allowed("
+                "jsonb_populate_record(NULL::onet_matching.task," + quoted(task_row) + "),"
+                "jsonb_populate_record(NULL::onet_matching.input," + quoted(new_row) + "),"
+                "jsonb_populate_record(NULL::onet_matching.input," + quoted(old_row) + "))") == expected,
+                name)
         settings = {
             "max_cost_usd": "0.02",
             "request_reserve_usd": "0.01",

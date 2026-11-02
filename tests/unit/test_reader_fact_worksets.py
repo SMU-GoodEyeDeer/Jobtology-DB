@@ -23,7 +23,7 @@ def test_deterministic_additive_entity_join_only() -> None:
     build = generator()
     current = (ROOT / "hop/graph/sql/009_reader_fact_worksets.sql").read_text()
     assert build.build() == current == build.build()
-    assert current.count("CREATE OR REPLACE FUNCTION") == 1
+    assert current.count("CREATE OR REPLACE FUNCTION") == 2
     assert "CREATE OR REPLACE FUNCTION ingestion.graph_source_entities(jobs text)" in current
     for forbidden in ("CREATE TABLE", "CREATE INDEX", "PARALLEL SAFE", "SET max_parallel"):
         assert forbidden not in current
@@ -35,16 +35,21 @@ def test_complete_history_assessments_rankings_and_grouping_are_frozen() -> None
     new = build.candidate(build.SOURCE.read_text(), "graph_source_entities")
     # Everything before winner selection includes full validity, candidate
     # history and reference bags. Posting text-key grouping remains byte-exact.
-    assert old.split(" facts AS MATERIALIZED", 1)[0] == new.split(" facts AS MATERIALIZED", 1)[0]
-    assert old.split(" posting_records AS", 1)[1].split(" job_facts AS", 1)[0] == new.split(
-        " posting_records AS", 1
-    )[1].split(" posting_facts AS", 1)[0]
-    assert old.split(" SELECT f.identity_id", 1)[1].split(" FROM current_facts", 1)[0] == new.split(
-        " SELECT f.identity_id", 1
-    )[1].split(" FROM current_facts", 1)[0]
-    assert old.split(" ORDER BY f.identity_id;", 1)[1] == new.split(
-        " ORDER BY f.identity_id;", 1
-    )[1]
+    assert (
+        build.replacement_fence(old).split(" facts AS MATERIALIZED", 1)[0]
+        == new.split(" facts AS MATERIALIZED", 1)[0]
+    )
+    assert (
+        old.split(" posting_records AS", 1)[1].split(" job_facts AS", 1)[0]
+        == new.split(" posting_records AS", 1)[1].split(" posting_facts AS", 1)[0]
+    )
+    assert (
+        old.split(" SELECT f.identity_id", 1)[1].split(" FROM current_facts", 1)[0]
+        == new.split(" SELECT f.identity_id", 1)[1].split(" FROM current_facts", 1)[0]
+    )
+    assert (
+        old.split(" ORDER BY f.identity_id;", 1)[1] == new.split(" ORDER BY f.identity_id;", 1)[1]
+    )
     assert "FROM posting_sets p)" in new
     assert "END AS normalized" in new
     assert "p.run_id=f.run_id AND p.source_id=f.source_id" in new
@@ -73,19 +78,42 @@ def test_only_exact_bodies_and_complete_execution_metadata_are_accepted() -> Non
     old, new = build.definition(source, name), build.candidate(source, name)
     guard = build.guard(source, name, new)
     hashes = [hashlib.md5(build.body(item).encode()).hexdigest() for item in (old, new)]
-    assert "md5(p.prosrc) IN ('" + "','".join(hashes) + "')" in guard
+    assert (
+        "md5(p.prosrc) IN ('" + "','".join([*hashes, "2c87105fcad54ff11411639915945636"]) + "')"
+        in guard
+    )
     for field in (
-        "provolatile", "proparallel", "proisstrict", "prosecdef", "proleakproof", "proretset",
-        "prolang", "prokind", "procost", "prorows", "prosupport", "probin", "prosqlbody",
-        "pronargs", "proargtypes", "provariadic", "proargdefaults", "prorettype",
-        "pronargdefaults", "proallargtypes", "proargnames", "proargmodes", "proconfig",
+        "provolatile",
+        "proparallel",
+        "proisstrict",
+        "prosecdef",
+        "proleakproof",
+        "proretset",
+        "prolang",
+        "prokind",
+        "procost",
+        "prorows",
+        "prosupport",
+        "probin",
+        "prosqlbody",
+        "pronargs",
+        "proargtypes",
+        "provariadic",
+        "proargdefaults",
+        "prorettype",
+        "pronargdefaults",
+        "proallargtypes",
+        "proargnames",
+        "proargmodes",
+        "proconfig",
     ):
         assert "p." + field in guard
     assert "regexp_replace" not in guard
     assert "replace(p.prosrc" not in guard
-    assert old.split("RETURNS TABLE", 1)[1].split("AS $$", 1)[0] == new.split(
-        "RETURNS TABLE", 1
-    )[1].split("AS $$", 1)[0]
+    assert (
+        old.split("RETURNS TABLE", 1)[1].split("AS $$", 1)[0]
+        == new.split("RETURNS TABLE", 1)[1].split("AS $$", 1)[0]
+    )
 
 
 def test_distinct_winners_keep_both_independent_complete_orders() -> None:
@@ -100,7 +128,10 @@ def test_distinct_winners_keep_both_independent_complete_orders() -> None:
         assert "".join(old_order.split()) == "".join(new_order.split())
     assert "row_number()" not in new
     assert "choice=1" not in new
-    assert new.split(" facts AS MATERIALIZED", 1)[0] == old.split(" facts AS MATERIALIZED", 1)[0]
+    assert (
+        new.split(" facts AS MATERIALIZED", 1)[0]
+        == build.replacement_fence(old).split(" facts AS MATERIALIZED", 1)[0]
+    )
 
 
 def test_sealed_source_drift_and_replacement_anchor_drift_are_refused(tmp_path: Path) -> None:

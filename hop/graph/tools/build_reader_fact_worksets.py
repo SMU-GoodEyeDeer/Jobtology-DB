@@ -65,9 +65,53 @@ def candidate(source: str, name: str) -> str:
         " LEFT JOIN posting_facts p ON p.run_id=f.run_id AND p.source_id=f.source_id\n"
         " AND p.posting_id=f.posting_id",
     )
-    result = replace_once(result, "coalesce(j.normalized,f.normalized)", "coalesce(p.normalized,f.normalized)")
-    result = replace_once(result, "coalesce(k.normalized,f.normalized)", "coalesce(p.normalized,f.normalized)")
-    return distinct_winners(result)
+    result = replace_once(
+        result, "coalesce(j.normalized,f.normalized)", "coalesce(p.normalized,f.normalized)"
+    )
+    result = replace_once(
+        result, "coalesce(k.normalized,f.normalized)", "coalesce(p.normalized,f.normalized)"
+    )
+    return replacement_fence(distinct_winners(result))
+
+
+def replacement_fence(function: str) -> str:
+    """Retain historical proofs while preventing retired JobKorea graph replay."""
+    function = replace_once(
+        function,
+        " PERFORM ingestion.source_graph_assert_query_contract();",
+        " PERFORM ingestion.source_graph_assert_query_contract();\n"
+        " IF jobs<>'ALL_CHECKPOINTED' AND NOT ingestion.jobkorea_graph_allowed_run(jobs)\n"
+        " THEN RAISE EXCEPTION 'JOBKOREA_GRAPH_REPLACEMENT_FENCED'; END IF;",
+    )
+    function = replace_once(
+        function,
+        "   WHERE NOT ingestion.source_graph_run_is_valid(u.run_id))",
+        "   WHERE ingestion.jobkorea_graph_allowed_run(u.run_id)\n"
+        "   AND NOT ingestion.source_graph_run_is_valid(u.run_id))",
+    )
+    return replace_once(
+        function,
+        " WHERE u.state='READY' AND u.mode<>'SMOKE'",
+        " WHERE u.state='READY' AND u.mode<>'SMOKE'\n"
+        " AND ingestion.jobkorea_graph_allowed_run(u.run_id)",
+    )
+
+
+FENCE_HELPER = """-- The replacement ledger is installed separately by ontology SQL037.
+-- An absent ledger preserves legacy operation; an active plan permits one run.
+CREATE OR REPLACE FUNCTION ingestion.jobkorea_graph_allowed_run(jobs text)
+RETURNS boolean LANGUAGE plpgsql STABLE AS $fence$
+DECLARE current_plan jsonb;
+BEGIN
+ IF NOT EXISTS(SELECT 1 FROM ingestion.run WHERE run_id=jobs AND source_id='jobkorea')
+ THEN RETURN true; END IF;
+ IF to_regprocedure('ingestion.jobkorea_replacement_current()') IS NULL
+ THEN RETURN true; END IF;
+ EXECUTE 'SELECT ingestion.jobkorea_replacement_current()' INTO current_plan;
+ RETURN current_plan IS NULL OR current_plan='null'::jsonb
+  OR (current_plan->>'job_run_id'=jobs AND current_plan->>'phase' IN('PREPARED','BLOCKED','SERVING'));
+END $fence$;
+"""
 
 
 def distinct_winners(function: str) -> str:
@@ -98,7 +142,9 @@ def distinct_winners(function: str) -> str:
         "current_facts AS MATERIALIZED(SELECT f.*,f.normalized->>'posting_id' AS posting_id FROM facts f WHERE choice=1)",
         "current_facts AS MATERIALIZED(SELECT f.*,f.normalized->>'posting_id' AS posting_id FROM facts f)",
     )
-    return replace_once(function, " WHERE n.choice=1 ORDER BY f.identity_id;", " ORDER BY f.identity_id;")
+    return replace_once(
+        function, " WHERE n.choice=1 ORDER BY f.identity_id;", " ORDER BY f.identity_id;"
+    )
 
 
 def guard(source: str, name: str, new: str) -> str:
@@ -110,10 +156,18 @@ def guard(source: str, name: str, new: str) -> str:
     types = ",".join("25" for _ in all_names)
     modes = "'i'," + ",".join("'t'" for _ in names)
     argnames = ",".join("'" + item + "'" for item in all_names)
-    hashes = ",".join("'" + hashlib.md5(body(item).encode()).hexdigest() + "'" for item in (old, new))
+    hashes = ",".join(
+        "'" + hashlib.md5(body(item).encode()).hexdigest() + "'" for item in (old, new)
+    )
+    if name == "graph_source_entities":
+        hashes += ",'2c87105fcad54ff11411639915945636'"
     return (
         " IF NOT EXISTS(SELECT 1 FROM pg_proc p WHERE\n"
-        " p.oid='ingestion." + name + "(text)'::regprocedure AND md5(p.prosrc) IN (" + hashes + ")\n"
+        " p.oid='ingestion."
+        + name
+        + "(text)'::regprocedure AND md5(p.prosrc) IN ("
+        + hashes
+        + ")\n"
         " AND p.provolatile='" + volatility + "' AND p.proparallel='u' AND NOT p.proisstrict\n"
         " AND NOT p.prosecdef AND NOT p.proleakproof AND p.proretset\n"
         " AND p.prolang=(SELECT oid FROM pg_language WHERE lanname='plpgsql')\n"
@@ -143,6 +197,7 @@ def build() -> str:
         "BEGIN;\nDO $guard$ BEGIN\n"
         + "".join(guard(source, name, value) for name, value in candidates.items())
         + "END $guard$;\n\n"
+        + FENCE_HELPER
         + "\n\n".join(candidates.values())
         + "\nCOMMIT;\n"
     )

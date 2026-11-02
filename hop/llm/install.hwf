@@ -561,6 +561,20 @@
       <draw>Y</draw>
       <parallel>N</parallel>
     </action>
+    <action>
+      <name>038_replacement_policy</name>
+      <type>SQL</type>
+      <connection>jobtology-postgres</connection>
+      <sqlfromfile>Y</sqlfromfile>
+      <sqlfilename>${PROJECT_HOME}/llm/sql/038_replacement_policy.sql</sqlfilename>
+      <sqlfilename_encoding>UTF-8</sqlfilename_encoding>
+      <useVariableSubstitution>N</useVariableSubstitution>
+      <sendOneStatement>Y</sendOneStatement>
+      <xloc>320</xloc>
+      <yloc>80</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+    </action>
   </actions>
   <hops>
     <hop>
@@ -1075,7 +1089,7 @@
       <unconditional>N</unconditional>
     </hop>
     <hop>
-      <from>037_metadata_occupation_multimatch</from>
+      <from>038_replacement_policy</from>
       <to>Success</to>
       <enabled>Y</enabled>
       <evaluation>Y</evaluation>
@@ -1083,6 +1097,20 @@
     </hop>
     <hop>
       <from>037_metadata_occupation_multimatch</from>
+      <to>Abort</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>037_metadata_occupation_multimatch</from>
+      <to>038_replacement_policy</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>038_replacement_policy</from>
       <to>Abort</to>
       <enabled>Y</enabled>
       <evaluation>N</evaluation>
