@@ -107,7 +107,7 @@ def test_focused_and_canonical_installers_end_with_the_same_contract() -> None:
         if name == "install_flat_graph.hwf":
             expected = flat_migrations
         else:
-            assert expected[-10:] == [
+            assert expected[-12:] == [
                 flat_migrations[0],
                 "028_product_role_demand_base.sql",
                 flat_migrations[1],
@@ -118,10 +118,15 @@ def test_focused_and_canonical_installers_end_with_the_same_contract() -> None:
                 "034_ncs_onet_crosswalk.sql",
                 "035_ncs_catalog_revalidation.sql",
                 "036_crosswalk_reader_performance.sql",
+                "037_jobkorea_replacement.sql",
+                "039_crosswalk_pair_workset.sql",
             ]
-        assert [item.findtext("sqlfilename") for item in sql_actions] == [
+        expected_paths = [
             "${PROJECT_HOME}/ontology/sql/" + filename for filename in expected
         ]
+        if name == "install.hwf":
+            expected_paths.insert(-1, "${PROJECT_HOME}/llm/sql/038_replacement_policy.sql")
+        assert [item.findtext("sqlfilename") for item in sql_actions] == expected_paths
         names = [item.findtext("name") for item in sql_actions]
         assert len(names) == len(set(names))
         expected_hops = [("Start", names[0], "Y", "Y")]

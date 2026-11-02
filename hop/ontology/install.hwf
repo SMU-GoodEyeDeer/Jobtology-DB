@@ -645,6 +645,20 @@
       <draw>Y</draw>
       <parallel>N</parallel>
     </action>
+    <action>
+      <name>ontology 039_crosswalk_pair_workset</name>
+      <type>SQL</type>
+      <connection>jobtology-postgres</connection>
+      <sqlfromfile>Y</sqlfromfile>
+      <sqlfilename>${PROJECT_HOME}/ontology/sql/039_crosswalk_pair_workset.sql</sqlfilename>
+      <sqlfilename_encoding>UTF-8</sqlfilename_encoding>
+      <useVariableSubstitution>N</useVariableSubstitution>
+      <sendOneStatement>Y</sendOneStatement>
+      <xloc>320</xloc>
+      <yloc>1360</yloc>
+      <draw>Y</draw>
+      <parallel>N</parallel>
+    </action>
   </actions>
   <hops>
     <hop>
@@ -1237,7 +1251,7 @@
     </hop>
     <hop>
       <from>llm 038_replacement_policy</from>
-      <to>Success</to>
+      <to>ontology 039_crosswalk_pair_workset</to>
       <enabled>Y</enabled>
       <evaluation>Y</evaluation>
       <unconditional>N</unconditional>
@@ -1254,6 +1268,20 @@
       <to>Abort</to>
       <enabled>Y</enabled>
       <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>ontology 039_crosswalk_pair_workset</from>
+      <to>Abort</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+      <unconditional>N</unconditional>
+    </hop>
+    <hop>
+      <from>ontology 039_crosswalk_pair_workset</from>
+      <to>Success</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
       <unconditional>N</unconditional>
     </hop>
   </hops>
