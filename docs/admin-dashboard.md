@@ -275,7 +275,7 @@ variables in the dashboard deployment:
 
 | Variable | Value |
 | --- | --- |
-| `JOBTOLOGY_ADMIN_APPLICATION_API_URL` | Private backend HTTP(S) origin, e.g. `http://backend-private:8000`; no path, query or embedded credentials |
+| `JOBTOLOGY_ADMIN_APPLICATION_API_URL` | Private backend HTTP(S) origin, e.g. `http://jobtology-management-api:8000`; no path, query or embedded credentials |
 | `JOBTOLOGY_ADMIN_APPLICATION_API_TOKEN` | Independent random bearer secret of at least 32 characters, matching backend `JOBTOLOGY_MANAGEMENT_TOKEN` |
 
 Before enabling management, stop every old backend instance and block OAuth
@@ -293,6 +293,22 @@ keep it enabled for invite-only signup and admitted-account expiry checks. Set
 backend `JOBTOLOGY_MANAGEMENT_TOKEN` to the same independent secret configured in
 the dashboard, at least 32 characters. This does not replace or share the
 separate dashboard username/password/session secret.
+
+For production HTTP bearer transport, use the dedicated internal Docker bridge
+`jobtology-management`, attached **only** to the trusted backend and dashboard.
+The backend's alias on that network is `jobtology-management-api`, giving the
+origin `http://jobtology-management-api:8000`. Shared Coolify network HTTP is not
+an approved bearer-token transport. A private HTTPS origin with normal CA
+verification is an alternative; do not disable certificate verification.
+
+The backend's
+[management network manifest](https://github.com/SMU-GoodEyeDeer/Jobtology-BE/blob/feat/invitation-access/deploy/management-network.compose.yaml)
+is a Compose override/reference: map its `backend` and `admin` service keys to
+the actual Coolify resources. Preserve their existing network attachments for
+public routes, database and internet access. Railpack network attachments and
+the backend alias must persist in Coolify/deployment configuration; a manual
+`docker network connect` is not a lasting deployment configuration. Provisioning
+or changing live networks is a separate operator deployment action.
 
 The client appends fixed `/internal/admin` routes. Keep the backend management
 listener private; deny `/internal/admin` on the public backend ingress or use an
@@ -342,7 +358,8 @@ its absolute ESM entry point when running the command. The fixture serves the
 real dashboard assets on loopback and supplies only synthetic API responses; it
 refuses external HTTP requests. It checks stale row-write success/error responses
 after a new operator logs in, explicit expiry clearing, pending invitation dialog
-closure/reuse and creation-only code preservation, plus 320/390/1440 layouts.
+closure/reuse and creation-only code preservation, reused user-expiry dialogs
+with late responses and newer pending submissions, plus 320/390/1440 layouts.
 Expected injected HTTP failures are checked separately from JavaScript errors.
 
 ## Verified telemetry diagnosis — November 2, 2026

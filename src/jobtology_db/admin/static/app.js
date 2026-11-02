@@ -137,7 +137,7 @@
   function showLogin(message) {
     clearTimeout(state.timer);
     managementGeneration += 1;
-    invitationSubmission = null; setInvitationPending(false);
+    invitationSubmission = null; setInvitationPending(false); userEditing = null;
     $("created-invitation").replaceChildren(); $("created-invitation").hidden = true;
     managementTabs.forEach((name) => $(name + "-list").replaceChildren());
     ["invitation-dialog", "user-access-dialog"].forEach((name) => { if ($(name).open) $(name).close(); });
@@ -528,8 +528,9 @@
     table.append(head, tbody); scroll.append(table); $(name + "-list").replaceChildren(scroll); trackTableOverflow(scroll);
   }
   function openUserExpiry(row) {
-    userEditing = row.id;
+    userEditing = {id: row.id, submission: null};
     const form = $("user-access-form"); form.reset();
+    form.querySelector('[type="submit"]').disabled = false;
     const explicitlyUnlimited = row.access_expires_at === null;
     const knownExpiry = Number.isFinite(expiryInstant(row.access_expires_at));
     form.elements.access_expires_at.value = knownExpiry ? localDateInput(row.access_expires_at) : "";
@@ -596,7 +597,8 @@
     if (pending && !pending.handled && state.session === pending.session && !state.loggingOut && !$("invitation-dialog").open) $("invitation-dialog").showModal();
   });
   $("user-access-form").addEventListener("submit", async (event) => {
-    event.preventDefault(); const button = event.target.querySelector('[type="submit"]'); if (button.disabled || !state.session) return; button.disabled = true;
+    event.preventDefault(); const button = event.target.querySelector('[type="submit"]');
+    if (button.disabled || !state.session || state.loggingOut || !userEditing || !$("user-access-dialog").open) return;
     const fields = event.target.elements;
     const input = fields.access_expires_at.value;
     const unlimited = fields.unlimited.checked;
@@ -605,9 +607,14 @@
       $("user-access-error").hidden = false; button.disabled = false; return;
     }
     const activeSession = state.session;
-    try { await api("/api/application/users/" + userEditing, {method: "PATCH", headers: {"X-CSRF-Token": activeSession.csrf_token}, body: JSON.stringify({access_expires_at: unlimited ? null : new Date(input).toISOString()})}); if (state.session !== activeSession || state.loggingOut) return; $("user-access-dialog").close(); await loadManagement("users"); }
-    catch (error) { if (state.session !== activeSession || state.loggingOut) return; if (error.status === 401) showLogin(error.message); else { $("user-access-error").textContent = error.message; $("user-access-error").hidden = false; } }
-    finally { button.disabled = false; }
+    // Reopening even the same user's dialog creates a different editing identity.
+    const editing = userEditing; const submission = {};
+    editing.submission = submission; button.disabled = true;
+    const ownsDialog = () => state.session === activeSession && userEditing === editing && editing.submission === submission;
+    const canApply = () => ownsDialog() && !state.loggingOut && $("user-access-dialog").open;
+    try { await api("/api/application/users/" + editing.id, {method: "PATCH", headers: {"X-CSRF-Token": activeSession.csrf_token}, body: JSON.stringify({access_expires_at: unlimited ? null : new Date(input).toISOString()})}); if (!canApply()) return; $("user-access-dialog").close(); await loadManagement("users"); }
+    catch (error) { if (!canApply()) return; if (error.status === 401) showLogin(error.message); else { $("user-access-error").textContent = error.message; $("user-access-error").hidden = false; } }
+    finally { if (ownsDialog()) { editing.submission = null; button.disabled = false; } }
   });
   document.querySelectorAll("[data-close-dialog]").forEach((button) => button.addEventListener("click", () => { if (button.dataset.closeDialog === "invitation-dialog" && invitationSubmission) return; $(button.dataset.closeDialog).close(); }));
   document.querySelectorAll("[data-reload]").forEach((button) => button.addEventListener("click", () => loadManagement(button.dataset.reload)));

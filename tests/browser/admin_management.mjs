@@ -23,6 +23,7 @@ const browser = await chromium.launch({ channel: "chrome", headless: true });
 const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
 const errors = [];
 const resourceErrors = [];
+const injectedErrors = [];
 page.on("pageerror", (error) => errors.push(error.message));
 page.on("console", (message) => {
   if (message.type() !== "error") return;
@@ -105,7 +106,9 @@ async function saveExpiry() {
   await page.locator("#users-list tbody tr").first().waitFor();
 }
 async function releaseAndWait(hold, status, body) {
-  const response = page.waitForResponse((response) => response.status() === status && response.url().includes("/api/application/"));
+  const request = await hold.received;
+  if (status >= 400) injectedErrors.push(status);
+  const response = page.waitForResponse((response) => response.status() === status && new URL(response.url()).pathname === request.path && response.request().method() === request.method);
   hold.release({ status, body }); await response; await page.waitForTimeout(100);
 }
 try {
@@ -135,6 +138,59 @@ try {
   await saveExpiry(); assert.equal(userWrites().at(-1).body.access_expires_at, null);
   await openExpiry("Missing expiry"); await page.locator('#user-access-form [name="access_expires_at"]').fill("2050-05-03T09:30");
   await saveExpiry(); assert.match(userWrites().at(-1).body.access_expires_at, /^2050-05-03T/);
+
+  const expiryDate = page.locator('#user-access-form [name="access_expires_at"]');
+  const expirySave = page.getByRole("button", { name: "Save expiry", exact: true });
+  const expiryCancel = page.locator('[data-close-dialog="user-access-dialog"]');
+  async function pendingExpiry(name, value) {
+    const user = users.find((user) => user.display_name === name);
+    const hold = holdNext((request) => request.method === "PATCH" && request.path.endsWith(user.id) && "access_expires_at" in request.body);
+    await openExpiry(name);
+    await page.locator('#user-access-form [name="unlimited"]').uncheck();
+    await expiryDate.fill(value); await expirySave.click(); await hold.received;
+    return hold;
+  }
+  // A canceled submission must never close, report errors in, or unlock a newer edit.
+  for (const scenario of [
+    { user: "Known expiry", oldStatus: 200, pending: false, cancel: "button" },
+    { user: "Known expiry", oldStatus: 409, pending: true, newStatus: 200, cancel: "Escape" },
+    { user: "Unlimited user", oldStatus: 200, pending: true, newStatus: 409, cancel: "native" },
+  ]) {
+    const old = await pendingExpiry("Unlimited user", "2051-01-02T09:30");
+    if (scenario.cancel === "button") await expiryCancel.click();
+    else if (scenario.cancel === "Escape") await page.keyboard.press("Escape");
+    else await page.locator("#user-access-dialog").evaluate((dialog) => dialog.close());
+    await page.locator("#user-access-dialog").waitFor({ state: "hidden" });
+    let current;
+    if (scenario.pending) current = await pendingExpiry(scenario.user, "2052-03-04T10:45");
+    else { await openExpiry(scenario.user); await expiryDate.fill("2052-03-04T10:45"); }
+    const reads = requests.filter((request) => request.method === "GET" && request.path === "/api/application/users").length;
+    await releaseAndWait(old, scenario.oldStatus, scenario.oldStatus === 200 ? { ok: true } : { detail: "fixture obsolete edit" });
+    assert.equal(await page.locator("#user-access-dialog").isVisible(), true);
+    assert.equal(await expiryDate.inputValue(), "2052-03-04T10:45");
+    assert.equal(await page.locator("#user-access-error").isVisible(), false);
+    assert.equal(await expirySave.isDisabled(), scenario.pending, "old finally must not unlock a newer pending submission");
+    assert.equal(requests.filter((request) => request.method === "GET" && request.path === "/api/application/users").length, reads);
+    if (current) {
+      await releaseAndWait(current, scenario.newStatus, scenario.newStatus === 200 ? { ok: true } : { detail: "fixture current edit rejected" });
+      if (scenario.newStatus === 200) await page.locator("#user-access-dialog").waitFor({ state: "hidden" });
+      else {
+        assert.equal(await page.locator("#user-access-dialog").isVisible(), true);
+        assert.match(await page.locator("#user-access-error").textContent(), /current edit rejected/);
+        assert.equal(await expirySave.isEnabled(), true); await expiryCancel.click();
+      }
+    } else await expiryCancel.click();
+    await page.locator("#users-list tbody tr").first().waitFor();
+  }
+  const oldOperatorEdit = await pendingExpiry("Unlimited user", "2051-01-02T09:30");
+  await expiryCancel.click(); await logout(); await login("expiry-new-operator"); await showUsers();
+  await openExpiry("Known expiry"); await expiryDate.fill("2052-03-04T10:45");
+  await releaseAndWait(oldOperatorEdit, 401, { detail: "fixture previous operator expired" });
+  assert.equal(await page.locator("#app-view").isVisible(), true);
+  assert.equal(await page.locator("#user-access-dialog").isVisible(), true);
+  assert.equal(await expiryDate.inputValue(), "2052-03-04T10:45");
+  assert.equal(await page.locator("#user-access-error").isVisible(), false);
+  assert.equal(await expirySave.isEnabled(), true); await expiryCancel.click();
 
   // Both stale successes and errors must be inert after a new operator signs in.
   for (const status of [200, 401, 409]) {
@@ -194,9 +250,9 @@ try {
   assert.equal(await page.locator("#sessions-list tbody tr").nth(1).locator("td").nth(3).textContent(), "Unavailable");
   await logout(); assert.equal(await page.locator("#created-invitation").textContent(), "");
   assert.deepEqual(errors, []);
-  assert.deepEqual(resourceErrors.sort(), [401, 409, 503], "only deliberately injected resource errors are expected");
+  assert.deepEqual(resourceErrors.sort(), injectedErrors.sort(), "only deliberately injected resource errors are expected");
   assert.equal(holds.length, 0);
-  console.log(JSON.stringify({ passed: true, viewports: [1440, 390, 320], staleRowResponses: [200, 401, 409], explicitExpiryClearing: true, pendingInvitationPreserved: true, noExternalRequests: true, javascriptErrors: errors }));
+  console.log(JSON.stringify({ passed: true, viewports: [1440, 390, 320], staleRowResponses: [200, 401, 409], explicitExpiryClearing: true, reusedExpiryDialogsPreserved: true, pendingInvitationPreserved: true, noExternalRequests: true, javascriptErrors: errors }));
 } finally {
   await browser.close(); await new Promise((resolve) => server.close(resolve));
 }
