@@ -23,12 +23,14 @@ jobtology = "jobtology_db.cli:app"
 
 [project.optional-dependencies]
 admin = [
+  "qrcode>=8,<9",
   "fastapi>=0.115,<1",
   "uvicorn>=0.34,<1",
 ]
 
 [dependency-groups]
 dev = [
+  "qrcode>=8,<9",
   "fastapi>=0.115,<1",
   "pyright>=1.1.400",
   "pytest>=8.4,<9",

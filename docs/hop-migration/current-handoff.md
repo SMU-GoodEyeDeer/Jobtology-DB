@@ -1,5 +1,52 @@
 # Current Hop migration handoff
 
+Updated: **2026-11-02 KST — repository-only admin review corrections.** Row-write
+responses are tied to the originating operator session, so a delayed result
+cannot refresh or sign out a later session. User-expiry submissions also retain
+their specific dialog identity, so canceling and reopening even the same user's
+dialog prevents old responses from closing, changing or unlocking the newer
+edit. Removing a known or unavailable user expiry requires an explicit
+unlimited-access selection. Invitation requests
+snapshot their edit target, prevent pending dialog cancellation/reuse, and
+retain creation-only codes until dismissed or signed out. Neo4j expired
+credentials and transaction/execution timeouts receive safe diagnostic
+categories without leaking driver details. The 54 focused admin tests, strict
+Pyright, Ruff, JavaScript syntax and whitespace checks passed. The repeatable
+local Chrome fixture at `tests/browser/admin_management.mjs` passed stale
+success/401/409 responses, expiry clearing, reused expiry dialogs with overlapping
+submissions, pending native dialog closure and code retention at 320/390/1440 pixels with no external HTTP or JavaScript errors.
+The dashboard runbook now aligns with the backend's stopped-instance and blocked
+OAuth callback migration window, including optional missing-only legacy
+admission reconciliation. Production bearer transport requires either the
+dedicated trusted-backend/dashboard-only `jobtology-management` internal network
+with backend alias `jobtology-management-api`, or CA-verified private HTTPS;
+shared Coolify network HTTP is not approved. No live deployment, credential/grant change,
+ingestion operation, paid call or job-board HTTP occurred.
+
+Updated: **2026-11-02 KST — repository-only application access dashboard and
+verified read-only telemetry diagnosis.** Existing admin authentication now
+protects Invitations, Users and Sessions management through a bounded private
+backend BFF. Configure `JOBTOLOGY_ADMIN_APPLICATION_API_URL` (origin only) and
+`JOBTOLOGY_ADMIN_APPLICATION_API_TOKEN` (at least 32 characters, matching backend
+`JOBTOLOGY_MANAGEMENT_TOKEN`); the bearer stays server-side. Creation-only
+invitation codes include local QR SVG download/copy. Code expiry, access duration
+and use limits are independent; user suspension/expiry and session revocations
+are supported. Ingestion reader roles and approved-worker controls are unchanged.
+The 46 focused admin tests, strict Pyright, Ruff, JS syntax, frozen admin install
+and local Chrome desktop/mobile management flows passed. Read-only live checks
+found a configured, TCP-reachable PostgreSQL target rejecting dashboard
+credentials with password authentication failure, and absent Neo4j runtime
+configuration. Safe categorized diagnostics are now visible in System health.
+See the [dashboard runbook](../admin-dashboard.md#verified-telemetry-diagnosis--november-2-2026)
+for evidence and credential repair steps. No live secret/grant/network changes,
+deployment, ingestion operation, paid call or job-board HTTP occurred. Root
+cross-service integration passed using disposable PostgreSQL, the real backend
+HTTP API and the dashboard ApplicationAPI BFF, covering QR creation, first
+redemption accounting, user expiry/suspension, session revocation and invitation
+editing/revocation. Backend verification passed **1,332 tests with 13 skipped**;
+frontend verification passed **589 tests and the production build**. Push and
+deployment remain pending.
+
 Updated: **2026-10-25 UTC — repository-only crosswalk timeout correction.**
 Additive ontology SQL 036 materializes occupation pairs, resolves distinct pinned
 endpoints, and batches exact NCS occupation aggregates into one READY catalogue

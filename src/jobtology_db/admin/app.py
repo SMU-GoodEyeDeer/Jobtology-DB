@@ -12,6 +12,7 @@ from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated, Any
+from uuid import UUID
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.exceptions import RequestValidationError
@@ -19,6 +20,12 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
+from jobtology_db.admin.application import (
+    ApplicationAPI,
+    InvitationFields,
+    InvitationPatch,
+    UserPatch,
+)
 from jobtology_db.admin.auth import COOKIE_NAME, LoginLimiter, SessionAuth
 from jobtology_db.admin.config import ActionProfile, AdminSettings, load_profiles
 from jobtology_db.admin.demo import demo_dashboard
@@ -40,9 +47,14 @@ class EnqueueRequest(BaseModel):
 
 class AdminRuntime:
     def __init__(
-        self, settings: AdminSettings, telemetry: Any = None, store: JobStore | None = None
+        self,
+        settings: AdminSettings,
+        telemetry: Any = None,
+        store: JobStore | None = None,
+        application_api: Any = None,
     ):
         self.settings = settings
+        self.application_api = application_api or ApplicationAPI(settings)
         self.auth, self.limiter = SessionAuth(settings), LoginLimiter()
         self.cache = DashboardCache(telemetry or NativeTelemetry(settings), settings.cache_seconds)
         self.store = store or JobStore(settings.queue_path)
@@ -127,6 +139,7 @@ def create_app(
     *,
     telemetry: Any = None,
     store: JobStore | None = None,
+    application_api: Any = None,
 ) -> FastAPI:
     runtime: AdminRuntime | None = None
     runtime_lock = threading.Lock()
@@ -137,7 +150,7 @@ def create_app(
             if runtime is None:
                 # BaseSettings resolves required credentials from the environment.
                 configured = settings or AdminSettings()  # pyright: ignore[reportCallIssue]
-                runtime = AdminRuntime(configured, telemetry, store)
+                runtime = AdminRuntime(configured, telemetry, store, application_api)
             return runtime
 
     @asynccontextmanager
@@ -336,6 +349,66 @@ def create_app(
         except Exception:
             raise HTTPException(503, "Job queue is unavailable.") from None
         return {"job": public_job(job)}
+
+    @application.get("/api/application/{resource}")
+    def application_list(
+        resource: str,
+        request: Request,
+        limit: Annotated[int, Query(ge=1, le=100)] = 50,
+        offset: Annotated[int, Query(ge=0, le=1000000)] = 0,
+        user_id: UUID | None = None,
+    ) -> dict[str, Any]:
+        session(request)
+        if resource not in {"invitations", "users", "sessions"}:
+            raise HTTPException(404, "Resource not found.")
+        params: dict[str, Any] = {"limit": limit, "offset": offset}
+        if user_id is not None and resource == "sessions":
+            params["user_id"] = str(user_id)
+        return get_runtime().application_api.request("GET", resource, params=params)
+
+    @application.post("/api/application/invitations", status_code=201)
+    def invitation_create(body: InvitationFields, request: Request) -> dict[str, Any]:
+        csrf(request, session(request))
+        return get_runtime().application_api.request(
+            "POST", "invitations", body=body.model_dump(mode="json")
+        )
+
+    @application.patch("/api/application/invitations/{identifier}")
+    def invitation_update(
+        identifier: UUID, body: InvitationPatch, request: Request
+    ) -> dict[str, Any]:
+        csrf(request, session(request))
+        values = body.model_dump(mode="json", exclude_unset=True)
+        if not values:
+            raise HTTPException(422, "Provide at least one field.")
+        return get_runtime().application_api.request(
+            "PATCH", "invitations", identifier=identifier, body=values
+        )
+
+    @application.patch("/api/application/users/{identifier}")
+    def user_update(identifier: UUID, body: UserPatch, request: Request) -> dict[str, Any]:
+        csrf(request, session(request))
+        values = body.model_dump(mode="json", exclude_unset=True)
+        if not values or ("status" in values and values["status"] is None):
+            raise HTTPException(422, "Provide valid user fields.")
+        return get_runtime().application_api.request(
+            "PATCH", "users", identifier=identifier, body=values
+        )
+
+    @application.post("/api/application/{resource}/{identifier}/{action}")
+    def application_revoke(
+        resource: str, identifier: UUID, action: str, request: Request
+    ) -> dict[str, Any]:
+        csrf(request, session(request))
+        if (resource, action) not in {
+            ("invitations", "revoke"),
+            ("sessions", "revoke"),
+            ("users", "revoke-sessions"),
+        }:
+            raise HTTPException(404, "Action not found.")
+        return get_runtime().application_api.request(
+            "POST", resource, identifier=identifier, action=action
+        )
 
     static_path = Path(__file__).parent / "static"
     if static_path.is_dir():
