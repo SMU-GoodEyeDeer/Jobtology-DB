@@ -378,6 +378,8 @@ def execute(args: argparse.Namespace) -> None:
         ):
             raise RuntimeError("Install opt-in multi-occupation SQL 037 before planning v3 batches")
         scope_before = replacement.state(runtime["pg"], deployment.sql, scope) if scope else None
+        if scope_before and args.stage in ("execute", "publish"):
+            replacement.require_policy(scope_before)
         scope_remaining = replacement.remaining(scope_before, "ncs") if scope_before else None
         budget = (
             min(args.max_cost, scope_remaining)

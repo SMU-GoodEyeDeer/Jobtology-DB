@@ -234,7 +234,7 @@ def build():
         if node.findtext("type") == "SQL":
             actions.remove(node)
     labels = ["Start"]
-    for filename in ("029_metadata_occupation_links", "030_metadata_occupation_native", "031_metadata_occupation_workers", "032_metadata_occupation_context", "033_metadata_occupation_roles", "034_metadata_occupation_pm", "035_metadata_occupation_terminal_status", "036_batchfree_graph_publication", "037_metadata_occupation_multimatch"):
+    for filename in ("029_metadata_occupation_links", "030_metadata_occupation_native", "031_metadata_occupation_workers", "032_metadata_occupation_context", "033_metadata_occupation_roles", "034_metadata_occupation_pm", "035_metadata_occupation_terminal_status", "036_batchfree_graph_publication", "037_metadata_occupation_multimatch", "038_replacement_policy"):
         node = deepcopy(template)
         put(node, "name", filename)
         put(node, "sqlfilename", "${PROJECT_HOME}/llm/sql/" + filename + ".sql")

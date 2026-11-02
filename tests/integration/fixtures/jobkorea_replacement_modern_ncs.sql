@@ -2,7 +2,7 @@
 CREATE TABLE enrichment.metadata_occupation_binding(item_id text,bundle_id text,job_run_id text,ncs_run_id text,source_hash text);
 CREATE TABLE enrichment.item(item_id text,posting_id text,batch_id text);
 CREATE TABLE enrichment.batch(batch_id text,settings jsonb,created_at timestamptz);
-CREATE TABLE enrichment.metadata_occupation_result(item_id text,result_id text,output jsonb);
+CREATE TABLE enrichment.metadata_occupation_result(item_id text,result_id text,output jsonb,attempt_id text);
 CREATE TABLE enrichment.metadata_occupation_candidate(result_id text,candidate_id text,ncs_run_id text,occupation_code text);
 CREATE TABLE enrichment.metadata_occupation_catalog(ncs_run_id text,occupation_code text,occupation_name text,catalog_hash text);
 CREATE TABLE enrichment.metadata_occupation_decision(result_id text,decision text,reviewer_kind text,decision_id bigint);
@@ -12,7 +12,7 @@ INSERT INTO enrichment.batch VALUES('old-batch','{"prompt_version":"ko-metadata-
 INSERT INTO enrichment.item VALUES('old-item','1','old-batch'),('new-item','1','new-batch');
 INSERT INTO enrichment.input_bundle VALUES ('new-b','{"document":{"source_record_id":"1","normalized_hash":"new-hash"}}');
 INSERT INTO enrichment.metadata_occupation_binding VALUES('old-item','old-b','old','ncs','old-hash'),('new-item','new-b','new','ncs','new-hash');
-INSERT INTO enrichment.metadata_occupation_result VALUES('old-item','old-result','{"outcome":"matched","matches":[{"occupation_code":"20010201"}]}'),('new-item','new-result','{"outcome":"abstained","matches":[]}');
+INSERT INTO enrichment.metadata_occupation_result(item_id,result_id,output) VALUES('old-item','old-result','{"outcome":"matched","matches":[{"occupation_code":"20010201"}]}'),('new-item','new-result','{"outcome":"abstained","matches":[]}');
 INSERT INTO enrichment.metadata_occupation_candidate VALUES('old-result','old-candidate','ncs','20010201');
 INSERT INTO enrichment.metadata_occupation_catalog VALUES('ncs','20010201','old occupation','catalog-hash');
 SELECT pg_temp.assert((SELECT count(*)=0 FROM catalog._inferred_occupation_rows(ARRAY['20010201'],NULL)),'modern NCS old pin cannot survive fresh abstention');

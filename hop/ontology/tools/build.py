@@ -186,7 +186,7 @@ save(checkpoint,ROOT/'hop/operations/record_graph_export.hpl')
 exec(compile((OUT/'tools/requirements_hop_build.py').read_text(),str(OUT/'tools/requirements_hop_build.py'),'exec'),globals())
 workflow('install.hwf','Install ontology ledger and source assembly',[],[],False)
 w=E.parse(OUT/'install.hwf').getroot();actions=w.find('actions');hops=w.find('hops');hops.clear();previous='Start'
-files=sorted((OUT/'sql').glob('*.sql'))
+files=sorted((OUT/'sql').glob('*.sql'))+[ROOT/'hop/llm/sql/038_replacement_policy.sql']
 for i,path in enumerate(files,1):
  name=path.parent.parent.name+' '+path.stem
  child(actions,'action',dict(name=name,type='SQL',connection='jobtology-postgres',sqlfromfile='Y',sqlfilename='${PROJECT_HOME}/'+str(path.relative_to(ROOT/'hop')),sqlfilename_encoding='UTF-8',useVariableSubstitution='N',sendOneStatement='Y',xloc=80+(i%5)*240,yloc=80+(i//5)*160,draw='Y',parallel='N'))

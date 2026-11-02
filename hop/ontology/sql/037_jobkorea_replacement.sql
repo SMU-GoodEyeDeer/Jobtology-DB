@@ -1,5 +1,22 @@
 -- Explicit operator-approved JobKorea replacement; historical evidence stays immutable.
 BEGIN;
+-- Optional policy hooks remain private and bypass unrelated historical cohorts.
+CREATE OR REPLACE FUNCTION catalog._replacement_policy_ready() RETURNS boolean
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
+DECLARE ok boolean; BEGIN
+ IF to_regprocedure('replacement_matching.ready()') IS NULL THEN RETURN false; END IF;
+ EXECUTE 'SELECT replacement_matching.ready()' INTO ok; RETURN coalesce(ok,false);
+END $$;
+CREATE OR REPLACE FUNCTION catalog._replacement_policy_allowed(scheme text,aid text,scope_hint text)
+RETURNS boolean LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
+DECLARE ok boolean; BEGIN
+ IF scope_hint NOT IN('jkr-20261103-onet','jobkorea-ndjson-c5633b6d40809cc0b788bea454727dfd99850569f5f5b27ab15bc9426daef62f')
+ THEN RETURN true; END IF;
+ IF to_regprocedure('replacement_matching.allowed_core(text,text,text)') IS NULL THEN RETURN false; END IF;
+ EXECUTE 'SELECT replacement_matching.allowed_core($1,$2,$3)' INTO ok USING scheme,aid,scope_hint;
+ RETURN coalesce(ok,false);
+END $$;
+REVOKE ALL ON FUNCTION catalog._replacement_policy_ready(),catalog._replacement_policy_allowed(text,text,text) FROM PUBLIC;
 CREATE TABLE IF NOT EXISTS ingestion.jobkorea_replacement (
  replacement_id text PRIMARY KEY CHECK(length(replacement_id) BETWEEN 1 AND 200),
  job_run_id text NOT NULL UNIQUE CHECK(length(job_run_id) BETWEEN 1 AND 200),
@@ -43,7 +60,8 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
 $$;
 CREATE OR REPLACE FUNCTION ingestion.jobkorea_ncs_publication_allowed(token text,jobs text) RETURNS boolean
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
- SELECT CASE WHEN c IS NULL THEN true WHEN c->>'phase'='BLOCKED' THEN false
+ SELECT CASE WHEN jobs='jobkorea-ndjson-c5633b6d40809cc0b788bea454727dfd99850569f5f5b27ab15bc9426daef62f' AND NOT catalog._replacement_policy_ready() THEN false
+ WHEN c IS NULL THEN true WHEN c->>'phase'='BLOCKED' THEN false
  WHEN c->>'phase'='SERVING' THEN token=c->>'ncs_writer_token' AND jobs=c->>'job_run_id'
  WHEN jsonb_typeof(c->'previous_serving')='object' THEN token=c#>>'{previous_serving,ncs_writer_token}'
   AND jobs=c#>>'{previous_serving,job_run_id}'
@@ -52,7 +70,7 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
 $$;
 CREATE OR REPLACE FUNCTION ingestion.jobkorea_onet_publication_allowed(publication text,task text,source text,jobs text)
 RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
- SELECT source<>'jobkorea' OR CASE WHEN c IS NULL THEN true WHEN c->>'phase'='BLOCKED' THEN false
+ SELECT source<>'jobkorea' OR CASE WHEN task='jkr-20261103-onet' AND NOT catalog._replacement_policy_ready() THEN false WHEN c IS NULL THEN true WHEN c->>'phase'='BLOCKED' THEN false
  WHEN c->>'phase'='SERVING' THEN publication=c->>'onet_publication_id' AND task=c->>'onet_task_id'
   AND jobs=c->>'job_run_id'
  WHEN jsonb_typeof(c->'previous_serving')='object' THEN publication=c#>>'{previous_serving,onet_publication_id}'
@@ -266,7 +284,7 @@ BEGIN
     ), captured AS MATERIALIZED (
      SELECT DISTINCT ON(p.job_run_id,p.ncs_run_id,i.posting_id)
       p.job_run_id,p.ncs_run_id,p.completed_at,p.include_unreviewed,
-      i.posting_id,x.bundle_id,x.source_hash,ib.manifest,r.result_id,r.output,
+      i.posting_id,x.bundle_id,x.source_hash,ib.manifest,r.result_id,r.output,r.attempt_id,
       b.settings->>'prompt_version' AS prompt_version
      FROM publications p JOIN enrichment.metadata_occupation_binding x
       ON x.job_run_id=p.job_run_id AND x.ncs_run_id=p.ncs_run_id
@@ -285,7 +303,7 @@ BEGIN
       WHERE d.result_id=s.result_id AND s.prompt_version<>'ko-metadata-occupation-v3' ORDER BY decision_id DESC LIMIT 1) d1 ON true
      LEFT JOIN LATERAL (SELECT d.* FROM enrichment.metadata_occupation_candidate_decision d
       WHERE d.candidate_id=c.candidate_id AND s.prompt_version='ko-metadata-occupation-v3' ORDER BY decision_id DESC LIMIT 1) d3 ON true
-     WHERE s.output->>'outcome'='matched' AND ($1 IS NULL OR c.occupation_code=ANY($1))
+     WHERE (s.job_run_id<>'jobkorea-ndjson-c5633b6d40809cc0b788bea454727dfd99850569f5f5b27ab15bc9426daef62f' OR ((SELECT catalog._replacement_policy_ready()) AND catalog._replacement_policy_allowed('NCS',s.attempt_id,s.job_run_id))) AND s.output->>'outcome'='matched' AND ($1 IS NULL OR c.occupation_code=ANY($1))
       AND s.prompt_version IS NOT NULL
       AND (s.prompt_version<>'ko-metadata-occupation-v3' OR EXISTS(SELECT 1 FROM jsonb_array_elements(s.output->'matches') m
        WHERE m->>'occupation_code'=c.occupation_code))
@@ -345,7 +363,7 @@ BEGIN
      coalesce(e.properties->>'task_id',e.payload_json::jsonb->>'task_id') AS task_id,
      coalesce(e.properties->>'occupation_name',e.payload_json::jsonb->>'occupation_name') AS occupation_name
     FROM onet_matching.graph_edge e JOIN onet_matching.graph_guard g USING(publication_id)
-    WHERE g.state='VERIFIED' AND EXISTS(SELECT 1 FROM onet_matching.input pin WHERE pin.task_id=g.task_id
+    WHERE g.state='VERIFIED' AND (g.task_id<>'jkr-20261103-onet' OR ((SELECT catalog._replacement_policy_ready()) AND catalog._replacement_policy_allowed('ONET',coalesce(e.properties->>'attempt_id',e.payload_json::jsonb->>'attempt_id'),g.task_id))) AND EXISTS(SELECT 1 FROM onet_matching.input pin WHERE pin.task_id=g.task_id
       AND pin.posting_identity=e.posting_identity AND ingestion.jobkorea_onet_publication_allowed(g.publication_id,g.task_id,pin.source_id,pin.source_run_id)) AND ($1 IS NULL OR e.properties->>'occupation_code'=ANY($1))
      AND ($2 IS NULL OR EXISTS(SELECT 1 FROM inputs i WHERE i.posting_identity=e.posting_identity))
     ORDER BY e.edge_id,g.finished_at DESC,e.publication_id DESC

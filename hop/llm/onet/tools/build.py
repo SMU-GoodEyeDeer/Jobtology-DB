@@ -276,19 +276,20 @@ def build_install() -> None:
     actions.extend(kept)
     hops.clear()
     previous = "Start"
-    # Base installer remains frozen; separately qualified successors have their
-    # own additive installers and must never be folded into the original HWF.
+    # Base SQL remains frozen. The optional scoped policy runs last so canonical
+    # replay restores its publication filters when all prerequisites are present.
     for basename in (
         "001_matching.sql",
         "002_results.sql",
         "003_publication.sql",
         "004_prompt_contract.sql",
+        "038_replacement_policy.sql",
     ):
         filename = OUT / "sql" / basename
         label = filename.stem
         action = deepcopy(sql)
         put(action, "name", label)
-        put(action, "sqlfilename", "${PROJECT_HOME}/llm/onet/sql/" + filename.name)
+        put(action, "sqlfilename", ("${PROJECT_HOME}/llm/sql/" if basename == "038_replacement_policy.sql" else "${PROJECT_HOME}/llm/onet/sql/") + filename.name)
         actions.append(action)
         child(
             hops,

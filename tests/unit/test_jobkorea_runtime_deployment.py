@@ -365,4 +365,5 @@ def test_replacement_migration_is_deployable_before_its_canonical_installer(
     workflow = ET.parse(module.ROOT / "ontology/install.hwf")
     sql_actions = [action.findtext("sqlfilename") for action in workflow.findall("actions/action")
                    if action.findtext("type") == "SQL"]
-    assert sql_actions[-1] == "${PROJECT_HOME}/" + migration
+    assert sql_actions[-2:] == ["${PROJECT_HOME}/" + migration,
+                               "${PROJECT_HOME}/llm/sql/038_replacement_policy.sql"]

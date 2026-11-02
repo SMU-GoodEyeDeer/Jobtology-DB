@@ -41,8 +41,8 @@ historical ledgers or establish the provider account balance.
    separate backend user database. Save a typed full graph baseline.
 2. Review/deploy the exact runtime files. Apply qualified additive
    [ontology SQL037](../../hop/ontology/sql/037_jobkorea_replacement.sql) and the
-   graph SQL009 replay fence. SQL037 originally qualified at SHA256
-   `38c602dc4053b50aceb7e3ceada105a121bce718b0d1c13c46be289fb2855597`.
+   graph SQL009 replay fence. The final bridge-aware SQL037 artifact has SHA256
+   `aaa9194e04d829e3157880504118263424f4fc92065f1448f884328d9b80a897`.
    Verify installed bytes and function bodies. Run reader grants using the
    current grant script; replacement tables/helpers must stay private. Do not
    replay old individual reader migrations after SQL037: they replace its
@@ -136,6 +136,46 @@ Unknown charges stop new sends and retain conservative holds. Status receipts
 must distinguish matched, abstained, rejected/failed and unsent rows. Paid
 validation failures consume budget. An exhausted/blocked budget is not full
 cohort completion.
+
+## Qualified publication policy boundary
+
+[LLM SQL038](../../hop/llm/sql/038_replacement_policy.sql) is an optional,
+prerequisite-aware installation step and executes last in the canonical ontology,
+LLM, O*NET and JobKorea installers. Verify its qualified deployment hash and
+installed function signatures before use. The qualified SQL038 artifact SHA256 is
+`19e53a7c95e5b58cc9d67ff49ca7ca1970411e5f8ab22c6e2523d2fb35d30ba9`.
+It applies only to the exact new run,
+NCS batch prefix and O*NET task above; historical cohorts retain their contracts.
+
+The finite source-support matrix covers **49 NCS and 38 O*NET occupations**.
+Unregistered or unsupported occupations are held by default. Append-only,
+hash-bound `POLICY_ALLOWED` / `POLICY_BLOCKED` assessments describe automated
+publication eligibility separately from technical response validation, actual
+individual review and NULL / UNASSESSED confidence. A policy pass never grants
+semantic review status. Original responses, charges and source listings remain
+unchanged.
+
+Qualification excludes all **35 known bad pilot/ramp links**, retains **121 of
+158 individually acceptable links**, and conservatively holds **37**. The current
+assessment excludes a whole response when one candidate fails, so it can also
+hold a valid companion link. Report these holds separately from model abstentions
+and literal validation failures. Guarded projector/reader signatures and the
+shared publication gates fail closed after incompatible replay; restoring the
+qualified definitions restores eligibility.
+
+A 5,000-row, single-CPU synthetic qualification measured the following under the
+unchanged five-second bound; the final replay was measured separately:
+
+| Reader | Qualification (s) | Final replay (s) |
+| --- | ---: | ---: |
+| NCS graph | 1.097 | 1.133 |
+| NCS API projection | 1.307 | 1.316 |
+| O*NET graph | 2.472 | 2.419 |
+| O*NET API projection | 3.824 | 3.788 |
+
+These timings qualify the synthetic fixture only. They do not establish deployed
+API latency, production publication or completed replacement. Preserve the
+qualification and coverage receipts, and verify actual deployed reads separately.
 
 ## Publish, purge and activate
 

@@ -957,7 +957,8 @@ def artifacts(hop: str, stage: str) -> dict[str, str]:
         relative = pending.pop()
         if relative in hashes:
             continue
-        if not re.fullmatch(r"llm/onet/[a-zA-Z0-9_./-]+\.(hwf|hpl|sql)", relative):
+        if (relative != "llm/sql/038_replacement_policy.sql" and
+            not re.fullmatch(r"llm/onet/[a-zA-Z0-9_./-]+\.(hwf|hpl|sql)", relative)):
             raise RuntimeError("Native matcher dependency escapes its additive namespace")
         if ".." in Path(relative).parts:
             raise RuntimeError("Unsafe native matcher dependency")
@@ -989,6 +990,9 @@ cat "$path"
 
 def runtime_artifacts() -> dict[str, str]:
     result = {}
+    policy = common.ROOT / "llm/sql/038_replacement_policy.sql"
+    if policy.is_file():
+        result["llm/sql/038_replacement_policy.sql"] = file_identity(policy)["sha256"]
     folder = common.ROOT / "llm/onet"
     for path in sorted(folder.rglob("*")):
         relative = path.relative_to(folder)
@@ -1255,6 +1259,7 @@ def execute(args: argparse.Namespace) -> None:
                 if scope:
                     receipt["replacement_scope"] = manifest["replacement_scope"]
                     receipt["replacement_before"] = replacement.state(runtime["pg"], sql, scope)
+                    replacement.require_policy(receipt["replacement_before"])
                     if not receipt["replacement_before"].get("reinference_gate_installed"):
                         raise RuntimeError("Install separately qualified replacement SQL007 first")
                     receipt["replacement_artifacts"] = artifacts(

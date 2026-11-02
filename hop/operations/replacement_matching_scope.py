@@ -92,6 +92,7 @@ SELECT jsonb_build_object(
  'reinference_gate_installed',to_regprocedure(
   'onet_matching.replacement_reinference_allowed(' ||
   'onet_matching.task,onet_matching.input,onet_matching.input)') IS NOT NULL,
+ 'policy_installed',to_regprocedure('replacement_matching.runtime()') IS NOT NULL,
  'pins',(SELECT jsonb_object_agg(source_id,run_id) FROM ingestion.latest_ready_run
   WHERE source_id IN('jobkorea','ncs_competency')),
  'source_count',(SELECT count(*) FROM ingestion.ready_record
@@ -116,6 +117,10 @@ SELECT jsonb_build_object(
 COMMIT;""",
         )
     )
+    if result.get("policy_installed"):
+        result["automated_policy"] = json.loads(query(pg,
+            "BEGIN READ ONLY; SET LOCAL statement_timeout='30s'; "
+            "SELECT replacement_matching.runtime(); COMMIT;"))
     if scope:
         if (
             result.get("pins")
@@ -130,6 +135,14 @@ COMMIT;""",
         }:
             raise RuntimeError("Replacement exact current O*NET catalogue pin changed")
     return result
+
+
+def require_policy(snapshot: dict[str, Any]) -> None:
+    policy = snapshot.get("automated_policy") or {}
+    if (policy.get("ready") is not True
+        or policy.get("version") != "jobkorea-evidence-exclusion-v1"
+        or policy.get("assessment_kind") != "AUTOMATED_POLICY"):
+        raise RuntimeError("Qualified replacement policy SQL038 must be installed and ready")
 
 
 def remaining(snapshot: dict[str, Any], channel: str) -> Decimal:
