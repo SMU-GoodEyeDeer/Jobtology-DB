@@ -191,3 +191,43 @@ def test_diagnostics_classify_without_leaking(message: str, sqlstate: str | None
     result = telemetry_failure(error, "postgres")
     assert result["error_code"] == expected
     assert message not in json.dumps(result)
+
+
+@pytest.mark.parametrize(
+    "code,expected",
+    [
+        ("Neo.ClientError.Security.CredentialsExpired", "authentication_failed"),
+        ("Neo.ClientError.Security.Unauthorized", "authentication_failed"),
+        ("Neo.ClientError.Transaction.TransactionTimedOutClientConfiguration", "query_timeout"),
+        ("Neo.ClientError.Transaction.TransactionTimedOut", "query_timeout"),
+        ("Neo.TransientError.Transaction.TransactionTimedOut", "query_timeout"),
+        ("Neo.TransientError.Statement.ExecutionTimeout", "query_timeout"),
+        ("Neo.ClientError.Security.Forbidden", "permission_denied"),
+        ("Neo.ClientError.Transaction.Terminated", "connection_or_query_failed"),
+    ],
+)
+def test_neo4j_server_diagnostics_keep_counts_unknown_and_error_details_private(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, code: str, expected: str
+):
+    class ServerError(RuntimeError):
+        def __init__(self, code: str):
+            super().__init__("private-credential private-host private-query")
+            self.code = code
+
+    driver = MagicMock()
+    driver.session.return_value.__enter__.return_value.run.side_effect = ServerError(code)
+    monkeypatch.setattr("neo4j.GraphDatabase.driver", MagicMock(return_value=driver))
+    graph = NativeTelemetry(
+        configuration(
+            tmp_path, neo4j_uri="bolt://private-host:7687", neo4j_password="private-credential"
+        )
+    ).graph()
+    assert graph["service"]["error_code"] == expected
+    assert graph["service"]["status"] == "unavailable"
+    assert "totals" not in graph
+    serialized = json.dumps(graph)
+    assert all(
+        value not in serialized
+        for value in ("private-credential", "private-host", "private-query", code)
+    )
+    assert driver.close.call_count == 1

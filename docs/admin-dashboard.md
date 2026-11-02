@@ -278,8 +278,17 @@ variables in the dashboard deployment:
 | `JOBTOLOGY_ADMIN_APPLICATION_API_URL` | Private backend HTTP(S) origin, e.g. `http://backend-private:8000`; no path, query or embedded credentials |
 | `JOBTOLOGY_ADMIN_APPLICATION_API_TOKEN` | Independent random bearer secret of at least 32 characters, matching backend `JOBTOLOGY_MANAGEMENT_TOKEN` |
 
-Before enabling management, apply backend Alembic revision `20261102_01` to the
-application database. Backend `JOBTOLOGY_INVITATION_REQUIRED=true` is the default;
+Before enabling management, stop every old backend instance and block OAuth
+login and callback traffic, including in-flight callbacks. Apply backend Alembic
+revision `20261102_01` to the application database and keep callbacks blocked
+until the new backend is ready with invitation enforcement enabled. If that
+revision was already applied while old instances were running, the backend's
+`deploy/reconcile-legacy-admissions.sql` repairs only missing legacy admission
+rows without overwriting existing expiry, revocation or invitation usage; run it
+only within the same stopped-instance/callback-blocked window. Follow the
+[backend migration and rollout guide](https://github.com/SMU-GoodEyeDeer/Jobtology-BE/blob/feat/invitation-access/docs/invitation-access.md)
+for owner grants and the exact sequence.
+Backend `JOBTOLOGY_INVITATION_REQUIRED=true` is the default;
 keep it enabled for invite-only signup and admitted-account expiry checks. Set
 backend `JOBTOLOGY_MANAGEMENT_TOKEN` to the same independent secret configured in
 the dashboard, at least 32 characters. This does not replace or share the
@@ -307,7 +316,9 @@ starts at first admission. Later Google login does not reset that deadline.
 Existing accounts are grandfathered as `LEGACY`. Editing an invitation affects
 future redemptions, and revoking its code does not revoke users already admitted.
 Use **Users** to suspend/restore an account, edit its individual access expiry or
-revoke all its sessions. **Sessions** shows metadata only, can filter by user ID,
+revoke all its sessions. Removing a known or unavailable expiry requires an
+explicit **Set unlimited access** selection; an empty date never silently clears
+an unavailable expiry. **Sessions** shows metadata only, can filter by user ID,
 and can revoke individual sessions; it never displays session credentials.
 
 The raw invitation code, link and QR are returned only at creation. Save or copy
@@ -316,6 +327,23 @@ SVG and uses no external QR service. The backend stores a code hash; listings
 show only a hint. The creation result is not stored in browser local/session
 storage and is cleared on sign-out. Avoid including codes or invitation links
 in issue reports and logs.
+
+## Management browser regression fixture
+
+With Chrome and Playwright installed locally, run the synthetic fixture from the
+repository root:
+
+```bash
+node tests/browser/admin_management.mjs
+```
+
+If Playwright is installed outside this repository, set `PLAYWRIGHT_MODULE` to
+its absolute ESM entry point when running the command. The fixture serves the
+real dashboard assets on loopback and supplies only synthetic API responses; it
+refuses external HTTP requests. It checks stale row-write success/error responses
+after a new operator logs in, explicit expiry clearing, pending invitation dialog
+closure/reuse and creation-only code preservation, plus 320/390/1440 layouts.
+Expected injected HTTP failures are checked separately from JavaScript errors.
 
 ## Verified telemetry diagnosis — November 2, 2026
 

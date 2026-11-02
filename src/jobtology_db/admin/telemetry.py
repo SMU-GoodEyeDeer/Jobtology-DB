@@ -122,6 +122,7 @@ def service(service_id: str, label: str, status: str, message: str) -> dict[str,
 
 
 def telemetry_failure(error: Exception, target: str) -> dict[str, Any]:
+    """Return a fixed diagnostic category without disclosing driver error text."""
     # Classify locally but never return exception text: drivers include credentials
     # and hostnames even in connection/authentication failures without SQLSTATE.
     sqlstate = getattr(error, "sqlstate", "") or ""
@@ -130,7 +131,11 @@ def telemetry_failure(error: Exception, target: str) -> dict[str, Any]:
     if (
         sqlstate.startswith("28")
         or "password authentication failed" in text
-        or "Unauthorized" in code
+        or code
+        in {
+            "Neo.ClientError.Security.Unauthorized",
+            "Neo.ClientError.Security.CredentialsExpired",
+        }
     ):
         reason = "authentication_failed"
         message = "Authentication failed. Repair the configured read-only service credentials."
@@ -140,7 +145,17 @@ def telemetry_failure(error: Exception, target: str) -> dict[str, Any]:
     elif sqlstate in {"42P01", "42703"}:
         reason = "schema_mismatch"
         message = "Telemetry schema is unavailable. Verify the installed ingestion schema."
-    elif sqlstate == "57014" or isinstance(error, TimeoutError):
+    elif (
+        sqlstate == "57014"
+        or isinstance(error, TimeoutError)
+        or code
+        in {
+            "Neo.ClientError.Transaction.TransactionTimedOut",
+            "Neo.ClientError.Transaction.TransactionTimedOutClientConfiguration",
+            "Neo.TransientError.Transaction.TransactionTimedOut",
+            "Neo.TransientError.Statement.ExecutionTimeout",
+        }
+    ):
         reason = "query_timeout"
         message = "The bounded telemetry query timed out."
     else:

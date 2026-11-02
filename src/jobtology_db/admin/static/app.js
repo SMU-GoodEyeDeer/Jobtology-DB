@@ -137,6 +137,7 @@
   function showLogin(message) {
     clearTimeout(state.timer);
     managementGeneration += 1;
+    invitationSubmission = null; setInvitationPending(false);
     $("created-invitation").replaceChildren(); $("created-invitation").hidden = true;
     managementTabs.forEach((name) => $(name + "-list").replaceChildren());
     ["invitation-dialog", "user-access-dialog"].forEach((name) => { if ($(name).open) $(name).close(); });
@@ -432,6 +433,7 @@
   const allTabs = ["overview", "activity", "graph", ...managementTabs];
   const management = { invitations: {offset: 0, total: 0}, users: {offset: 0, total: 0}, sessions: {offset: 0, total: 0} };
   let invitationEditing = null;
+  let invitationSubmission = null;
   let userEditing = null;
   let managementGeneration = 0;
   const localDateInput = (value) => {
@@ -466,12 +468,17 @@
     }
   }
   async function managementWrite(name, suffix, method, body, button) {
+    const activeSession = state.session;
+    if (!activeSession || state.loggingOut || button.disabled) return;
     button.disabled = true;
     try {
-      await api("/api/application/" + name + "/" + suffix, {method, headers: {"X-CSRF-Token": state.session.csrf_token}, ...(body ? {body: JSON.stringify(body)} : {})});
+      await api("/api/application/" + name + "/" + suffix, {method, headers: {"X-CSRF-Token": activeSession.csrf_token}, ...(body ? {body: JSON.stringify(body)} : {})});
+      if (state.session !== activeSession || state.loggingOut) return;
       toast("Change saved."); await loadManagement(name);
-    } catch (error) { if (error.status === 401) showLogin(error.message); else managementError(name, error.message); }
-    finally { button.disabled = false; }
+    } catch (error) {
+      if (state.session !== activeSession || state.loggingOut) return;
+      if (error.status === 401) showLogin(error.message); else managementError(name, error.message);
+    } finally { button.disabled = false; }
   }
   function managementButton(label, callback) {
     const button = element("button", "button secondary", label); button.addEventListener("click", () => callback(button)); return button;
@@ -514,13 +521,39 @@
         if (row.revoked_at) actions.append(badge("revoked"));
         else actions.append(managementButton("Edit", () => openInvitation(row)), managementButton("Revoke code", (button) => { if (confirm("Revoke this invitation? Admitted users keep their access.")) managementWrite(name, row.id + "/revoke", "POST", null, button); }));
       } else if (name === "users") {
-        actions.append(managementButton(row.status === "ACTIVE" ? "Suspend" : "Restore", (button) => { if (confirm("Change access for " + textValue(row.display_name, row.id) + "?")) managementWrite(name, row.id, "PATCH", {status: row.status === "ACTIVE" ? "DEACTIVATED" : "ACTIVE"}, button); }), managementButton("Edit expiry", () => { userEditing = row.id; $("user-access-form").elements.access_expires_at.value = localDateInput(row.access_expires_at); $("user-access-error").hidden = true; $("user-access-dialog").showModal(); }), managementButton("Revoke sessions", (button) => { if (confirm("Revoke all sessions for this user?")) managementWrite(name, row.id + "/revoke-sessions", "POST", null, button); }));
+        actions.append(managementButton(row.status === "ACTIVE" ? "Suspend" : "Restore", (button) => { if (confirm("Change access for " + textValue(row.display_name, row.id) + "?")) managementWrite(name, row.id, "PATCH", {status: row.status === "ACTIVE" ? "DEACTIVATED" : "ACTIVE"}, button); }), managementButton("Edit expiry", () => openUserExpiry(row)), managementButton("Revoke sessions", (button) => { if (confirm("Revoke all sessions for this user?")) managementWrite(name, row.id + "/revoke-sessions", "POST", null, button); }));
       } else if (!row.revoked_at) actions.append(managementButton("Revoke session", (button) => { if (confirm("Revoke this session?")) managementWrite(name, row.id + "/revoke", "POST", null, button); }));
       tr.append(actions); tbody.append(tr);
     }
     table.append(head, tbody); scroll.append(table); $(name + "-list").replaceChildren(scroll); trackTableOverflow(scroll);
   }
+  function openUserExpiry(row) {
+    userEditing = row.id;
+    const form = $("user-access-form"); form.reset();
+    const explicitlyUnlimited = row.access_expires_at === null;
+    const knownExpiry = Number.isFinite(expiryInstant(row.access_expires_at));
+    form.elements.access_expires_at.value = knownExpiry ? localDateInput(row.access_expires_at) : "";
+    form.elements.unlimited.checked = explicitlyUnlimited;
+    $("user-access-current").textContent = explicitlyUnlimited ? "Current access: Unlimited." : knownExpiry ? "Current access expires " + date(row.access_expires_at) + "." : "Current expiry is unavailable. Choose a date or explicitly select unlimited access.";
+    syncUserExpiryFields();
+    $("user-access-error").hidden = true; $("user-access-dialog").showModal();
+  }
+  function syncUserExpiryFields() {
+    const fields = $("user-access-form").elements;
+    fields.access_expires_at.disabled = fields.unlimited.checked;
+    fields.access_expires_at.required = !fields.unlimited.checked;
+  }
+  $("user-access-form").elements.unlimited.addEventListener("change", syncUserExpiryFields);
+  function setInvitationPending(pending) {
+    const form = $("invitation-form"); form.setAttribute("aria-busy", String(pending));
+    form.querySelectorAll("input,select,button").forEach((control) => { control.disabled = pending; });
+  }
   function openInvitation(row = null) {
+    if (invitationSubmission) return;
+    if (!row && !$("created-invitation").hidden) {
+      toast("Save or dismiss the displayed invitation before creating another.");
+      $("created-invitation").scrollIntoView({block: "nearest"}); return;
+    }
     invitationEditing = row?.id || null; const form = $("invitation-form"); form.reset();
     form.elements.label.value = row?.label || ""; form.elements.expires_at.value = localDateInput(row?.expires_at);
     form.elements.access_hours.value = row?.access_hours ?? "";
@@ -536,30 +569,47 @@
     event.preventDefault(); const form = event.target; const button = form.querySelector('[type="submit"]'); if (button.disabled || !state.session) return;
     const fields = form.elements; const body = {label: fields.label.value.trim(), expires_at: fields.expires_at.value ? new Date(fields.expires_at.value).toISOString() : null, access_hours: fields.access_hours.value ? Number(fields.access_hours.value) : null, max_uses: fields.usage.value === "single" ? 1 : fields.usage.value === "unlimited" ? null : Number(fields.max_uses.value)};
     const activeSession = state.session;
-    button.disabled = true; $("invitation-form-error").hidden = true;
+    if (invitationSubmission || state.loggingOut) return;
+    const submission = {editingId: invitationEditing, session: activeSession, handled: false};
+    invitationSubmission = submission;
+    setInvitationPending(true); $("invitation-form-error").hidden = true;
     try {
-      const result = await api("/api/application/invitations" + (invitationEditing ? "/" + invitationEditing : ""), {method: invitationEditing ? "PATCH" : "POST", headers: {"X-CSRF-Token": state.session.csrf_token}, body: JSON.stringify(body)});
+      const result = await api("/api/application/invitations" + (submission.editingId ? "/" + submission.editingId : ""), {method: submission.editingId ? "PATCH" : "POST", headers: {"X-CSRF-Token": activeSession.csrf_token}, body: JSON.stringify(body)});
       if (state.session !== activeSession || state.loggingOut) return;
-      $("invitation-dialog").close();
-      if (!invitationEditing) {
+      if (!submission.editingId) {
         const target = $("created-invitation"); const image = element("img", "invitation-qr"); image.alt = "Invitation QR code"; image.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(result.qr_svg);
         const link = element("a", "button secondary", "Download QR"); link.href = image.src; link.download = "jobtology-invitation.svg";
         const copy = (label, value) => managementButton(label, async () => { try { await navigator.clipboard.writeText(value); toast("Copied."); } catch { toast("Copy failed. Select and copy the displayed value."); } });
         target.replaceChildren(element("h2", "", "Invitation created"), element("p", "", "Save this code now. It cannot be retrieved again."), element("code", "invitation-secret", result.code), element("p", "invitation-secret", result.invite_url), image, copy("Copy code", result.code), copy("Copy link", result.invite_url), link, managementButton("Dismiss code", () => { target.replaceChildren(); target.hidden = true; })); target.hidden = false;
       }
+      submission.handled = true;
+      $("invitation-dialog").close();
       await loadManagement("invitations");
     } catch (error) { if (state.session !== activeSession || state.loggingOut) return; if (error.status === 401) showLogin(error.message); else { $("invitation-form-error").textContent = error.message; $("invitation-form-error").hidden = false; } }
-    finally { button.disabled = false; }
+    finally {
+      if (invitationSubmission === submission) { invitationSubmission = null; setInvitationPending(false); }
+    }
+  });
+  $("invitation-dialog").addEventListener("cancel", (event) => { if (invitationSubmission) event.preventDefault(); });
+  $("invitation-dialog").addEventListener("close", () => {
+    const pending = invitationSubmission;
+    if (pending && !pending.handled && state.session === pending.session && !state.loggingOut && !$("invitation-dialog").open) $("invitation-dialog").showModal();
   });
   $("user-access-form").addEventListener("submit", async (event) => {
     event.preventDefault(); const button = event.target.querySelector('[type="submit"]'); if (button.disabled || !state.session) return; button.disabled = true;
-    const input = event.target.elements.access_expires_at.value;
+    const fields = event.target.elements;
+    const input = fields.access_expires_at.value;
+    const unlimited = fields.unlimited.checked;
+    if (!unlimited && (!input || !Number.isFinite(new Date(input).getTime()))) {
+      $("user-access-error").textContent = "Choose an expiry date or explicitly select unlimited access.";
+      $("user-access-error").hidden = false; button.disabled = false; return;
+    }
     const activeSession = state.session;
-    try { await api("/api/application/users/" + userEditing, {method: "PATCH", headers: {"X-CSRF-Token": state.session.csrf_token}, body: JSON.stringify({access_expires_at: input ? new Date(input).toISOString() : null})}); if (state.session !== activeSession || state.loggingOut) return; $("user-access-dialog").close(); await loadManagement("users"); }
+    try { await api("/api/application/users/" + userEditing, {method: "PATCH", headers: {"X-CSRF-Token": activeSession.csrf_token}, body: JSON.stringify({access_expires_at: unlimited ? null : new Date(input).toISOString()})}); if (state.session !== activeSession || state.loggingOut) return; $("user-access-dialog").close(); await loadManagement("users"); }
     catch (error) { if (state.session !== activeSession || state.loggingOut) return; if (error.status === 401) showLogin(error.message); else { $("user-access-error").textContent = error.message; $("user-access-error").hidden = false; } }
     finally { button.disabled = false; }
   });
-  document.querySelectorAll("[data-close-dialog]").forEach((button) => button.addEventListener("click", () => $(button.dataset.closeDialog).close()));
+  document.querySelectorAll("[data-close-dialog]").forEach((button) => button.addEventListener("click", () => { if (button.dataset.closeDialog === "invitation-dialog" && invitationSubmission) return; $(button.dataset.closeDialog).close(); }));
   document.querySelectorAll("[data-reload]").forEach((button) => button.addEventListener("click", () => loadManagement(button.dataset.reload)));
   document.querySelectorAll("[data-page]").forEach((button) => button.addEventListener("click", () => { const name = button.dataset.page; management[name].offset = Math.max(0, management[name].offset + Number(button.dataset.direction) * 50); loadManagement(name); }));
   $("filter-sessions").addEventListener("click", () => { management.sessions.offset = 0; loadManagement("sessions"); });

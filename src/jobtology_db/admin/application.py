@@ -30,6 +30,7 @@ class InvitationFields(ManagementModel):
     @field_validator("expires_at")
     @classmethod
     def timezone_required(cls, value: datetime | None) -> datetime | None:
+        """Reject ambiguous local timestamps before forwarding an invitation expiry."""
         if value is not None and value.tzinfo is None:
             raise ValueError("timezone required")
         return value
@@ -78,6 +79,7 @@ FIELDS = {
 
 
 def public_item(value: Any, resource: str) -> dict[str, Any]:
+    """Project scalar management metadata while excluding backend-only secrets."""
     if not isinstance(value, dict) or "id" not in value:
         raise ValueError("invalid item")
     result = {
@@ -108,6 +110,7 @@ class ApplicationAPI:
         params: dict[str, Any] | None = None,
         body: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        """Call a fixed management route and return bounded, allowlisted JSON or a safe error."""
         settings = self.settings
         if settings.mode == "demo":
             raise HTTPException(503, "Application management is unavailable in demo mode.")
