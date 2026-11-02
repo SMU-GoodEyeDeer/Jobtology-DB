@@ -47,6 +47,7 @@ ALLOWLIST = (
     "ontology/sql/034_ncs_onet_crosswalk.sql",
     "ontology/sql/035_ncs_catalog_revalidation.sql",
     "ontology/sql/036_crosswalk_reader_performance.sql",
+    "ontology/sql/037_jobkorea_replacement.sql",
     "ontology/install.hwf",
     "ontology/install_flat_graph.hwf",
     "ontology/load_release.hwf",

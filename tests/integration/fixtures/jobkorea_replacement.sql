@@ -1,0 +1,31 @@
+CREATE SCHEMA ingestion; CREATE SCHEMA catalog; CREATE SCHEMA enrichment; CREATE SCHEMA onet_matching; CREATE SCHEMA classification;
+CREATE TABLE ingestion.run(run_id text PRIMARY KEY,source_id text,state text,mode text,created_at timestamptz,completed_at timestamptz);
+CREATE VIEW ingestion.latest_ready_run AS SELECT DISTINCT ON(source_id) * FROM ingestion.run WHERE state='READY' ORDER BY source_id,created_at DESC;
+CREATE TABLE ingestion.document(run_id text,document_id text,selected boolean);
+CREATE TABLE ingestion.record(run_id text,document_id text,record_id bigint,normalized jsonb);
+CREATE TABLE ingestion.jobkorea_import(run_id text,file_sha256 text);
+CREATE FUNCTION catalog._live_job_postings(jobs text) RETURNS TABLE(posting_id text,normalized jsonb) LANGUAGE sql AS $$ SELECT normalized->>'posting_id',normalized FROM ingestion.record WHERE run_id=jobs $$;
+CREATE FUNCTION catalog._ncs_catalog_revalidation(text,text,text) RETURNS jsonb LANGUAGE sql AS $$ SELECT NULL::jsonb $$;
+CREATE TABLE enrichment.metadata_occupation_graph_guard(writer_token text,job_run_id text,ncs_run_id text,include_unreviewed boolean,state text,completed_at timestamptz);
+CREATE TABLE enrichment.input_bundle(bundle_id text,manifest jsonb);
+CREATE TABLE enrichment.fixture_graph(jobs text,ncs text,candidate_id text,posting_identity text,payload jsonb);
+CREATE FUNCTION enrichment.metadata_occupation_graph_rows(jobs text,ncs text,include_unreviewed boolean) RETURNS TABLE(candidate_id text,posting_identity text,payload jsonb) LANGUAGE sql AS $$ SELECT candidate_id,posting_identity,payload FROM enrichment.fixture_graph f WHERE f.jobs=$1 AND f.ncs=$2 $$;
+CREATE TABLE onet_matching.graph_guard(publication_id text,task_id text,state text,database_id text,finished_at timestamptz);
+CREATE TABLE onet_matching.graph_edge(publication_id text,edge_id text,posting_identity text,occupation_identity text,properties jsonb,payload_json text);
+CREATE TABLE onet_matching.input(task_id text,posting_identity text,source_id text,source_run_id text,source_facts jsonb);
+CREATE TABLE classification.catalog_current(database_id text,release_id text,load_id text);
+CREATE TABLE classification.graph_load_node(load_id text,node_id text,content_hash text);
+INSERT INTO ingestion.run VALUES ('old','jobkorea','READY','FULL',now()-interval '2 day',now()-interval '2 day'),('ncs','ncs_competency','READY','FULL',now(),now()),('alio','job_alio','READY','FULL',now(),now());
+INSERT INTO ingestion.document VALUES ('old','d',true),('alio','d',true);
+INSERT INTO ingestion.record VALUES ('old','d',1,'{"kind":"JobPosting","representation":"local_listing","metadata_accepted":true,"posting_id":"1","title":"old"}'),('old','d',2,'{"kind":"JobPosting","representation":"local_listing","metadata_accepted":true,"posting_id":"2","title":"omitted"}'),('alio','d',3,'{"kind":"JobPosting","posting_id":"alio-one"}');
+INSERT INTO enrichment.metadata_occupation_graph_guard VALUES('old-ncs','old','ncs',true,'READY',now());
+INSERT INTO enrichment.input_bundle VALUES ('old-b','{"document":{"source_record_id":"1","normalized_hash":"hash"}}');
+INSERT INTO enrichment.fixture_graph VALUES ('old','ncs','old-c','jk1','{"bundle_id":"old-b","occupation_code":"20010201","occupation_name":"old ncs","review_status":"UNREVIEWED","stage":"STAGING","confidence_state":"UNASSESSED"}');
+INSERT INTO onet_matching.input VALUES ('old-task','jk1','jobkorea','old','{"posting_id":"1"}'),('old-task','alio1','job_alio','alio','{"posting_id":"alio-one"}');
+INSERT INTO onet_matching.graph_guard VALUES('old-onet','old-task','VERIFIED','db',now());
+INSERT INTO onet_matching.graph_edge VALUES ('old-onet','edge-jk-old','jk1','occ','{"occupation_code":"15-1252.00","task_id":"old-task"}','{}'),('old-onet','edge-alio','alio1','occ','{"occupation_code":"15-1252.00","task_id":"old-task"}','{}');
+
+CREATE TABLE ingestion.source_graph_projection(run_id text,state text);
+CREATE FUNCTION enrichment.metadata_occupation_status(jobs text,ncs text) RETURNS TABLE(outcome text)
+ LANGUAGE sql AS $$ SELECT 'ABSTAINED'::text WHERE jobs='new' $$;
+CREATE TABLE onet_matching.attempt(task_id text,state text,reserved_at timestamptz,cost_usd numeric);

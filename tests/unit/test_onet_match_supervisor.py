@@ -530,6 +530,7 @@ def test_native_guard_adoption_binds_fresh_unique_manifest_plan_and_launch_windo
 @pytest.mark.parametrize("stage,workflow", [
     ("install-reconciliation", "install_reconciliation.hwf"),
     ("install-route-incident", "install_route_incident.hwf"),
+    ("install-replacement-scope", "install_replacement_scope.hwf"),
 ])
 def test_additive_incident_installer_needs_no_source_manifest(monkeypatch, stage, workflow):
     captured = []

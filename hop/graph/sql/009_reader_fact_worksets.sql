@@ -4,7 +4,7 @@
 BEGIN;
 DO $guard$ BEGIN
  IF NOT EXISTS(SELECT 1 FROM pg_proc p WHERE
- p.oid='ingestion.graph_source_entities(text)'::regprocedure AND md5(p.prosrc) IN ('a396a150105c5ba5a610f56073443d19','2c87105fcad54ff11411639915945636')
+ p.oid='ingestion.graph_source_entities(text)'::regprocedure AND md5(p.prosrc) IN ('a396a150105c5ba5a610f56073443d19','ebc5c454899ba5b5b63c09f21a240ff1','2c87105fcad54ff11411639915945636')
  AND p.provolatile='v' AND p.proparallel='u' AND NOT p.proisstrict
  AND NOT p.prosecdef AND NOT p.proleakproof AND p.proretset
  AND p.prolang=(SELECT oid FROM pg_language WHERE lanname='plpgsql')
@@ -20,6 +20,20 @@ DO $guard$ BEGIN
  RAISE EXCEPTION 'SOURCE_GRAPH_READER_FACT_WORKSET_BASELINE_DRIFT'; END IF;
 END $guard$;
 
+-- The replacement ledger is installed separately by ontology SQL037.
+-- An absent ledger preserves legacy operation; an active plan permits one run.
+CREATE OR REPLACE FUNCTION ingestion.jobkorea_graph_allowed_run(jobs text)
+RETURNS boolean LANGUAGE plpgsql STABLE AS $fence$
+DECLARE current_plan jsonb;
+BEGIN
+ IF NOT EXISTS(SELECT 1 FROM ingestion.run WHERE run_id=jobs AND source_id='jobkorea')
+ THEN RETURN true; END IF;
+ IF to_regprocedure('ingestion.jobkorea_replacement_current()') IS NULL
+ THEN RETURN true; END IF;
+ EXECUTE 'SELECT ingestion.jobkorea_replacement_current()' INTO current_plan;
+ RETURN current_plan IS NULL OR current_plan='null'::jsonb
+  OR (current_plan->>'job_run_id'=jobs AND current_plan->>'phase' IN('PREPARED','BLOCKED','SERVING'));
+END $fence$;
 CREATE OR REPLACE FUNCTION ingestion.graph_source_entities(jobs text)
 RETURNS TABLE(identity_id text,kind text,code text,entity_name text,entity_title text,
  name_source_run_id text,name_source_record_id text,source_id text,source_run_id text,
@@ -28,9 +42,12 @@ LANGUAGE plpgsql SET jit=off AS $$
 #variable_conflict use_column
 BEGIN
  PERFORM ingestion.source_graph_assert_query_contract();
+ IF jobs<>'ALL_CHECKPOINTED' AND NOT ingestion.jobkorea_graph_allowed_run(jobs)
+ THEN RAISE EXCEPTION 'JOBKOREA_GRAPH_REPLACEMENT_FENCED'; END IF;
  IF jobs='ALL_CHECKPOINTED' THEN
   IF EXISTS(SELECT 1 FROM ingestion.graph_export g JOIN ingestion.run u USING(run_id)
-   WHERE NOT ingestion.source_graph_run_is_valid(u.run_id))
+   WHERE ingestion.jobkorea_graph_allowed_run(u.run_id)
+   AND NOT ingestion.source_graph_run_is_valid(u.run_id))
   THEN RAISE EXCEPTION 'SOURCE_GRAPH_REQUIRES_EXACT_READY_RUN'; END IF;
  ELSE
   IF NOT ingestion.source_graph_run_is_valid(jobs)
@@ -40,6 +57,7 @@ BEGIN
  WITH target_source AS MATERIALIZED(SELECT source_id FROM ingestion.run WHERE run_id=jobs),
 ready_runs AS MATERIALIZED(SELECT u.run_id,u.source_id,u.created_at FROM ingestion.run u
  WHERE u.state='READY' AND u.mode<>'SMOKE'
+ AND ingestion.jobkorea_graph_allowed_run(u.run_id)
  AND (jobs='ALL_CHECKPOINTED'
  OR NOT EXISTS(SELECT 1 FROM target_source)
  OR u.source_id NOT IN('alio_organization','job_alio','nara_job','jobkorea','ncs_career_path','ncs_competency','ncs_qualification','qnet_schedule')

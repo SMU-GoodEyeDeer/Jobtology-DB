@@ -26,6 +26,7 @@ from typing import Any
 
 import deploy_jobkorea_runtime as deployment
 import reconcile_runtime as common
+import replacement_matching_scope as replacement
 
 JOBS = "jobkorea-ndjson-83bdacb6f319187632a8f1b3228a94d49429966443a41a423e8ca2da7e0c5a4c"
 NCS = "ba32f673-255c-4990-80d4-8dbef6008e2f"
@@ -294,7 +295,7 @@ def parameters(args: argparse.Namespace, batch: str, budget: Decimal) -> dict[st
         "DAILY_BUDGET_USD": str(args.task_cap),
         "MAX_REQUESTS": str(args.max_requests or args.limit),
         "REQUEST_RESERVE_USD": str(args.reserve),
-        "REUSE_CACHE": "Y",
+        "REUSE_CACHE": getattr(args, "reuse_cache", "Y"),
         "CATEGORIZE_MODEL": "openai/gpt-5.6-luna",
         "PROMPT_VERSION": args.prompt_version,
         "RETRIEVAL_REVISION": ""
@@ -323,6 +324,25 @@ def parameters(args: argparse.Namespace, batch: str, budget: Decimal) -> dict[st
 
 
 def execute(args: argparse.Namespace) -> None:
+    scope = None
+    scope_path = getattr(args, "replacement_manifest", None)
+    scale_review = None
+    if scope_path:
+        scope = replacement.load(scope_path, args.replacement_sha256)
+        if args.jobs != scope["job_run_id"] or args.ncs != scope["ncs_run_id"]:
+            raise RuntimeError("Replacement execution requires its exact new source/catalogue pins")
+        if args.reuse_cache != "N":
+            raise RuntimeError("Replacement matching requires --reuse-cache N")
+        if args.prompt_version != "ko-metadata-occupation-v2" or args.max_matches not in (None, 1):
+            raise RuntimeError("Reviewed replacement NCS policy requires v2 with one match")
+        if args.stage in ("plan", "execute"):
+            if args.replacement_phase == "pilot":
+                if (args.limit > 24 or (args.max_requests or args.limit) > 24
+                    or args.max_cost > Decimal("0.15")):
+                    raise RuntimeError("Replacement NCS pilot permits 24 inputs/$0.15 per batch")
+            else:
+                scale_review = replacement.ncs_scale_review(args.replacement_review_file,
+                    args.replacement_review_sha256, args.replacement_sha256)
     os.umask(0o077)
     common.STATE.mkdir(parents=True, exist_ok=True, mode=0o700)
     if common.STATE.is_symlink():
@@ -339,7 +359,10 @@ def execute(args: argparse.Namespace) -> None:
             ) from exc
         runtime = common.containers()
         common.idle_cli(runtime["hop"])
-        batch = args.batch_id or "metadata-" + args.stage + "-" + uuid.uuid4().hex
+        prefix = replacement.NCS_PREFIX if scope else "metadata-" + args.stage + "-"
+        batch = args.batch_id or prefix + uuid.uuid4().hex
+        if scope and not batch.startswith(replacement.NCS_PREFIX):
+            raise RuntimeError("Replacement NCS batches require the fixed accounting prefix")
         before = db_state(runtime["pg"], args.jobs, args.ncs, batch)
         require_idle(before, args.jobs, args.ncs)
         if before["batch_exists"] and args.stage in ("plan", "execute"):
@@ -354,7 +377,12 @@ def execute(args: argparse.Namespace) -> None:
             and not before.get("multimatch_v3_installed", False)
         ):
             raise RuntimeError("Install opt-in multi-occupation SQL 037 before planning v3 batches")
+        scope_before = replacement.state(runtime["pg"], deployment.sql, scope) if scope else None
+        scope_remaining = replacement.remaining(scope_before, "ncs") if scope_before else None
         budget = (
+            min(args.max_cost, scope_remaining)
+            if scope_remaining is not None
+            else
             bounded_budget(args.max_cost, args.task_cap, before)
             if args.stage == "execute"
             else args.max_cost
@@ -375,6 +403,11 @@ def execute(args: argparse.Namespace) -> None:
             runtime["hop"], args.stage, args.workers, args.prompt_version, args.retrieval_revision
         )
         params = parameters(args, batch, budget)
+        if scope_remaining is not None:
+            # The reviewed additional allocation is explicit. Historical default
+            # CLI admission and its cumulative accounting remain unchanged.
+            params["DAILY_BUDGET_USD"] = str(min(MAX_TASK_CAP,
+                Decimal(before["task_cost"]["accounted_usd"]) + scope_remaining))
         parent = common.STATE / "inferred-occupations"
         if parent.is_symlink():
             raise RuntimeError("Receipt directory must not be a symlink")
@@ -406,6 +439,13 @@ def execute(args: argparse.Namespace) -> None:
             "before": before,
             "log": str(log),
         }
+        if scope:
+            receipt["replacement_scope"] = replacement.reference(
+                scope_path, args.replacement_sha256)
+            receipt["replacement_before"] = scope_before
+            receipt["replacement_phase"] = args.replacement_phase
+            if scale_review:
+                receipt["replacement_scale_review"] = scale_review
         write_receipt(path, receipt)
         print(
             json.dumps(
@@ -450,6 +490,10 @@ def execute(args: argparse.Namespace) -> None:
             if code:
                 raise RuntimeError("Native Hop failed; inspect the protected Basic log")
             after = receipt["after"]
+            if scope:
+                receipt["replacement_after"] = replacement.state(
+                    runtime["pg"], deployment.sql, scope)
+                replacement.remaining(receipt["replacement_after"], "ncs")
             if (
                 after["pins"] != before["pins"]
                 or after["legacy_baseline"] != before["legacy_baseline"]
@@ -582,7 +626,15 @@ def main() -> None:
         help="Corrected retrieval for fresh batches; legacy preserves old request identity",
     )
     parser.add_argument("--workers", type=int, default=1, help="Native paid request workers (1..8)")
+    parser.add_argument("--reuse-cache", choices=("Y", "N"), default="Y")
+    parser.add_argument("--replacement-manifest", type=Path)
+    parser.add_argument("--replacement-sha256")
+    parser.add_argument("--replacement-phase", choices=("pilot", "full"), default="pilot")
+    parser.add_argument("--replacement-review-file", type=Path)
+    parser.add_argument("--replacement-review-sha256")
     args = parser.parse_args()
+    if bool(args.replacement_manifest) != bool(args.replacement_sha256):
+        parser.error("Replacement scope requires --replacement-manifest and --replacement-sha256")
     if args.max_matches is not None and not 1 <= args.max_matches <= (
         3 if args.prompt_version == "ko-metadata-occupation-v3" else 2
     ):
