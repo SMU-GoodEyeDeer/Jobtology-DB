@@ -79,9 +79,14 @@ query/lock timeouts; those settings complement the database grants.
 Provide a dedicated Neo4j account with read access to the selected database and
 no write or administration privileges. Neo4j editions differ in user/role
 support; use the edition's supported reader role or database access controls.
-Read-mode routing in the driver alone is not an authorization boundary. If a
-separate graph reader cannot be provisioned, leave graph credentials unset and
-the dashboard will show that graph telemetry is unavailable.
+Read-mode routing in the driver alone is not an authorization boundary. Do not
+configure a Neo4j administrator credential in the web process. If a separate
+graph reader cannot be provisioned, leave `JOBTOLOGY_ADMIN_NEO4J_URI` and
+`JOBTOLOGY_ADMIN_NEO4J_PASSWORD` unset; graph telemetry remains unavailable.
+A future supported configuration needs either a dedicated database reader on
+an edition that enforces its privileges, or an isolated exporter exposing only
+fixed aggregate results with no graph credential in the web process. The
+exporter is a future design option, not an implemented service.
 
 Leave `JOBTOLOGY_ADMIN_CONTROLS_ENABLED=false` for a read-only launch. Database
 failures show unknown/unavailable values; unavailable counts are not reported
@@ -386,10 +391,31 @@ failures are checked separately from JavaScript errors. Set
 overview, access-page, invitation-result and dialog screenshots for review.
 These screenshots contain fixture data and do not establish production health.
 
+## Graph telemetry disabled pending a reader boundary — November 3, 2026 KST
+
+Graph telemetry is **disabled** until a database-enforced reader or isolated
+fixed-aggregate exporter boundary exists. Both `JOBTOLOGY_ADMIN_NEO4J_URI` and
+`JOBTOLOGY_ADMIN_NEO4J_PASSWORD` were removed from Coolify runtime configuration.
+A same-version restart completed, and the healthy replacement's `AdminSettings`
+confirmed both values absent. Authenticated public HTTPS
+`/api/dashboard?refresh=true` returned 200 with graph `not_configured` and null
+node/relationship totals (unknown, not zero). Invitations, Users and Sessions
+GETs all returned 200; the diagnostic admin session signed out.
+
+Neo4j itself remains healthy. Graph data, database privileges, ports, networks,
+default routing, other account secrets and existing user sessions were unchanged.
+Driver `READ_ACCESS` alone does not restrict the configured account's privileges;
+the Community 2026.06 `neo4j` administrator account must not be used by the web
+process. This review correction changed no source code or UI. The 17 focused
+telemetry tests and `git diff --check` passed.
+
 ## Verified Neo4j connection repair — November 3, 2026 KST
 
-The November 2 missing-configuration diagnosis below is historical. The current
-dashboard had Neo4j credentials, but its native-driver URI,
+**Historical connectivity proof, superseded by the disabled-telemetry correction
+above.** The temporary healthy result did not establish an approved operating
+configuration or a database-enforced reader boundary.
+
+The dashboard then had Neo4j credentials, but its native-driver URI,
 `neo4j://neo4j-1.yeongmin.net:443`, pointed at the HTTPS ingress rather than the
 Bolt listener. Routing failed before the telemetry queries ran. The existing
 Neo4j Community 2026.06 instance was healthy. The dashboard and Neo4j were on
@@ -412,13 +438,14 @@ checks occurred on November 3 KST; HTTP timestamps used November 2 UTC.
 Credentials, database privileges and data, published ports, container networks
 and existing user sessions were unchanged. The existing management-network
 watcher reattached the replacement dashboard container, while public ingress
-remained on Coolify. The installed Community instance uses the already
-configured `neo4j` user; application read mode is not a database-enforced reader
-role. No dedicated-reader privilege guarantee was established by this repair.
+remained on Coolify. That temporary check used the configured Community
+`neo4j` administrator account. No database-enforced reader boundary was
+established; retaining that credential in the web process violated the
+[read-only access requirement](#read-only-database-access).
 For driver URI and connectivity behavior, see the official
 [Neo4j Python driver connection guide](https://neo4j.com/docs/python-manual/current/connect/).
-The literal gateway address is specific to this verified deployment; verify the
-current gateway and native-driver connectivity before reusing it elsewhere.
+The literal gateway address records that deployment's connectivity only; it
+is not an instruction to restore graph telemetry with that credential.
 
 The plain dashboard interface and QR instructions are repository changes pending
 deployment. They require no database migration. This connection-only restart did
@@ -426,7 +453,9 @@ not deploy those UI changes or establish a PostgreSQL credential repair.
 
 ## Verified telemetry diagnosis — November 2, 2026
 
-This is a historical checkpoint; see the verified November 3 Neo4j repair above.
+This is a historical checkpoint; see the November 3
+[disabled-telemetry correction](#graph-telemetry-disabled-pending-a-reader-boundary--november-3-2026-kst)
+and the temporary connectivity proof above.
 Read-only checks on November 2 against the dashboard on Goldship established
 that the admin HTTP process was available and used live mode. Its PostgreSQL DSN
 was configured, the target's TCP port was reachable, and PostgreSQL
@@ -448,7 +477,8 @@ writer privileges. Restart/redeploy the dashboard after the reviewed secret
 update and verify PostgreSQL health plus non-null ledger values while logged in.
 Do not substitute the Hop ingestion writer or a database owner credential.
 
-For Neo4j, provision or identify a supported dedicated reader and set
+For future direct Neo4j access, first provision a database-enforced dedicated
+reader on a supported edition, then set
 `JOBTOLOGY_ADMIN_NEO4J_URI`, `JOBTOLOGY_ADMIN_NEO4J_USER`,
 `JOBTOLOGY_ADMIN_NEO4J_PASSWORD` and `JOBTOLOGY_ADMIN_NEO4J_DATABASE` in protected
 runtime configuration. Verify private-network reachability and read privileges

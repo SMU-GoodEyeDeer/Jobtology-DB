@@ -1,8 +1,28 @@
 # Current Hop migration handoff
 
-Updated: **2026-11-03 KST — plain admin UI and verified live Neo4j connection
-repair.** The repository dashboard now uses one row of page buttons, native
-forms, simple tables and a direct sign-out button. Sidebar decoration,
+Updated: **2026-11-03 KST — graph telemetry disabled pending an enforced reader
+boundary.** Both `JOBTOLOGY_ADMIN_NEO4J_URI` and
+`JOBTOLOGY_ADMIN_NEO4J_PASSWORD` were removed from Coolify runtime configuration.
+The same-version restart completed; the healthy replacement's `AdminSettings`
+confirmed both values absent. Authenticated public HTTPS dashboard refresh
+returned 200 with graph `not_configured` and null node/relationship totals.
+Invitations, Users and Sessions GETs all returned 200; the diagnostic admin
+session signed out. Neo4j remains healthy; graph data, database privileges,
+ports, networks, default routing, other account secrets and existing user
+sessions were unchanged. This review correction changed no source code or UI;
+the 17 focused telemetry tests and `git diff --check` passed.
+
+The Community 2026.06 `neo4j` account is an administrator; driver `READ_ACCESS`
+is not a database-enforced reader boundary. The earlier healthy telemetry was
+a temporary connectivity proof, not an approved operating configuration.
+Graph telemetry remains disabled pending a dedicated database reader on a
+supported edition or an isolated exporter of fixed aggregates with no graph
+credential in the web process; no exporter is implemented. See the
+[dashboard correction](../admin-dashboard.md#graph-telemetry-disabled-pending-a-reader-boundary--november-3-2026-kst).
+
+Earlier checkpoint: **2026-11-03 KST — plain admin UI and temporary Neo4j
+connectivity proof.** The repository dashboard now uses one row of page buttons,
+native forms, simple tables and a direct sign-out button. Sidebar decoration,
 duplicate navigation, metric cards and graph bars were removed; graph counts
 remain available as tables. Invitations show a creation-only code/link/QR result
 above the list with short save/share instructions. Existing authentication,
@@ -17,8 +37,8 @@ stale success/401/409 responses and creation-only code retention, without
 external HTTP or JavaScript errors. Desktop/mobile screenshots were inspected.
 These UI changes are **pending deployment** and require **no database migration**.
 
-The live dashboard now has Neo4j credentials; the November 2 missing-variable
-observation below is historical. The configured
+At that temporary checkpoint the dashboard had Neo4j credentials; this was
+superseded by the disabled-telemetry correction above. The configured
 `neo4j://neo4j-1.yeongmin.net:443` targeted HTTPS instead of native Bolt, causing
 routing failure before telemetry queries. Neo4j Community 2026.06 was healthy,
 but direct cross-bridge access failed. The existing published Bolt listener
@@ -31,8 +51,9 @@ application-management GETs returned 200, and the separate diagnostic admin
 session signed out. The existing management watcher reattached the replacement
 container, and public ingress remained on Coolify. Credentials, database
 privileges/data, published ports, networks and existing user sessions were
-unchanged. The existing Community `neo4j` account does not establish a
-database-enforced reader-role guarantee. HTTP timestamps were November 2 UTC;
+unchanged at that checkpoint. The existing Community `neo4j` administrator
+account did not establish a database-enforced reader-role guarantee and was not
+an approved operating credential. HTTP timestamps were November 2 UTC;
 verification occurred November 3 KST. This repair did not deploy the new UI or
 establish a PostgreSQL credential repair. See the
 [dashboard runbook](../admin-dashboard.md#verified-neo4j-connection-repair--november-3-2026-kst).
