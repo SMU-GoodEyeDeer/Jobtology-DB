@@ -5,6 +5,12 @@ Neo4j counts and a durable queue of operator-approved refresh/load requests.
 It uses a **separate dashboard username and password** configured in Coolify.
 A Coolify account session does not log you into this application.
 
+The interface uses one row of page buttons, native forms and simple tables.
+**Overview** shows source and system health; **Activity** contains execution
+history and configured operations; **Graph** shows count tables. **Invitations**,
+**Users** and **Sessions** contain application access controls. On narrow screens,
+wide tables scroll horizontally without widening the page.
+
 This is a repository implementation and deployment recipe. No production
 deployment, database grant, refresh or local dataset load is established by these
 files. Read the [current handoff](hop-migration/current-handoff.md) before any
@@ -337,12 +343,24 @@ explicit **Set unlimited access** selection; an empty date never silently clears
 an unavailable expiry. **Sessions** shows metadata only, can filter by user ID,
 and can revoke individual sessions; it never displays session credentials.
 
-The raw invitation code, link and QR are returned only at creation. Save or copy
-them before dismissing the result or signing out. The QR downloads as a local
-SVG and uses no external QR service. The backend stores a code hash; listings
-show only a hint. The creation result is not stored in browser local/session
-storage and is cleared on sign-out. Avoid including codes or invitation links
-in issue reports and logs.
+To send a QR invitation:
+
+1. Open **Invitations → Create invitation**. Enter a label, code expiry, access
+   hours and redemption limit as needed, then choose **Save invitation**.
+2. The creation result appears above the invitation list. Save **Download QR**,
+   use **Copy link**, or copy the displayed code before leaving the page,
+   dismissing it or signing out. Share the saved QR or link with the invitee.
+3. The invitee scans the QR with their phone camera or opens the link. It opens
+   the app's Google sign-in page with the invitation prefilled. Google sign-in
+   and Turnstile verification are still required; scanning alone grants no access.
+
+The QR contains the signup link, downloads as SVG and uses no external QR
+service. The raw code, link and QR are shown only at creation and cannot be
+recovered later: the backend stores a code hash and listings show only a hint.
+The creation result is not stored in browser local/session storage and is
+cleared on sign-out. Create a replacement invitation if the original was lost;
+revoke the old code if it should no longer work. Avoid including codes or
+invitation links in issue reports and logs.
 
 ## Management browser regression fixture
 
@@ -360,18 +378,63 @@ refuses external HTTP requests. It checks stale row-write success/error response
 after a new operator logs in, explicit expiry clearing, pending invitation dialog
 closure/reuse and creation-only code preservation, reused user-expiry dialogs
 with late responses and newer pending submissions, plus 320/390/1440 layouts.
-Expected injected HTTP failures are checked separately from JavaScript errors.
+It also checks session CSRF headers on authenticated writes, keyboard page
+navigation, graph count tables, operation profile confirmation, creation-result
+focus and QR download data. Expected injected HTTP
+failures are checked separately from JavaScript errors. Set
+`ADMIN_SCREENSHOT_DIR` to a local output directory to save synthetic login,
+overview, access-page, invitation-result and dialog screenshots for review.
+These screenshots contain fixture data and do not establish production health.
+
+## Verified Neo4j connection repair — November 3, 2026 KST
+
+The November 2 missing-configuration diagnosis below is historical. The current
+dashboard had Neo4j credentials, but its native-driver URI,
+`neo4j://neo4j-1.yeongmin.net:443`, pointed at the HTTPS ingress rather than the
+Bolt listener. Routing failed before the telemetry queries ran. The existing
+Neo4j Community 2026.06 instance was healthy. The dashboard and Neo4j were on
+separate Docker bridges: direct access to `10.0.2.2:7687` timed out, the Neo4j
+service hostname was unavailable on the dashboard network, and the tested LAN
+address refused the connection.
+
+The existing published Bolt listener was reachable through the dashboard's
+Coolify host gateway at `bolt://10.0.1.1:7687`. The existing configured credential
+successfully ran `dbms.components()` and all five bounded graph telemetry queries
+through this URI. Only `JOBTOLOGY_ADMIN_NEO4J_URI` was changed in Coolify, as a
+runtime variable with build-time injection disabled. A same-version restart
+finished successfully. The native telemetry reader then reported healthy, and
+an authenticated request to the public HTTPS dashboard's
+`/api/dashboard?refresh=true` returned healthy Neo4j with non-null node and
+relationship totals. All three public application-management GETs returned
+200; the separate diagnostic admin session signed out successfully. These
+checks occurred on November 3 KST; HTTP timestamps used November 2 UTC.
+
+Credentials, database privileges and data, published ports, container networks
+and existing user sessions were unchanged. The existing management-network
+watcher reattached the replacement dashboard container, while public ingress
+remained on Coolify. The installed Community instance uses the already
+configured `neo4j` user; application read mode is not a database-enforced reader
+role. No dedicated-reader privilege guarantee was established by this repair.
+For driver URI and connectivity behavior, see the official
+[Neo4j Python driver connection guide](https://neo4j.com/docs/python-manual/current/connect/).
+The literal gateway address is specific to this verified deployment; verify the
+current gateway and native-driver connectivity before reusing it elsewhere.
+
+The plain dashboard interface and QR instructions are repository changes pending
+deployment. They require no database migration. This connection-only restart did
+not deploy those UI changes or establish a PostgreSQL credential repair.
 
 ## Verified telemetry diagnosis — November 2, 2026
 
-Read-only checks against the currently running dashboard on Goldship established
-that the admin HTTP process is available and uses live mode. Its PostgreSQL DSN
-is configured, the configured target's TCP port is reachable, and PostgreSQL
-rejects the supplied credential with **password authentication failed**.
+This is a historical checkpoint; see the verified November 3 Neo4j repair above.
+Read-only checks on November 2 against the dashboard on Goldship established
+that the admin HTTP process was available and used live mode. Its PostgreSQL DSN
+was configured, the target's TCP port was reachable, and PostgreSQL
+rejected the supplied credential with **password authentication failed**.
 The failure occurs during connection, before any telemetry SQL executes.
-Neo4j URI/password runtime variables are absent, so graph telemetry correctly
-reports **not configured**. These observations establish two deployment
-configuration problems; changing query SQL cannot repair them. No live
+At that checkpoint, Neo4j URI/password runtime variables were absent, so graph
+telemetry correctly reported **not configured**. These observations established
+two deployment configuration problems; changing query SQL could not repair them. No live
 credentials, grants, network configuration or container were changed by this
 investigation, and no job-board or paid provider request was made.
 

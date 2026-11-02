@@ -5,39 +5,12 @@
   const state = { session: null, data: null, statusError: null, tab: "overview", request: null, timer: null, toastTimer: null, checkedAt: null, operation: null, operationKey: null, submitting: false, loggingOut: false };
   const numberFormatter = new Intl.NumberFormat("en-US");
   const dateFormatter = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Seoul", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hour12: false });
-  const icons = {
-    overview: ["M3 3h7v7H3z", "M14 3h7v7h-7z", "M3 14h7v7H3z", "M14 14h7v7h-7z"],
-    activity: ["M3 12h4l3-8 4 16 3-8h4"],
-    graph: ["M9 6l6 3M8 8l-1 8M10 18l7-6", "M8 5a3 3 0 1 1-6 0 3 3 0 0 1 6 0", "M22 10a3 3 0 1 1-6 0 3 3 0 0 1 6 0", "M10 19a3 3 0 1 1-6 0 3 3 0 0 1 6 0"],
-    layers: ["M12 3l10 5-10 5L2 8z", "M2 12l10 5 10-5M2 16l10 5 10-5"],
-    refresh: ["M20 7v5h-5", "M19 12a7 7 0 1 0-2 5M20 12l-3-6"],
-    menu: ["M4 6h16M4 12h16M4 18h16"],
-    pulse: ["M3 12h4l3-7 4 14 3-7h4"],
-    shield: ["M12 3l8 3v6c0 5-8 9-8 9s-8-4-8-9V6z", "M8 12l3 3 5-6"],
-    connections: ["M8 6h8M8 18h8M5 9v6M19 9v6", "M8 6a3 3 0 1 1-6 0 3 3 0 0 1 6 0", "M22 6a3 3 0 1 1-6 0 3 3 0 0 1 6 0", "M8 18a3 3 0 1 1-6 0 3 3 0 0 1 6 0", "M22 18a3 3 0 1 1-6 0 3 3 0 0 1 6 0"],
-    database: ["M3 6c0-5 18-5 18 0s-18 5-18 0", "M3 6v12c0 5 18 5 18 0V6", "M3 12c0 5 18 5 18 0"],
-    briefcase: ["M8 7V4h8v3", "M3 7h18v13H3z", "M3 12c6 3 12 3 18 0M10 13v3h4v-3"],
-    alert: ["M12 3L2 21h20z", "M12 9v5M12 17v.2"],
-    clock: ["M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0", "M12 6v6l4 2"],
-  };
   function element(tag, className, content) {
     const node = document.createElement(tag);
     if (className) node.className = className;
     if (content !== undefined && content !== null) node.textContent = String(content);
     return node;
   }
-  function icon(name) {
-    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-    svg.setAttribute("viewBox", "0 0 24 24");
-    svg.setAttribute("aria-hidden", "true");
-    for (const d of icons[name] || icons.database) {
-      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-      path.setAttribute("d", d);
-      svg.append(path);
-    }
-    return svg;
-  }
-  document.querySelectorAll("[data-icon]").forEach((node) => node.replaceChildren(icon(node.dataset.icon)));
   const array = (value) => Array.isArray(value) ? value : [];
   const numeric = (value) => typeof value === "number" && Number.isFinite(value) && value >= 0;
   const count = (value) => numeric(value) ? numberFormatter.format(value) : "Unavailable";
@@ -78,7 +51,7 @@
   }
   function empty(target, title, description) {
     const node = element("div", "empty-state");
-    node.append(icon("layers"), element("div", "", title));
+    node.append(element("div", "", title));
     if (description) node.append(element("p", "", description));
     target.replaceChildren(node);
   }
@@ -86,7 +59,7 @@
     const node = element("div", "notice " + (level === "error" ? "error" : level === "info" ? "info" : ""));
     const content = element("div");
     content.append(element("strong", "", title), element("p", "", body));
-    node.append(icon(level === "info" ? "shield" : "alert"), content);
+    node.append(content);
     return node;
   }
   function renderNotices(error) {
@@ -159,8 +132,6 @@
     $("app-view").hidden = false;
     const name = textValue(session.username, "Operator");
     $("user-name").textContent = name;
-    $("user-avatar").textContent = name.slice(0, 1).toUpperCase();
-    $("user-menu").hidden = true;
     setEnvironment(session.mode);
     document.title = "Overview · Jobtology Admin";
     renderLoading();
@@ -168,18 +139,17 @@
   }
   function setEnvironment(mode) {
     const target = $("environment-badge");
-    target.classList.toggle("demo", mode === "demo");
-    target.replaceChildren(element("span"), document.createTextNode(mode === "demo" ? "DEMO DATA" : mode === "live" ? "LIVE WORKSPACE" : "CONNECTING"));
+    target.textContent = mode === "demo" ? "Demo data" : mode === "live" ? "Live" : "Connecting";
   }
   function renderLoading() {
-    $("metrics").replaceChildren(...Array.from({ length: 4 }, () => element("div", "loading-block")));
+    $("metrics").replaceChildren(element("dt", "", "Loading…"));
     const row = element("tr");
     const cell = element("td");
     cell.colSpan = 4;
     cell.append(element("div", "loading-block"));
     row.append(cell);
     $("sources-body").replaceChildren(row);
-    ["services-list", "node-preview", "relationship-preview", "recent-activity"].forEach((id) => $(id).replaceChildren(element("div", "loading-block")));
+    ["services-list"].forEach((id) => $(id).replaceChildren(element("div", "loading-block")));
     $("metrics").setAttribute("aria-busy", "true");
   }
   function scheduleRefresh() {
@@ -195,7 +165,6 @@
     refreshButton.disabled = true;
     refreshButton.classList.add("spinning");
     refreshButton.lastElementChild.textContent = "Checking…";
-    $("refresh-indicator").classList.add("busy");
     const session = state.session;
     state.request = api("/api/dashboard" + (force ? "?refresh=true" : ""));
     try {
@@ -204,7 +173,6 @@
       state.data = data;
       state.checkedAt = Date.now();
       renderDashboard();
-      $("refresh-indicator").classList.remove("offline");
       $("last-checked").textContent = "Checked just now";
     } catch (error) {
       if (state.session !== session || state.loggingOut) return;
@@ -217,7 +185,6 @@
         } catch { /* Keep the current screen with the explicit error. */ }
       }
       renderNotices(error.message);
-      $("refresh-indicator").classList.add("offline");
       $("last-checked").textContent = "Status check failed";
       if (!state.data) renderUnavailable();
     } finally {
@@ -225,7 +192,6 @@
       refreshButton.disabled = false;
       refreshButton.classList.remove("spinning");
       refreshButton.lastElementChild.textContent = "Check status";
-      $("refresh-indicator").classList.remove("busy");
       scheduleRefresh();
     }
   }
@@ -234,7 +200,7 @@
     const row = element("tr");
     const cell = element("td", "empty-state", "Source status is unavailable.");
     cell.colSpan = 4; row.append(cell); $("sources-body").replaceChildren(row);
-    ["services-list", "node-preview", "relationship-preview", "recent-activity", "all-activity", "node-details", "relationship-details", "source-posting-details"].forEach((id) => empty($(id), "Data unavailable", "Run a status check to retry."));
+    ["services-list", "all-activity", "node-details", "relationship-details", "source-posting-details"].forEach((id) => empty($(id), "Data unavailable", "Run a status check to retry."));
     empty($("actions-list"), "Operations unavailable", "Configured profiles could not be loaded.");
     empty($("inference-list"), "Inference status unavailable");
     $("graph-status").replaceChildren(badge("unavailable"));
@@ -246,12 +212,10 @@
     renderMetrics(data.summary || {});
     renderSources(array(data.sources));
     renderServices(array(data.services));
-    renderBars($("node-preview"), data.graph?.node_counts, "label", 4);
-    renderBars($("relationship-preview"), data.graph?.relationship_counts, "type", 4, true);
-    renderBars($("node-details"), data.graph?.node_counts, "label", null);
-    renderBars($("relationship-details"), data.graph?.relationship_counts, "type", null, true);
+    renderCounts($("node-details"), data.graph?.node_counts, "label", "Label");
+    renderCounts($("relationship-details"), data.graph?.relationship_counts, "type", "Type");
     const sourceNames = new Map(array(data.sources).map((source) => [source.id, source.name]));
-    renderBars($("source-posting-details"), array(data.graph?.postings_by_source).map((row) => ({ ...row, name: sourceNames.get(row.source_id) || row.source_id })), "name", null);
+    renderCounts($("source-posting-details"), array(data.graph?.postings_by_source).map((row) => ({ ...row, name: sourceNames.get(row.source_id) || row.source_id })), "name", "Source");
     renderFilters();
     renderActivity();
     renderActions(array(data.actions));
@@ -265,28 +229,18 @@
     $("activity-badge").title = "Unfinished imports reported by the ledger";
   }
   function renderMetrics(summary) {
-    const failed = numeric(summary.failed_runs_24h) ? count(summary.failed_runs_24h) + " failed runs in the past 24h" : "Run health not reported";
     const metrics = [
-      ["Source postings", summary.source_postings, "briefcase", "Unique postings across source datasets"],
-      ["Graph nodes", summary.total_nodes, "graph", "All nodes in the connected graph"],
-      ["Relationships", summary.total_relationships, "connections", "All graph relationship types"],
-      ["Unfinished imports", summary.active_runs, "activity", failed],
+      ["Source postings", summary.source_postings],
+      ["Graph nodes", summary.total_nodes],
+      ["Relationships", summary.total_relationships],
+      ["Unfinished imports", summary.active_runs],
+      ["Failed runs (24h)", summary.failed_runs_24h],
     ];
-    $("metrics").replaceChildren(...metrics.map(([label, value, iconName, note]) => {
-      const card = element("article", "metric");
-      const heading = element("div", "metric-label", label); heading.append(icon(iconName));
-      const valueNode = element("div", "metric-value" + (numeric(value) ? "" : " unavailable"), count(value));
-      if (!numeric(value)) valueNode.style.fontSize = "20px";
-      const foot = element("div", "metric-note");
-      foot.append(document.createTextNode(note));
-      card.append(heading, valueNode, foot);
-      return card;
-    }));
+    $("metrics").replaceChildren(...metrics.flatMap(([label, value]) => [element("dt", "", label), element("dd", "", count(value))]));
     $("metrics").setAttribute("aria-busy", "false");
-    $("source-total").textContent = numeric(summary.configured_sources) ? summary.configured_sources : "";
   }
   function renderSources(sources) {
-    $("source-total").textContent = sources.length ? String(sources.length) : "";
+    $("source-total").textContent = sources.length ? "(" + sources.length + ")" : "";
     $("source-total").title = sources.length + " sources shown";
     if (!sources.length) {
       const row = element("tr"); const cell = element("td", "empty-state", "No source status has been reported."); cell.colSpan = 4; row.append(cell); $("sources-body").replaceChildren(row); return;
@@ -294,12 +248,9 @@
     $("sources-body").replaceChildren(...sources.map((source) => {
       const row = element("tr");
       const identityCell = element("td"); const identity = element("div", "source-identity");
-      const id = String(source.id || "").toLowerCase();
-      const sourceClass = id.includes("korea") ? "jobkorea" : id.includes("nara") ? "nara" : id.includes("alio") ? "alio" : "";
-      const monogram = sourceClass === "jobkorea" ? "JK" : sourceClass === "nara" ? "NR" : sourceClass === "alio" ? "JA" : textValue(source.name, "S").slice(0, 2).toUpperCase();
       const name = element("div", "source-name", textValue(source.name, source.id));
-      name.append(element("span", "source-mode", source.mode === "LOCAL_ONLY" ? "LOCAL ARCHIVE" : source.mode === "SCHEDULED" ? "SCHEDULED SOURCE" : textValue(source.mode, "MODE NOT REPORTED")));
-      identity.append(element("span", "source-monogram " + sourceClass, monogram), name); identityCell.append(identity);
+      name.append(element("span", "source-mode", source.mode === "LOCAL_ONLY" ? "Local archive" : source.mode === "SCHEDULED" ? "Scheduled source" : textValue(source.mode, "Mode not reported")));
+      identity.append(name); identityCell.append(identity);
       const records = element("td", "numeric", numeric(source.postings) ? count(source.postings) : count(source.records));
       records.append(element("span", "secondary-line", numeric(source.postings) ? "postings" : numeric(source.records) ? "records" : "count not reported"));
       if (numeric(source.postings) && numeric(source.records)) records.title = count(source.records) + " accepted records";
@@ -324,7 +275,7 @@
     if (!services.length) { empty($("services-list"), "No service checks reported"); return; }
     $("services-list").replaceChildren(...services.map((service) => {
       const row = element("div", "service-row");
-      const name = element("span", "service-name"); name.append(icon(String(service.id || "").includes("graph") || String(service.id || "").includes("neo4j") ? "graph" : "database"), document.createTextNode(textValue(service.label, service.id)));
+      const name = element("span", "service-name", textValue(service.label, service.id));
       const info = statusInfo(service.status);
       const value = element("span", "service-state " + info.className, info.label.charAt(0).toUpperCase() + info.label.slice(1));
       row.title = textValue(service.message, "") + (service.checked_at ? " · " + date(service.checked_at) : "");
@@ -333,22 +284,18 @@
       row.append(identity, value); return row;
     }));
   }
-  function renderBars(target, rows, labelField, limit, relationship = false) {
-    target.classList.toggle("relationship-bars", relationship);
+  function renderCounts(target, rows, labelField, heading) {
     const items = array(rows).slice().sort((a, b) => (numeric(b.count) ? b.count : -1) - (numeric(a.count) ? a.count : -1));
-    const displayed = limit ? items.slice(0, limit) : items;
-    if (!displayed.length) { empty(target, "Composition not available", "Counts appear when the graph reports them."); return; }
-    const max = Math.max(0, ...items.map((row) => numeric(row.count) ? row.count : 0));
-    target.replaceChildren(...displayed.map((row) => {
-      const container = element("div", "bar-row");
-      const info = element("div", "bar-info");
-      const name = element("span", "bar-name", textValue(row[labelField])); name.title = name.textContent;
-      info.append(name, element("span", "bar-value", count(row.count)));
-      const track = element("div", "bar-track"); const fill = element("span", "bar-fill");
-      fill.style.width = numeric(row.count) && max ? Math.min(100, row.count / max * 100) + "%" : "0%";
-      if (!numeric(row.count) || row.count === 0) fill.style.minWidth = "0";
-      track.append(fill); container.append(info, track); return container;
-    }));
+    if (!items.length) { empty(target, "Counts unavailable", "Counts appear when the graph reports them."); return; }
+    const scroll = element("div", "table-scroll");
+    const table = element("table", "count-table");
+    const head = element("thead"); const header = element("tr");
+    header.append(element("th", "", heading), element("th", "", "Count")); head.append(header);
+    const body = element("tbody");
+    for (const item of items) {
+      const row = element("tr"); row.append(element("td", "", textValue(item[labelField])), element("td", "", count(item.count))); body.append(row);
+    }
+    table.append(head, body); scroll.append(table); target.replaceChildren(scroll); trackTableOverflow(scroll);
   }
   function getRuns() {
     const runs = array(state.data?.runs).map((run) => ({ ...run, isJob: false }));
@@ -392,7 +339,6 @@
   }
   function renderActivity() {
     const runs = getRuns();
-    activityTable(runs.slice(0, 5), $("recent-activity"));
     const source = $("source-filter").value; const filter = $("state-filter").value;
     activityTable(runs.filter((run) => {
       if (source !== "all" && textValue(run.source_id, "unknown") !== source) return false;
@@ -404,12 +350,12 @@
   function renderActions(actions) {
     if (!actions.length) { empty($("actions-list"), "No operation profiles configured", "Operations become available when the server has an allowed profile."); return; }
     $("actions-list").replaceChildren(...actions.map((action) => {
-      const card = element("article", "card action-card"); const glyph = element("span", "mini-icon"); glyph.append(icon("activity"));
+      const card = element("article", "action-card");
       const button = element("button", "button secondary", "Review & run");
       const enabled = action.enabled === true && state.data?.mode === "live" && typeof action.id === "string" && !!action.id;
       button.disabled = !enabled;
       button.addEventListener("click", () => openOperation(action));
-      card.append(glyph, element("h3", "", textValue(action.label, action.id)), element("p", "", textValue(action.description, "Run this configured operation.")), element("code", "action-profile", textValue(action.id)), button);
+      card.append(element("h3", "", textValue(action.label, action.id)), element("p", "", textValue(action.description, "Run this configured operation.")), element("code", "action-profile", textValue(action.id)), button);
       if (!enabled) card.append(element("div", "disabled-reason", state.data?.mode === "demo" ? "Operations are disabled in demo mode." : textValue(action.disabled_reason, "This operation is not enabled.")));
       return card;
     }));
@@ -417,7 +363,7 @@
   function renderInference(inference) {
     if (!inference.length) { empty($("inference-list"), "No inference counts reported", "Reference catalogue data and inferred posting matches are separate."); return; }
     $("inference-list").replaceChildren(...inference.map((row) => {
-      const card = element("article", "card inference-card");
+      const card = element("article", "inference-card");
       const names = { INFERRED_NCS_OCCUPATION: "NCS occupations", INFERRED_ONET_OCCUPATION: "O*NET occupations" };
       const heading = element("div", "inference-title");
       const title = element("h3", "", names[row.kind] || textValue(row.kind, "Inferred occupation")); title.title = textValue(row.kind);
@@ -581,10 +527,21 @@
         const target = $("created-invitation"); const image = element("img", "invitation-qr"); image.alt = "Invitation QR code"; image.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(result.qr_svg);
         const link = element("a", "button secondary", "Download QR"); link.href = image.src; link.download = "jobtology-invitation.svg";
         const copy = (label, value) => managementButton(label, async () => { try { await navigator.clipboard.writeText(value); toast("Copied."); } catch { toast("Copy failed. Select and copy the displayed value."); } });
-        target.replaceChildren(element("h2", "", "Invitation created"), element("p", "", "Save this code now. It cannot be retrieved again."), element("code", "invitation-secret", result.code), element("p", "invitation-secret", result.invite_url), image, copy("Copy code", result.code), copy("Copy link", result.invite_url), link, managementButton("Dismiss code", () => { target.replaceChildren(); target.hidden = true; })); target.hidden = false;
+        const actions = element("div", "invitation-actions");
+        actions.append(copy("Copy code", result.code), copy("Copy link", result.invite_url), link, managementButton("Dismiss code", () => { target.replaceChildren(); target.hidden = true; }));
+        target.replaceChildren(
+          element("h2", "", "Invitation created"),
+          element("p", "", "Save now. The code is shown only once."),
+          element("strong", "", "Code"), element("code", "invitation-secret", result.code),
+          element("strong", "", "Signup link"), element("p", "invitation-secret", result.invite_url),
+          element("p", "", "Share the link or scan the QR, then sign in with Google."),
+          image, actions
+        );
+        target.hidden = false;
       }
       submission.handled = true;
       $("invitation-dialog").close();
+      if (!submission.editingId) $("created-invitation").focus();
       await loadManagement("invitations");
     } catch (error) { if (state.session !== activeSession || state.loggingOut) return; if (error.status === 401) showLogin(error.message); else { $("invitation-form-error").textContent = error.message; $("invitation-form-error").hidden = false; } }
     finally {
@@ -623,24 +580,27 @@
   function selectTab(tab) {
     if (!allTabs.includes(tab)) return;
     state.tab = tab;
-    const titles = { overview: ["Overview", "Operations overview", "The latest on your sources, pipelines, and knowledge graph."], activity: ["Activity", "Execution activity", "Track reported runs and manage configured operations."], graph: ["Knowledge graph", "Knowledge graph", "Explore graph composition, source coverage, and inferred matches."] };
-    titles.invitations = ["Invitations", "Invitation access", "Issue signup codes and set redemption limits and access duration."];
-    titles.users = ["Users", "User access", "Manage account status, expiry, and sessions."];
-    titles.sessions = ["Sessions", "User sessions", "Inspect session metadata and revoke access."];
-    const [crumb, title, description] = titles[tab];
-    $("breadcrumb-current").textContent = crumb;
-    $("page-title").replaceChildren(document.createTextNode(title), element("span", "title-dot", "."));
+    const titles = {
+      overview: ["Overview", "Source ingestion and system health."],
+      activity: ["Activity", "Reported runs and configured operations."],
+      graph: ["Graph", "Graph counts, source coverage and inferred matches."],
+      invitations: ["Invitations", "Create an invitation to get a signup link and QR."],
+      users: ["Users", "Manage account status, access expiry and sessions."],
+      sessions: ["Sessions", "View session metadata and revoke sessions."],
+    };
+    const [title, description] = titles[tab];
+    $("page-title").textContent = title;
     $("page-description").textContent = description;
-    document.title = crumb + " · Jobtology Admin";
+    $("status-controls").hidden = managementTabs.includes(tab);
+    $("status-footer").hidden = managementTabs.includes(tab);
+    document.title = title + " · Jobtology Admin";
     for (const name of allTabs) {
       $("panel-" + name).hidden = name !== tab;
-      const tabButton = $("tab-" + name); tabButton.classList.toggle("active", name === tab); tabButton.setAttribute("aria-selected", String(name === tab)); tabButton.tabIndex = name === tab ? 0 : -1;
+      const tabButton = $("tab-" + name); tabButton.setAttribute("aria-selected", String(name === tab)); tabButton.tabIndex = name === tab ? 0 : -1;
     }
-    document.querySelectorAll(".nav-item").forEach((node) => { const selected = node.dataset.tab === tab; node.classList.toggle("selected", selected); if (selected) node.setAttribute("aria-current", "page"); else node.removeAttribute("aria-current"); });
     renderNotices();
     if (managementTabs.includes(tab)) loadManagement(tab);
     requestAnimationFrame(updateTableCues);
-    closeMenu();
   }
   const tableCues = new Map();
   function updateTableCues() {
@@ -661,7 +621,6 @@
     requestAnimationFrame(updateTableCues);
   }
   window.addEventListener("resize", updateTableCues);
-  function closeMenu() { $("sidebar").classList.remove("open"); $("menu-toggle").setAttribute("aria-expanded", "false"); }
   function newIdempotencyKey() {
     if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
     const bytes = crypto.getRandomValues(new Uint8Array(16));
@@ -706,7 +665,7 @@
         } catch { /* Keep the explicit operation error visible. */ }
       }
     } finally {
-      state.submitting = false; button.disabled = false; button.textContent = "Run operation ↗"; $("cancel-operation").disabled = false;
+      state.submitting = false; button.disabled = false; button.textContent = "Run operation"; $("cancel-operation").disabled = false;
     }
   }
   $("login-form").addEventListener("submit", async (event) => {
@@ -720,7 +679,7 @@
       else setLoginError("Sign-in did not establish an authenticated session.");
     } catch (error) {
       setLoginError(error.status === 401 ? "The username or password is incorrect." : error.message);
-    } finally { button.disabled = false; button.textContent = "Sign in ↗"; }
+    } finally { button.disabled = false; button.textContent = "Sign in"; }
   });
   $("refresh-button").addEventListener("click", () => refreshDashboard(true));
   $("auto-refresh").addEventListener("change", scheduleRefresh);
@@ -729,14 +688,9 @@
   $("confirm-operation").addEventListener("click", submitOperation);
   $("confirmation-dialog").addEventListener("cancel", (event) => { if (state.submitting) event.preventDefault(); });
   $("confirmation-dialog").addEventListener("close", () => { state.operation = null; state.operationKey = null; });
-  $("menu-toggle").addEventListener("click", () => { const open = $("sidebar").classList.toggle("open"); $("menu-toggle").setAttribute("aria-expanded", String(open)); });
-  $("user-menu-button").addEventListener("click", () => { const menu = $("user-menu"); menu.hidden = !menu.hidden; $("user-menu-button").setAttribute("aria-expanded", String(!menu.hidden)); });
   document.addEventListener("click", (event) => {
     const tab = event.target.closest("[data-tab]"); if (tab) selectTab(tab.dataset.tab);
-    if (!event.target.closest(".topbar-right")) { $("user-menu").hidden = true; $("user-menu-button").setAttribute("aria-expanded", "false"); }
-    if (!event.target.closest("#sidebar") && !event.target.closest("#menu-toggle")) closeMenu();
   });
-  document.addEventListener("keydown", (event) => { if (event.key === "Escape") { closeMenu(); $("user-menu").hidden = true; $("user-menu-button").setAttribute("aria-expanded", "false"); } });
   document.querySelector(".view-tabs").addEventListener("keydown", (event) => {
     if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
     event.preventDefault(); const tabs = allTabs; const index = tabs.indexOf(state.tab);

@@ -1,5 +1,43 @@
 # Current Hop migration handoff
 
+Updated: **2026-11-03 KST — plain admin UI and verified live Neo4j connection
+repair.** The repository dashboard now uses one row of page buttons, native
+forms, simple tables and a direct sign-out button. Sidebar decoration,
+duplicate navigation, metric cards and graph bars were removed; graph counts
+remain available as tables. Invitations show a creation-only code/link/QR result
+above the list with short save/share instructions. Existing authentication,
+CSRF, invitation/user/session controls and stale-response protections remain.
+The runbook explains QR creation, sharing and scanning into prefilled Google
+sign-in, with Google and Turnstile still required and no external QR service.
+The 54 focused admin tests, JavaScript syntax and whitespace checks passed.
+The synthetic local Chrome fixture passed all six pages at 320/390/1440 pixels,
+session CSRF headers, keyboard navigation, graph tables, operation confirmation,
+QR-result focus/download, explicit expiry clearing, reused expiry dialogs,
+stale success/401/409 responses and creation-only code retention, without
+external HTTP or JavaScript errors. Desktop/mobile screenshots were inspected.
+These UI changes are **pending deployment** and require **no database migration**.
+
+The live dashboard now has Neo4j credentials; the November 2 missing-variable
+observation below is historical. The configured
+`neo4j://neo4j-1.yeongmin.net:443` targeted HTTPS instead of native Bolt, causing
+routing failure before telemetry queries. Neo4j Community 2026.06 was healthy,
+but direct cross-bridge access failed. The existing published Bolt listener
+worked from the dashboard through its Coolify host gateway. Only the runtime
+`JOBTOLOGY_ADMIN_NEO4J_URI` was persisted as `bolt://10.0.1.1:7687`, with build
+injection disabled, followed by a successful same-version restart. The native
+reader and authenticated public HTTPS `/api/dashboard?refresh=true` both
+reported healthy Neo4j with non-null graph totals. All three public
+application-management GETs returned 200, and the separate diagnostic admin
+session signed out. The existing management watcher reattached the replacement
+container, and public ingress remained on Coolify. Credentials, database
+privileges/data, published ports, networks and existing user sessions were
+unchanged. The existing Community `neo4j` account does not establish a
+database-enforced reader-role guarantee. HTTP timestamps were November 2 UTC;
+verification occurred November 3 KST. This repair did not deploy the new UI or
+establish a PostgreSQL credential repair. See the
+[dashboard runbook](../admin-dashboard.md#verified-neo4j-connection-repair--november-3-2026-kst).
+No migration, ingestion operation, paid call or job-board HTTP occurred.
+
 Updated: **2026-11-02 KST — repository-only admin review corrections.** Row-write
 responses are tied to the originating operator session, so a delayed result
 cannot refresh or sign out a later session. User-expiry submissions also retain
